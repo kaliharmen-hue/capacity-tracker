@@ -1,5 +1,7 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+
+const base = import.meta.env.BASE_URL;
 ---
 
 <BaseLayout title="Today" active="today">
@@ -17,15 +19,13 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         <span>Date</span>
         <input id="entry-date" name="date" type="date" />
       </label>
-      <button class="primary-button" type="submit">Save entry</button>
+      <div class="save-cluster">
+        <p id="autosave-status" class="autosave-status" aria-live="polite">Autosaves as I go</p>
+        <a class="primary-button" href={`${base}export`}>Export</a>
+      </div>
     </div>
     <div id="form-sections"></div>
   </form>
-
-  <dialog id="save-dialog" class="save-dialog">
-    <p>Saved. Today has been added to the pattern.</p>
-    <button class="secondary-button" type="button" data-close-dialog>Close</button>
-  </dialog>
 
   <script src="../scripts/today.ts"></script>
 </BaseLayout>

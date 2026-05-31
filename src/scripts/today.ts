@@ -4,9 +4,11 @@ import { createEmptyEntry, sections, todayIso, type DailyEntry, type FieldDefini
 const form = document.querySelector<HTMLFormElement>("#entry-form");
 const dateInput = document.querySelector<HTMLInputElement>("#entry-date");
 const sectionsRoot = document.querySelector<HTMLDivElement>("#form-sections");
-const dialog = document.querySelector<HTMLDialogElement>("#save-dialog");
+const autosaveStatus = document.querySelector<HTMLParagraphElement>("#autosave-status");
 
 let currentEntry = createEmptyEntry(todayIso());
+let saveTimer: number | undefined;
+let isLoading = false;
 
 function fieldValue(name: keyof DailyEntry): DailyEntry[keyof DailyEntry] {
   return currentEntry[name];
@@ -74,6 +76,7 @@ function renderField(field: FieldDefinition): string {
 
 function renderForm(): void {
   if (!sectionsRoot || !dateInput) return;
+  isLoading = true;
   dateInput.value = currentEntry.date;
   sectionsRoot.innerHTML = sections
     .map(
@@ -92,11 +95,13 @@ function renderForm(): void {
       if (output) output.textContent = input.value;
     });
   });
+  isLoading = false;
 }
 
 async function loadEntry(date: string): Promise<void> {
   currentEntry = { ...createEmptyEntry(date), ...((await getEntry(date)) ?? {}) };
   renderForm();
+  setAutosaveStatus("Autosaves as I go");
 }
 
 function collectEntry(): DailyEntry {
@@ -122,19 +127,33 @@ function collectEntry(): DailyEntry {
   return entry;
 }
 
+function setAutosaveStatus(message: string): void {
+  if (autosaveStatus) autosaveStatus.textContent = message;
+}
+
+function scheduleSave(): void {
+  if (isLoading) return;
+  window.clearTimeout(saveTimer);
+  setAutosaveStatus("Saving...");
+  saveTimer = window.setTimeout(async () => {
+    const entry = collectEntry();
+    await saveEntry(entry);
+    currentEntry = entry;
+    setAutosaveStatus(`Saved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+  }, 550);
+}
+
 dateInput?.addEventListener("change", () => {
+  window.clearTimeout(saveTimer);
   void loadEntry(dateInput.value);
 });
 
-form?.addEventListener("submit", async (event) => {
+form?.addEventListener("input", scheduleSave);
+form?.addEventListener("change", scheduleSave);
+form?.addEventListener("submit", (event) => {
   event.preventDefault();
-  const entry = collectEntry();
-  await saveEntry(entry);
-  currentEntry = entry;
-  if (dialog?.showModal) dialog.showModal();
+  scheduleSave();
 });
-
-document.querySelector("[data-close-dialog]")?.addEventListener("click", () => dialog?.close());
 
 const initialDate = new URLSearchParams(window.location.search).get("date") || todayIso();
 void loadEntry(initialDate);

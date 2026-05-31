@@ -166,6 +166,20 @@ main {
   backdrop-filter: blur(12px);
 }
 
+.save-cluster {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+}
+
+.autosave-status {
+  min-height: 18px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 .date-control,
 .field-label {
   display: grid;
@@ -503,18 +517,6 @@ main {
   white-space: pre-wrap;
 }
 
-.save-dialog {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 20px;
-  background: var(--surface);
-  color: var(--ink);
-}
-
-.save-dialog::backdrop {
-  background: rgba(39, 37, 34, 0.28);
-}
-
 .empty-state {
   color: var(--muted);
 }
@@ -547,6 +549,10 @@ main {
 @media (max-width: 520px) {
   .sticky-actions {
     grid-template-columns: 1fr;
+  }
+
+  .save-cluster {
+    justify-items: stretch;
   }
 
   .top-nav {
