@@ -20,6 +20,8 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         Selected date
         <input id="export-date" type="date" />
       </label>
+      <button type="button" class="primary-button full-width" data-export="day-copy">Copy selected date for ChatGPT</button>
+      <button type="button" class="primary-button full-width" data-export="month-copy">Copy month for ChatGPT</button>
       <button type="button" class="secondary-button" data-export="day-md">Export selected date</button>
       <button type="button" class="secondary-button" data-export="month-md">Export month</button>
     </div>
@@ -36,6 +38,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 
   <section class="plain-panel">
     <h3>Preview</h3>
+    <p id="copy-status" class="copy-status" aria-live="polite"></p>
     <pre id="export-preview" class="export-preview"></pre>
   </section>
 

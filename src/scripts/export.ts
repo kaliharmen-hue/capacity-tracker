@@ -5,6 +5,7 @@ const dateInput = document.querySelector<HTMLInputElement>("#export-date");
 const preview = document.querySelector<HTMLPreElement>("#export-preview");
 const importInput = document.querySelector<HTMLInputElement>("#import-json");
 const backupStatus = document.querySelector<HTMLDivElement>("#backup-status");
+const copyStatus = document.querySelector<HTMLParagraphElement>("#copy-status");
 const backupKey = "capacity-tracker-last-json-backup";
 
 dateInput!.value = todayIso();
@@ -85,6 +86,17 @@ function setPreview(content: string): void {
   if (preview) preview.textContent = content;
 }
 
+async function copyForChatGPT(content: string): Promise<void> {
+  setPreview(content);
+  if (!content.trim()) return;
+  try {
+    await navigator.clipboard.writeText(content);
+    if (copyStatus) copyStatus.textContent = "Copied. I can paste this into my ChatGPT project thread now.";
+  } catch {
+    if (copyStatus) copyStatus.textContent = "Copy did not complete automatically. I can select the preview text and copy it manually.";
+  }
+}
+
 document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) => {
   button.addEventListener("click", async () => {
     const entries = await getAllEntries();
@@ -98,6 +110,12 @@ document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) =
       if (entry) download(`capacity-${selectedDate}.md`, content, "text/markdown");
     }
 
+    if (action === "day-copy") {
+      const entry = entries.find((item) => item.date === selectedDate);
+      const content = entry ? markdownForEntry(entry) : `No entry saved for ${selectedDate}.`;
+      await copyForChatGPT(content);
+    }
+
     if (action === "month-md") {
       const month = selectedDate.slice(0, 7);
       const content = entries
@@ -106,6 +124,15 @@ document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) =
         .join("\n---\n");
       setPreview(content || `No entries saved for ${month}.`);
       if (content) download(`capacity-${month}.md`, content, "text/markdown");
+    }
+
+    if (action === "month-copy") {
+      const month = selectedDate.slice(0, 7);
+      const content = entries
+        .filter((entry) => entry.date.startsWith(month))
+        .map(markdownForEntry)
+        .join("\n---\n");
+      await copyForChatGPT(content || `No entries saved for ${month}.`);
     }
 
     if (action === "csv") {

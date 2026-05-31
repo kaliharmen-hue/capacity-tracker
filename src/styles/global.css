@@ -288,6 +288,10 @@ main {
   cursor: pointer;
 }
 
+.full-width {
+  width: 100%;
+}
+
 .secondary-button,
 .range-tabs button {
   background: var(--surface-strong);
@@ -411,9 +415,15 @@ main {
 .section-title p,
 .entry-row p,
 .plain-panel p,
-.insight-card p {
+.insight-card p,
+.copy-status {
   margin: 0;
   color: var(--muted);
+}
+
+.copy-status {
+  min-height: 22px;
+  font-weight: 700;
 }
 
 .calendar-grid {
