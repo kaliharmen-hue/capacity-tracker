@@ -40,6 +40,10 @@ function renderBackupStatus(): void {
 }
 
 function download(filename: string, content: string, type = "text/plain"): void {
+  if (!content.trim()) {
+    setPreview("There is nothing to export yet. Save an entry first, then come back here.");
+    return;
+  }
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -69,6 +73,7 @@ function markdownForEntry(entry: DailyEntry): string {
 }
 
 function csv(entries: DailyEntry[]): string {
+  if (!entries.length) return "";
   const headers = Object.keys(entries[0] ?? { date: "" });
   const rows = entries.map((entry) =>
     headers
@@ -84,6 +89,12 @@ function csv(entries: DailyEntry[]): string {
 
 function setPreview(content: string): void {
   if (preview) preview.textContent = content;
+}
+
+function showEmptyState(scope: string): string {
+  const message = `No entries saved for ${scope} yet. I can fill in today's tracker first, then export or copy it here.`;
+  if (copyStatus) copyStatus.textContent = message;
+  return message;
 }
 
 async function copyForChatGPT(content: string): Promise<void> {
@@ -105,14 +116,14 @@ document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) =
 
     if (action === "day-md") {
       const entry = entries.find((item) => item.date === selectedDate);
-      const content = entry ? markdownForEntry(entry) : `No entry saved for ${selectedDate}.`;
+      const content = entry ? markdownForEntry(entry) : showEmptyState(selectedDate);
       setPreview(content);
       if (entry) download(`capacity-${selectedDate}.md`, content, "text/markdown");
     }
 
     if (action === "day-copy") {
       const entry = entries.find((item) => item.date === selectedDate);
-      const content = entry ? markdownForEntry(entry) : `No entry saved for ${selectedDate}.`;
+      const content = entry ? markdownForEntry(entry) : showEmptyState(selectedDate);
       await copyForChatGPT(content);
     }
 
@@ -122,7 +133,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) =
         .filter((entry) => entry.date.startsWith(month))
         .map(markdownForEntry)
         .join("\n---\n");
-      setPreview(content || `No entries saved for ${month}.`);
+      setPreview(content || showEmptyState(month));
       if (content) download(`capacity-${month}.md`, content, "text/markdown");
     }
 
@@ -132,21 +143,23 @@ document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) =
         .filter((entry) => entry.date.startsWith(month))
         .map(markdownForEntry)
         .join("\n---\n");
-      await copyForChatGPT(content || `No entries saved for ${month}.`);
+      await copyForChatGPT(content || showEmptyState(month));
     }
 
     if (action === "csv") {
       const content = csv(entries);
-      setPreview(content);
-      download("capacity-tracker.csv", content, "text/csv");
+      setPreview(content || showEmptyState("any date"));
+      if (content) download("capacity-tracker.csv", content, "text/csv");
     }
 
     if (action === "json") {
       const content = JSON.stringify(entries, null, 2);
-      setPreview(content);
-      download("capacity-tracker-backup.json", content, "application/json");
-      localStorage.setItem(backupKey, new Date().toISOString());
-      renderBackupStatus();
+      setPreview(entries.length ? content : showEmptyState("any date"));
+      if (entries.length) {
+        download("capacity-tracker-backup.json", content, "application/json");
+        localStorage.setItem(backupKey, new Date().toISOString());
+        renderBackupStatus();
+      }
     }
   });
 });
