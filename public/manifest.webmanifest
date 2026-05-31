@@ -1,0 +1,24 @@
+{
+  "name": "Capacity Tracker",
+  "short_name": "Capacity",
+  "description": "A private local-first daily capacity tracking journal.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#f7f4ef",
+  "theme_color": "#3f6f63",
+  "icons": [
+    {
+      "src": "icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

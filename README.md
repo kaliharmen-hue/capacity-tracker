@@ -32,6 +32,18 @@ Then open:
 http://127.0.0.1:4322/
 ```
 
+## Install on Phone
+
+Open the live site on your phone:
+
+```text
+https://kaliharmen-hue.github.io/capacity-tracker/
+```
+
+On iPhone, open it in Safari, tap Share, then Add to Home Screen.
+
+On Android, open it in Chrome and choose Install app or Add to Home screen.
+
 For development:
 
 ```bash
