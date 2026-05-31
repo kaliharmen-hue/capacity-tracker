@@ -142,3 +142,56 @@ export function buildInsights(entries: DailyEntry[]): string[] {
 
   return [...new Set(insights)];
 }
+
+export function describeNextDayEnergyChange(entries: DailyEntry[]) {
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  const rows = sorted
+    .map((entry, index) => {
+      const next = sorted[index + 1];
+      if (!next) return undefined;
+      const score = relationalStressScore(entry);
+      return {
+        date: entry.date,
+        score,
+        level: relationalStressLevel(score),
+        energy: entry.energyScore,
+        nextEnergy: next.energyScore,
+        change: next.energyScore - entry.energyScore
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => Boolean(row));
+
+  const stressed = rows.filter((row) => row.score >= 3);
+  if (!stressed.length) {
+    return {
+      label: "Not enough relational-stress data yet",
+      detail: "Once a few days include relational load, this will show how next-day energy tended to feel afterwards.",
+      tone: "neutral",
+      rows
+    };
+  }
+
+  const avgChange = average(stressed.map((row) => row.change));
+  if (avgChange <= -1) {
+    return {
+      label: "Energy often softened the next day",
+      detail: `After moderate/high relational stress, next-day energy has shifted by ${avgChange.toFixed(1)} on average.`,
+      tone: "warm",
+      rows
+    };
+  }
+  if (avgChange >= 1) {
+    return {
+      label: "Energy often held or lifted the next day",
+      detail: `After moderate/high relational stress, next-day energy has shifted by +${avgChange.toFixed(1)} on average.`,
+      tone: "calm",
+      rows
+    };
+  }
+  return {
+    label: "Next-day energy looks fairly steady so far",
+    detail: "Relational stress has not clearly pulled next-day energy in one direction yet.",
+    tone: "neutral",
+    rows
+  };
+}
