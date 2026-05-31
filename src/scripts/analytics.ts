@@ -1,0 +1,144 @@
+import type { DailyEntry } from "./schema";
+
+export const relationalWeights: Record<string, number> = {
+  "Relationship stress": 3,
+  "Feeling trapped": 3,
+  "Feeling unsupported/carrying too much": 3,
+  Conflict: 2,
+  "Self-silencing/keeping things in": 2,
+  "Emotional conversations": 1
+};
+
+export function relationalStressScore(entry: DailyEntry): number {
+  return entry.load.reduce((total, item) => total + (relationalWeights[item] ?? 0), 0);
+}
+
+export function relationalStressLevel(score: number): "Low" | "Moderate" | "High" {
+  if (score >= 6) return "High";
+  if (score >= 3) return "Moderate";
+  return "Low";
+}
+
+export function filterRecent(entries: DailyEntry[], days: number): DailyEntry[] {
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  return sorted.slice(Math.max(0, sorted.length - days));
+}
+
+export function average(values: number[]): number {
+  const filtered = values.filter((value) => Number.isFinite(value));
+  if (!filtered.length) return 0;
+  return filtered.reduce((sum, value) => sum + value, 0) / filtered.length;
+}
+
+export function countWhere(entries: DailyEntry[], predicate: (entry: DailyEntry) => boolean): number {
+  return entries.filter(predicate).length;
+}
+
+export function nextDayEnergyAfterTraining(entries: DailyEntry[]): string {
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  const changes: number[] = [];
+
+  for (let index = 0; index < sorted.length - 1; index += 1) {
+    const current = sorted[index];
+    const next = sorted[index + 1];
+    if (current.movedToday === "Yes" || current.movementTypes.length > 0) {
+      changes.push(next.energyScore - current.energyScore);
+    }
+  }
+
+  if (!changes.length) return "Not enough data yet";
+  const avg = average(changes);
+  if (avg >= 0.5) return `Next-day energy rose by ${avg.toFixed(1)} on average after training/movement.`;
+  if (avg <= -0.5) return `Next-day energy dipped by ${Math.abs(avg).toFixed(1)} on average after training/movement.`;
+  return "Training did not appear to worsen next-day energy in this range.";
+}
+
+export function buildSummary(entries: DailyEntry[]) {
+  return {
+    averageEnergy: average(entries.map((entry) => entry.energyScore)),
+    averageClarity: average(entries.map((entry) => entry.clarityScore)),
+    averageSleep: average(entries.map((entry) => entry.sleepHours)),
+    lowEnergyDays: countWhere(entries, (entry) => entry.energyScore <= 4),
+    highEnergyDays: countWhere(entries, (entry) => entry.energyScore >= 8),
+    poorSleepDays: countWhere(entries, (entry) => entry.sleepQuality === "Poor"),
+    relationalStressDays: countWhere(entries, (entry) => relationalStressScore(entry) >= 3),
+    hormonalDays: countWhere(
+      entries,
+      (entry) => entry.hormonalSigns.length > 0 && !entry.hormonalSigns.includes("No noticeable signs")
+    ),
+    weakAmfexaDays: countWhere(entries, (entry) => entry.activationSigns.includes("Amfexa felt weak/not noticeable")),
+    threeCoffeeDays: countWhere(entries, (entry) => entry.coffees >= 3),
+    maxTirednessCount: Math.max(0, ...entries.map((entry) => entry.tirednessDayCount)),
+    trainingReadout: nextDayEnergyAfterTraining(entries)
+  };
+}
+
+export function buildInsights(entries: DailyEntry[]): string[] {
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  const insights: string[] = [];
+
+  if (sorted.length < 4) {
+    insights.push("Not enough data yet for strong pattern notes. A few more entries will make this kinder and more useful.");
+  }
+
+  const poorSleepRelStress = sorted.filter(
+    (entry) => entry.sleepQuality === "Poor" && relationalStressScore(entry) >= 3 && entry.energyScore <= 4
+  );
+  if (poorSleepRelStress.length) {
+    insights.push("Lower energy appeared alongside poor sleep and moderate/high relational stress. This may be worth watching.");
+  }
+
+  const flowHighEnergy = sorted.filter(
+    (entry) => entry.energyScore >= 8 && (entry.recovery.includes("Creativity") || entry.recovery.includes("Flow state"))
+  );
+  if (flowHighEnergy.length >= 2) {
+    insights.push("High energy days often included creativity or flow. That may be a regulating signal, not just output.");
+  }
+
+  const connectionRegulated = sorted.filter(
+    (entry) =>
+      entry.recovery.includes("Meaningful connection") &&
+      (entry.nervousSystemState.includes("Calm/regulated") || entry.recovery.includes("Being heard/seen"))
+  );
+  if (connectionRegulated.length >= 2) {
+    insights.push("Meaningful connection appeared alongside better regulation or feeling heard/seen.");
+  }
+
+  const coffeeWeakAmfexa = sorted.filter(
+    (entry) => entry.coffees >= 3 && entry.activationSigns.includes("Amfexa felt weak/not noticeable")
+  );
+  if (coffeeWeakAmfexa.length) {
+    insights.push("3+ coffees appeared on days where Amfexa felt weak/not noticeable. This is worth watching gently.");
+  }
+
+  const maxTiredness = Math.max(0, ...sorted.map((entry) => entry.tirednessDayCount));
+  if (maxTiredness > 0) {
+    insights.push(`Tiredness has been tracked up to ${maxTiredness} day${maxTiredness === 1 ? "" : "s"}.`);
+  }
+
+  const bloatingEarlyWaking = sorted.filter((entry) => entry.hormonalSigns.includes("Bloating") && entry.wakingTime);
+  if (bloatingEarlyWaking.length >= 2) {
+    insights.push("Bloating and early waking have appeared together more than once.");
+  }
+
+  insights.push(nextDayEnergyAfterTraining(sorted));
+
+  const relationalBeforeLowerEnergy = sorted.filter((entry, index) => {
+    const next = sorted[index + 1];
+    return next && relationalStressScore(entry) >= 3 && next.energyScore <= 4;
+  });
+  if (relationalBeforeLowerEnergy.length) {
+    insights.push("Moderate/high relational stress appeared before lower next-day energy at least once.");
+  }
+
+  const trappedLowEnergy = sorted.filter(
+    (entry) =>
+      entry.energyScore <= 4 &&
+      (entry.load.includes("Feeling trapped") || entry.load.includes("Self-silencing/keeping things in"))
+  );
+  if (trappedLowEnergy.length) {
+    insights.push("Feeling trapped or self-silencing appeared on lower-energy days. This may be one of the clearer capacity signals.");
+  }
+
+  return [...new Set(insights)];
+}

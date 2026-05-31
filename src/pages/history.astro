@@ -1,0 +1,30 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="History" active="history">
+  <section class="page-heading">
+    <div>
+      <p class="eyebrow">Review</p>
+      <h2>What patterns are showing up?</h2>
+    </div>
+    <div class="range-tabs" role="tablist" aria-label="Dashboard range">
+      <button type="button" data-range="7" aria-pressed="true">7 days</button>
+      <button type="button" data-range="14">14 days</button>
+      <button type="button" data-range="30">30 days</button>
+    </div>
+  </section>
+
+  <section id="summary-grid" class="summary-grid" aria-live="polite"></section>
+  <section id="charts" class="charts-grid" aria-label="Charts"></section>
+  <section>
+    <div class="section-title">
+      <h3>Completed days</h3>
+      <p>Edit any previous entry by opening it.</p>
+    </div>
+    <div id="calendar" class="calendar-grid"></div>
+    <div id="entry-list" class="entry-list"></div>
+  </section>
+
+  <script src="../scripts/history.ts"></script>
+</BaseLayout>

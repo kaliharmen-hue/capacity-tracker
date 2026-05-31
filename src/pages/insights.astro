@@ -1,0 +1,21 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Insights" active="insights">
+  <section class="page-heading">
+    <div>
+      <p class="eyebrow">Cautious signals</p>
+      <h2>What might be worth watching?</h2>
+    </div>
+    <p class="soft-copy">These are gentle pattern notes, not diagnosis or certainty.</p>
+  </section>
+
+  <section id="insight-list" class="insight-list" aria-live="polite"></section>
+  <section class="plain-panel">
+    <h3>Relational stress scoring</h3>
+    <p>Relationship stress, feeling trapped, and feeling unsupported count strongly. Conflict and self-silencing count moderately. Emotional conversations count lightly, because repair and connection can also be regulating.</p>
+  </section>
+
+  <script src="../scripts/insights.ts"></script>
+</BaseLayout>

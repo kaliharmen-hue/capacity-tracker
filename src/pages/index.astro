@@ -1,0 +1,31 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Today" active="today">
+  <section class="page-heading">
+    <div>
+      <p class="eyebrow">Daily check-in</p>
+      <h2>What is true today?</h2>
+    </div>
+    <p class="soft-copy">A gentle tracker for capacity, regulation, load, and recovery.</p>
+  </section>
+
+  <form id="entry-form" class="tracker-form">
+    <div class="sticky-actions">
+      <label class="date-control">
+        <span>Date</span>
+        <input id="entry-date" name="date" type="date" />
+      </label>
+      <button class="primary-button" type="submit">Save entry</button>
+    </div>
+    <div id="form-sections"></div>
+  </form>
+
+  <dialog id="save-dialog" class="save-dialog">
+    <p>Saved. Today has been added to the pattern.</p>
+    <button class="secondary-button" type="button" data-close-dialog>Close</button>
+  </dialog>
+
+  <script src="../scripts/today.ts"></script>
+</BaseLayout>

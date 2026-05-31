@@ -1,0 +1,41 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Export" active="export">
+  <section class="page-heading">
+    <div>
+      <p class="eyebrow">Keep your data portable</p>
+      <h2>Export, backup, or restore</h2>
+    </div>
+    <p class="soft-copy">Everything stays in this browser unless you export it.</p>
+  </section>
+
+  <section class="export-grid">
+    <div class="plain-panel">
+      <h3>Markdown</h3>
+      <label class="field-label">
+        Selected date
+        <input id="export-date" type="date" />
+      </label>
+      <button type="button" class="secondary-button" data-export="day-md">Export selected date</button>
+      <button type="button" class="secondary-button" data-export="month-md">Export month</button>
+    </div>
+    <div class="plain-panel">
+      <h3>Data files</h3>
+      <button type="button" class="secondary-button" data-export="csv">Export all data as CSV</button>
+      <button type="button" class="secondary-button" data-export="json">Export backup as JSON</button>
+      <label class="file-import">
+        Import JSON backup
+        <input id="import-json" type="file" accept="application/json,.json" />
+      </label>
+    </div>
+  </section>
+
+  <section class="plain-panel">
+    <h3>Preview</h3>
+    <pre id="export-preview" class="export-preview"></pre>
+  </section>
+
+  <script src="../scripts/export.ts"></script>
+</BaseLayout>
