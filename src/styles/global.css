@@ -305,7 +305,8 @@ main {
 .summary-grid,
 .charts-grid,
 .export-grid,
-.insight-list {
+.insight-list,
+.backup-status {
   display: grid;
   gap: 12px;
   margin-bottom: 20px;
@@ -317,8 +318,35 @@ main {
 
 .stat-card,
 .plain-panel,
-.insight-card {
+.insight-card,
+.notice-card {
   padding: 16px;
+}
+
+.notice-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.notice-card strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.notice-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.notice-card.warm {
+  border-color: #dec69a;
+  background: #fff9ec;
+}
+
+.notice-card.calm {
+  border-color: #bdd1c7;
+  background: var(--accent-soft);
 }
 
 .stat-card span {

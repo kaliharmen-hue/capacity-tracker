@@ -4,8 +4,39 @@ import { sections, todayIso, type DailyEntry } from "./schema";
 const dateInput = document.querySelector<HTMLInputElement>("#export-date");
 const preview = document.querySelector<HTMLPreElement>("#export-preview");
 const importInput = document.querySelector<HTMLInputElement>("#import-json");
+const backupStatus = document.querySelector<HTMLDivElement>("#backup-status");
+const backupKey = "capacity-tracker-last-json-backup";
 
 dateInput!.value = todayIso();
+
+function renderBackupStatus(): void {
+  if (!backupStatus) return;
+  const lastBackup = localStorage.getItem(backupKey);
+  if (!lastBackup) {
+    backupStatus.innerHTML = `
+      <div class="notice-card warm">
+        <strong>No backup recorded yet</strong>
+        <p>Once I have real entries here, exporting a JSON backup gives me a copy I can restore later.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const lastDate = new Date(lastBackup);
+  const daysSince = Math.floor((Date.now() - lastDate.getTime()) / 86400000);
+  const tone = daysSince >= 7 ? "warm" : "calm";
+  const message =
+    daysSince >= 7
+      ? "It has been a week or more since the last JSON backup recorded in this browser."
+      : "A JSON backup has been recorded recently in this browser.";
+
+  backupStatus.innerHTML = `
+    <div class="notice-card ${tone}">
+      <strong>Last backup: ${lastDate.toLocaleDateString()}</strong>
+      <p>${message}</p>
+    </div>
+  `;
+}
 
 function download(filename: string, content: string, type = "text/plain"): void {
   const blob = new Blob([content], { type });
@@ -87,6 +118,8 @@ document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) =
       const content = JSON.stringify(entries, null, 2);
       setPreview(content);
       download("capacity-tracker-backup.json", content, "application/json");
+      localStorage.setItem(backupKey, new Date().toISOString());
+      renderBackupStatus();
     }
   });
 });
@@ -99,3 +132,5 @@ importInput?.addEventListener("change", async () => {
   await importEntries(entries);
   setPreview(`Imported ${entries.length} entries.`);
 });
+
+renderBackupStatus();
