@@ -640,6 +640,15 @@ main {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
+.share-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.share-actions[hidden] {
+  display: none;
+}
+
 .file-import {
   display: grid;
   gap: 8px;

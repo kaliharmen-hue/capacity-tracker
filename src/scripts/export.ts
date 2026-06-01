@@ -6,7 +6,11 @@ const preview = document.querySelector<HTMLPreElement>("#export-preview");
 const importInput = document.querySelector<HTMLInputElement>("#import-json");
 const backupStatus = document.querySelector<HTMLDivElement>("#backup-status");
 const copyStatus = document.querySelector<HTMLParagraphElement>("#copy-status");
+const shareActions = document.querySelector<HTMLDivElement>("#share-actions");
+const sharePreviewButton = document.querySelector<HTMLButtonElement>("[data-share-preview]");
+const selectPreviewButton = document.querySelector<HTMLButtonElement>("[data-select-preview]");
 const backupKey = "capacity-tracker-last-json-backup";
+let latestPreviewText = "";
 
 dateInput!.value = todayIso();
 
@@ -88,7 +92,9 @@ function csv(entries: DailyEntry[]): string {
 }
 
 function setPreview(content: string): void {
+  latestPreviewText = content;
   if (preview) preview.textContent = content;
+  if (shareActions) shareActions.hidden = !content.trim();
 }
 
 function showEmptyState(scope: string): string {
@@ -100,12 +106,38 @@ function showEmptyState(scope: string): string {
 async function copyForChatGPT(content: string): Promise<void> {
   setPreview(content);
   if (!content.trim()) return;
+  if (await sharePreviewText()) return;
   try {
     await navigator.clipboard.writeText(content);
     if (copyStatus) copyStatus.textContent = "Copied. I can paste this into my ChatGPT project thread now.";
   } catch {
-    if (copyStatus) copyStatus.textContent = "Copy did not complete automatically. I can select the preview text and copy it manually.";
+    selectPreviewText();
   }
+}
+
+async function sharePreviewText(): Promise<boolean> {
+  if (!latestPreviewText.trim()) return false;
+  if (!navigator.share) return false;
+  try {
+    await navigator.share({
+      title: "Capacity Tracker export",
+      text: latestPreviewText
+    });
+    if (copyStatus) copyStatus.textContent = "Shared. I can paste it into ChatGPT from there.";
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function selectPreviewText(): void {
+  if (!preview) return;
+  const selection = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(preview);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  if (copyStatus) copyStatus.textContent = "Preview text is selected. I can tap Copy, then paste into ChatGPT.";
 }
 
 document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) => {
@@ -172,5 +204,11 @@ importInput?.addEventListener("change", async () => {
   await importEntries(entries);
   setPreview(`Imported ${entries.length} entries.`);
 });
+
+sharePreviewButton?.addEventListener("click", () => {
+  void sharePreviewText();
+});
+
+selectPreviewButton?.addEventListener("click", selectPreviewText);
 
 renderBackupStatus();

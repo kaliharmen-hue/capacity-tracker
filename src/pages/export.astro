@@ -39,6 +39,10 @@ import BaseLayout from "../layouts/BaseLayout.astro";
   <section class="plain-panel">
     <h3>Preview</h3>
     <p id="copy-status" class="copy-status" aria-live="polite"></p>
+    <div id="share-actions" class="share-actions" hidden>
+      <button type="button" class="primary-button full-width" data-share-preview>Share / copy this text</button>
+      <button type="button" class="secondary-button full-width" data-select-preview>Select preview text</button>
+    </div>
     <pre id="export-preview" class="export-preview"></pre>
   </section>
 
