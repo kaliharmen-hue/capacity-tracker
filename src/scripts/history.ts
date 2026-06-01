@@ -2,7 +2,7 @@ import { buildSummary, filterRecent, relationalStressLevel, relationalStressScor
 import { getAllEntries } from "./db";
 import type { DailyEntry } from "./schema";
 
-const base = import.meta.env.BASE_URL;
+const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
 const summaryRoot = document.querySelector<HTMLDivElement>("#summary-grid");
 const chartsRoot = document.querySelector<HTMLDivElement>("#charts");
 const calendarRoot = document.querySelector<HTMLDivElement>("#calendar");

@@ -1,7 +1,7 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 
-const base = import.meta.env.BASE_URL;
+const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
 ---
 
 <BaseLayout title="Today" active="today">
@@ -21,7 +21,7 @@ const base = import.meta.env.BASE_URL;
       </label>
       <div class="save-cluster">
         <p id="autosave-status" class="autosave-status" aria-live="polite">Autosaves as I go</p>
-        <a class="primary-button" href={`${base}export`}>Export</a>
+        <a class="primary-button" href={`${base}export/`}>Export</a>
       </div>
     </div>
     <div id="form-sections"></div>
