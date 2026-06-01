@@ -121,6 +121,52 @@ export function buildInsights(entries: DailyEntry[]): string[] {
     insights.push("Bloating and early waking have appeared together more than once.");
   }
 
+  const bloatingReducedBowel = sorted.filter(
+    (entry) =>
+      (entry.hormonalSigns.includes("Bloating") || entry.digestiveSymptoms.includes("Bloating")) &&
+      (entry.bowelMovementToday === "No" ||
+        entry.digestiveSymptoms.includes("Fewer bowel movements than usual") ||
+        entry.digestiveSymptoms.includes("Constipation feeling") ||
+        entry.bowelMovementDescription === "Smaller/less complete than usual")
+  );
+  if (bloatingReducedBowel.length >= 2) {
+    insights.push("Bloating and reduced bowel movement frequency appeared together. This may be worth watching as a possible hormonal transition marker.");
+  }
+
+  const completeAfterReduced = sorted.filter((entry, index) => {
+    const previous = sorted[index - 1];
+    if (!previous) return false;
+    const previousReduced =
+      previous.bowelMovementToday === "No" ||
+      previous.digestiveSymptoms.includes("Fewer bowel movements than usual") ||
+      previous.bowelMovementDescription === "Smaller/less complete than usual";
+    return previousReduced && entry.bowelMovementDescription === "More complete than usual";
+  });
+  if (completeAfterReduced.length) {
+    insights.push(`A more complete bowel movement appeared after reduced bowel movement signs ${completeAfterReduced.length} time${completeAfterReduced.length === 1 ? "" : "s"}.`);
+  }
+
+  const digestionHormonalCluster = sorted.filter((entry) => {
+    const digestionChange =
+      entry.bowelMovementToday === "No" ||
+      entry.bowelMovementDescription === "Hard/difficult" ||
+      entry.bowelMovementDescription === "Loose" ||
+      entry.bowelMovementDescription === "More complete than usual" ||
+      entry.bowelMovementDescription === "Smaller/less complete than usual" ||
+      entry.digestiveSymptoms.some((symptom) => symptom !== "None");
+    const hormonalSignal =
+      entry.possiblePeriodSign === "Yes" ||
+      entry.tirednessDayCount > 0 ||
+      entry.hotWaking === "Yes" ||
+      entry.hormonalSigns.some((sign) =>
+        ["Back pain", "Increased sensitivity", "Head pressure/tension", "Bloating"].includes(sign)
+      );
+    return digestionChange && hormonalSignal;
+  });
+  if (digestionHormonalCluster.length >= 2) {
+    insights.push("Digestive changes appeared alongside other possible hormonal signs. This is a supporting marker, not the main signal.");
+  }
+
   insights.push(nextDayEnergyAfterTraining(sorted));
 
   const relationalBeforeLowerEnergy = sorted.filter((entry, index) => {

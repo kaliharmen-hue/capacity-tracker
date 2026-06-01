@@ -25,6 +25,11 @@ export interface DailyEntry {
   possiblePeriodSign: Ternary;
   tirednessDayCount: number;
   cycleNotes: string;
+  bowelMovementToday: Ternary;
+  bowelMovementDescription: string;
+  feltFullyEmptied: Ternary;
+  digestiveSymptoms: string[];
+  digestionNotes: string;
   nervousSystemState: string[];
   nervousSystemNotes: string;
   activationSigns: string[];
@@ -115,6 +120,15 @@ export const hormonalOptions = [
   "Back pain",
   "Tightness/body tension",
   "No noticeable signs"
+];
+export const digestiveOptions = [
+  "Bloating",
+  "Constipation feeling",
+  "Fewer bowel movements than usual",
+  "Increased gas",
+  "Abdominal discomfort",
+  "Sudden bowel movement change",
+  "None"
 ];
 export const nervousOptions = [
   "Wired but tired",
@@ -262,6 +276,22 @@ export const sections: SectionDefinition[] = [
     ]
   },
   {
+    key: "digestion",
+    title: "Digestion",
+    fields: [
+      { type: "select", name: "bowelMovementToday", label: "Did I have a bowel movement today?", options: ["", "Yes", "No", "Not sure"] },
+      {
+        type: "select",
+        name: "bowelMovementDescription",
+        label: "If yes, which best describes it?",
+        options: ["", "Hard/difficult", "Normal", "Loose", "More complete than usual", "Smaller/less complete than usual"]
+      },
+      { type: "select", name: "feltFullyEmptied", label: "Did I feel fully emptied?", options: ["", "Yes", "No", "Not sure"] },
+      { type: "multi", name: "digestiveSymptoms", label: "What digestive signs did I notice?", options: digestiveOptions },
+      { type: "textarea", name: "digestionNotes", label: "Digestion notes" }
+    ]
+  },
+  {
     key: "nervous",
     title: "Nervous system state",
     fields: [
@@ -349,6 +379,11 @@ export function createEmptyEntry(date: string): DailyEntry {
     possiblePeriodSign: "",
     tirednessDayCount: 0,
     cycleNotes: "",
+    bowelMovementToday: "",
+    bowelMovementDescription: "",
+    feltFullyEmptied: "",
+    digestiveSymptoms: [],
+    digestionNotes: "",
     nervousSystemState: [],
     nervousSystemNotes: "",
     activationSigns: [],
