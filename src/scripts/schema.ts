@@ -119,7 +119,7 @@ export const hormonalOptions = [
   "Feeling hot/cold",
   "Increased sensitivity",
   "Head pressure/tension",
-  "Back pain",
+  "Unusual body aches or pains",
   "Tightness/body tension",
   "No noticeable signs"
 ];

@@ -240,7 +240,7 @@ export function buildInsights(entries: DailyEntry[]): string[] {
       hasFatigue(entry) ||
       entry.hotWaking === "Yes" ||
       entry.hormonalSigns.some((sign) =>
-        ["Back pain", "Increased sensitivity", "Head pressure/tension", "Bloating"].includes(sign)
+        ["Unusual body aches or pains", "Increased sensitivity", "Head pressure/tension", "Bloating"].includes(sign)
       );
     return digestionChange && hormonalSignal;
   });
