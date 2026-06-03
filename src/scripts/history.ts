@@ -53,7 +53,12 @@ function render(): void {
       stat("Hormonal sign days", summary.hormonalDays),
       stat("Weak Amfexa days", summary.weakAmfexaDays),
       stat("3+ coffee days", summary.threeCoffeeDays),
-      stat("Tiredness count", summary.maxTirednessCount),
+      stat("Current fatigue streak", summary.fatigueCurrentStreak),
+      stat("Longest fatigue streak this month", summary.fatigueLongestThisMonth),
+      stat("Fatigue days, last 30", summary.fatigueDaysLast30),
+      stat("Fatigue + bloating", summary.fatigueBloatingDays),
+      stat("Fatigue + poor sleep", summary.fatiguePoorSleepDays),
+      stat("Fatigue + luteal", summary.fatigueLutealDays),
       stat("Training readout", summary.trainingReadout)
     ].join("");
   }

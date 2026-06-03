@@ -1,5 +1,6 @@
 export type Quality = "Good" | "Okay" | "Poor" | "";
 export type Ternary = "Yes" | "No" | "Unsure" | "Somewhat" | "N/A" | "";
+export type FatigueLevel = "No" | "Mild" | "Moderate" | "Significant" | "";
 
 export interface DailyEntry {
   date: string;
@@ -23,8 +24,9 @@ export interface DailyEntry {
   hormonalNotes: string;
   possibleLutealPhase: Ternary;
   possiblePeriodSign: Ternary;
-  tirednessDayCount: number;
   cycleNotes: string;
+  fatigueLevel: FatigueLevel;
+  fatigueNotes: string;
   bowelMovementToday: Ternary;
   bowelMovementDescription: string;
   feltFullyEmptied: Ternary;
@@ -271,8 +273,15 @@ export const sections: SectionDefinition[] = [
     fields: [
       { type: "select", name: "possibleLutealPhase", label: "Possible luteal phase?", options: ["", "Yes", "No", "Unsure"] },
       { type: "select", name: "possiblePeriodSign", label: "Possible period sign?", options: ["", "Yes", "No", "Unsure"] },
-      { type: "number", name: "tirednessDayCount", label: "How many days has this tiredness lasted?", min: 0, step: 1 },
       { type: "textarea", name: "cycleNotes", label: "Cycle phase notes" }
+    ]
+  },
+  {
+    key: "fatigue",
+    title: "Fatigue",
+    fields: [
+      { type: "select", name: "fatigueLevel", label: "Was fatigue noticeable today?", options: ["", "No", "Mild", "Moderate", "Significant"] },
+      { type: "textarea", name: "fatigueNotes", label: "Fatigue notes" }
     ]
   },
   {
@@ -377,8 +386,9 @@ export function createEmptyEntry(date: string): DailyEntry {
     hormonalNotes: "",
     possibleLutealPhase: "",
     possiblePeriodSign: "",
-    tirednessDayCount: 0,
     cycleNotes: "",
+    fatigueLevel: "",
+    fatigueNotes: "",
     bowelMovementToday: "",
     bowelMovementDescription: "",
     feltFullyEmptied: "",

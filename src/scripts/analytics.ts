@@ -34,6 +34,72 @@ export function countWhere(entries: DailyEntry[], predicate: (entry: DailyEntry)
   return entries.filter(predicate).length;
 }
 
+export function hasFatigue(entry: DailyEntry): boolean {
+  return entry.fatigueLevel === "Mild" || entry.fatigueLevel === "Moderate" || entry.fatigueLevel === "Significant";
+}
+
+function previousDate(date: string): string {
+  const value = new Date(`${date}T00:00:00`);
+  value.setDate(value.getDate() - 1);
+  return value.toISOString().slice(0, 10);
+}
+
+export function currentFatigueStreak(entries: DailyEntry[]): number {
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  const byDate = new Map(sorted.map((entry) => [entry.date, entry]));
+  let latest = sorted.at(-1);
+  if (!latest || !hasFatigue(latest)) return 0;
+
+  let streak = 0;
+  while (latest && hasFatigue(latest)) {
+    streak += 1;
+    latest = byDate.get(previousDate(latest.date));
+  }
+  return streak;
+}
+
+export function longestFatigueStreakThisMonth(entries: DailyEntry[]): number {
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  const latest = sorted.at(-1);
+  if (!latest) return 0;
+  const month = latest.date.slice(0, 7);
+  const monthEntries = sorted.filter((entry) => entry.date.startsWith(month));
+  let longest = 0;
+  let current = 0;
+  let lastDate = "";
+
+  for (const entry of monthEntries) {
+    const isConsecutive = lastDate ? previousDate(entry.date) === lastDate : false;
+    current = hasFatigue(entry) ? (isConsecutive ? current + 1 : 1) : 0;
+    longest = Math.max(longest, current);
+    lastDate = entry.date;
+  }
+
+  return longest;
+}
+
+export function fatigueStats(entries: DailyEntry[]) {
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  const latest = sorted.at(-1);
+  const start = latest ? new Date(`${latest.date}T00:00:00`) : undefined;
+  if (start) start.setDate(start.getDate() - 29);
+  const startIso = start?.toISOString().slice(0, 10) ?? "";
+  const recent30 = startIso ? sorted.filter((entry) => entry.date >= startIso) : [];
+  const fatigueDays = recent30.filter(hasFatigue);
+
+  return {
+    currentStreak: currentFatigueStreak(sorted),
+    longestThisMonth: longestFatigueStreakThisMonth(sorted),
+    daysLast30: fatigueDays.length,
+    withBloating: countWhere(
+      fatigueDays,
+      (entry) => entry.hormonalSigns.includes("Bloating") || entry.digestiveSymptoms.includes("Bloating")
+    ),
+    withPoorSleep: countWhere(fatigueDays, (entry) => entry.sleepQuality === "Poor"),
+    withLuteal: countWhere(fatigueDays, (entry) => entry.possibleLutealPhase === "Yes")
+  };
+}
+
 export function nextDayEnergyAfterTraining(entries: DailyEntry[]): string {
   const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
   const changes: number[] = [];
@@ -54,6 +120,7 @@ export function nextDayEnergyAfterTraining(entries: DailyEntry[]): string {
 }
 
 export function buildSummary(entries: DailyEntry[]) {
+  const fatigue = fatigueStats(entries);
   return {
     averageEnergy: average(entries.map((entry) => entry.energyScore)),
     averageClarity: average(entries.map((entry) => entry.clarityScore)),
@@ -68,7 +135,12 @@ export function buildSummary(entries: DailyEntry[]) {
     ),
     weakAmfexaDays: countWhere(entries, (entry) => entry.activationSigns.includes("Amfexa felt weak/not noticeable")),
     threeCoffeeDays: countWhere(entries, (entry) => entry.coffees >= 3),
-    maxTirednessCount: Math.max(0, ...entries.map((entry) => entry.tirednessDayCount)),
+    fatigueCurrentStreak: fatigue.currentStreak,
+    fatigueLongestThisMonth: fatigue.longestThisMonth,
+    fatigueDaysLast30: fatigue.daysLast30,
+    fatigueBloatingDays: fatigue.withBloating,
+    fatiguePoorSleepDays: fatigue.withPoorSleep,
+    fatigueLutealDays: fatigue.withLuteal,
     trainingReadout: nextDayEnergyAfterTraining(entries)
   };
 }
@@ -111,9 +183,18 @@ export function buildInsights(entries: DailyEntry[]): string[] {
     insights.push("3+ coffees appeared on days where Amfexa felt weak/not noticeable. This is worth watching gently.");
   }
 
-  const maxTiredness = Math.max(0, ...sorted.map((entry) => entry.tirednessDayCount));
-  if (maxTiredness > 0) {
-    insights.push(`Tiredness has been tracked up to ${maxTiredness} day${maxTiredness === 1 ? "" : "s"}.`);
+  const fatigue = fatigueStats(sorted);
+  if (fatigue.currentStreak > 0) {
+    insights.push(`Current fatigue streak is ${fatigue.currentStreak} day${fatigue.currentStreak === 1 ? "" : "s"}. The app is calculating this automatically.`);
+  }
+  if (fatigue.withBloating >= 2) {
+    insights.push("Fatigue and bloating have appeared together more than once. This may be worth watching gently.");
+  }
+  if (fatigue.withPoorSleep >= 2) {
+    insights.push("Fatigue and poor sleep have appeared together more than once.");
+  }
+  if (fatigue.withLuteal >= 2) {
+    insights.push("Fatigue has appeared alongside possible luteal phase days more than once.");
   }
 
   const bloatingEarlyWaking = sorted.filter((entry) => entry.hormonalSigns.includes("Bloating") && entry.wakingTime);
@@ -156,7 +237,7 @@ export function buildInsights(entries: DailyEntry[]): string[] {
       entry.digestiveSymptoms.some((symptom) => symptom !== "None");
     const hormonalSignal =
       entry.possiblePeriodSign === "Yes" ||
-      entry.tirednessDayCount > 0 ||
+      hasFatigue(entry) ||
       entry.hotWaking === "Yes" ||
       entry.hormonalSigns.some((sign) =>
         ["Back pain", "Increased sensitivity", "Head pressure/tension", "Bloating"].includes(sign)
