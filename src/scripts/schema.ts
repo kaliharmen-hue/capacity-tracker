@@ -27,6 +27,10 @@ export interface DailyEntry {
   cycleNotes: string;
   fatigueLevel: FatigueLevel;
   fatigueNotes: string;
+  pmddMedicationTaken: Ternary;
+  medicationSideEffects: string[];
+  medicationSideEffectSeverity: string;
+  medicationNotes: string;
   bowelMovementToday: Ternary;
   bowelMovementDescription: string;
   feltFullyEmptied: Ternary;
@@ -131,6 +135,25 @@ export const digestiveOptions = [
   "Abdominal discomfort",
   "Sudden bowel movement change",
   "None"
+];
+export const medicationSideEffectOptions = [
+  "None",
+  "Nausea",
+  "Headache",
+  "Dizziness",
+  "Increased fatigue",
+  "Insomnia",
+  "Sleep disruption",
+  "Increased anxiety",
+  "Feeling emotionally flat",
+  "Feeling emotionally numb",
+  "Reduced appetite",
+  "Increased appetite",
+  "Digestive changes",
+  "Sweating/hot flushes",
+  "Restlessness",
+  "Sexual side effects",
+  "Other"
 ];
 export const nervousOptions = [
   "Wired but tired",
@@ -285,6 +308,26 @@ export const sections: SectionDefinition[] = [
     ]
   },
   {
+    key: "medication",
+    title: "Medication",
+    fields: [
+      { type: "select", name: "pmddMedicationTaken", label: "Did I take my PMDD medication today?", options: ["", "Yes", "No"] },
+      {
+        type: "multi",
+        name: "medicationSideEffects",
+        label: "Did I notice any side effects today?",
+        options: medicationSideEffectOptions
+      },
+      {
+        type: "select",
+        name: "medicationSideEffectSeverity",
+        label: "Side effect severity",
+        options: ["", "Mild", "Moderate", "Significant"]
+      },
+      { type: "textarea", name: "medicationNotes", label: "Medication notes" }
+    ]
+  },
+  {
     key: "digestion",
     title: "Digestion",
     fields: [
@@ -389,6 +432,10 @@ export function createEmptyEntry(date: string): DailyEntry {
     cycleNotes: "",
     fatigueLevel: "",
     fatigueNotes: "",
+    pmddMedicationTaken: "",
+    medicationSideEffects: [],
+    medicationSideEffectSeverity: "",
+    medicationNotes: "",
     bowelMovementToday: "",
     bowelMovementDescription: "",
     feltFullyEmptied: "",
