@@ -21,7 +21,7 @@ const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL :
       </label>
       <div class="save-cluster">
         <p id="autosave-status" class="autosave-status" aria-live="polite">Autosaves as I go</p>
-        <a class="primary-button" href={`${base}export/`}>Export</a>
+        <a id="entry-export-link" class="primary-button" href={`${base}export/`}>Export</a>
       </div>
     </div>
     <div id="form-sections"></div>

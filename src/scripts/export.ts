@@ -12,7 +12,7 @@ const selectPreviewButton = document.querySelector<HTMLButtonElement>("[data-sel
 const backupKey = "capacity-tracker-last-json-backup";
 let latestPreviewText = "";
 
-dateInput!.value = todayIso();
+dateInput!.value = new URLSearchParams(window.location.search).get("date") || todayIso();
 
 function renderBackupStatus(): void {
   if (!backupStatus) return;

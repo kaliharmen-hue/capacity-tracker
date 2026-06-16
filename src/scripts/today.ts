@@ -5,6 +5,8 @@ const form = document.querySelector<HTMLFormElement>("#entry-form");
 const dateInput = document.querySelector<HTMLInputElement>("#entry-date");
 const sectionsRoot = document.querySelector<HTMLDivElement>("#form-sections");
 const autosaveStatus = document.querySelector<HTMLParagraphElement>("#autosave-status");
+const exportLink = document.querySelector<HTMLAnchorElement>("#entry-export-link");
+const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
 
 let currentEntry = createEmptyEntry(todayIso());
 let saveTimer: number | undefined;
@@ -131,6 +133,10 @@ function setAutosaveStatus(message: string): void {
   if (autosaveStatus) autosaveStatus.textContent = message;
 }
 
+function updateExportLink(date: string): void {
+  if (exportLink) exportLink.href = `${base}export/?date=${encodeURIComponent(date)}`;
+}
+
 function scheduleSave(): void {
   if (isLoading) return;
   window.clearTimeout(saveTimer);
@@ -139,6 +145,7 @@ function scheduleSave(): void {
     const entry = collectEntry();
     await saveEntry(entry);
     currentEntry = entry;
+    updateExportLink(entry.date);
     setAutosaveStatus(`Saved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
   }, 550);
 }
@@ -156,4 +163,5 @@ form?.addEventListener("submit", (event) => {
 });
 
 const initialDate = new URLSearchParams(window.location.search).get("date") || todayIso();
+updateExportLink(initialDate);
 void loadEntry(initialDate);
