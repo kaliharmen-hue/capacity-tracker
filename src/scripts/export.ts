@@ -1,5 +1,5 @@
 import { getAllEntries, importEntries } from "./db";
-import { sections, todayIso, type DailyEntry } from "./schema";
+import { createEmptyEntry, sections, todayIso, type DailyEntry } from "./schema";
 
 const dateInput = document.querySelector<HTMLInputElement>("#export-date");
 const preview = document.querySelector<HTMLPreElement>("#export-preview");
@@ -78,7 +78,7 @@ function markdownForEntry(entry: DailyEntry): string {
 
 function csv(entries: DailyEntry[]): string {
   if (!entries.length) return "";
-  const headers = Object.keys(entries[0] ?? { date: "" });
+  const headers = Object.keys(createEmptyEntry(todayIso()));
   const rows = entries.map((entry) =>
     headers
       .map((header) => {

@@ -17,6 +17,14 @@ function stat(label: string, value: string | number): string {
 }
 
 function chart(title: string, data: DailyEntry[], key: keyof DailyEntry, max = 10): string {
+  if (!data.length) {
+    return `
+      <article class="chart-card">
+        <h3>${title}</h3>
+        <p class="empty-state">Not enough data yet.</p>
+      </article>
+    `;
+  }
   const points = data.map((entry) => Number(entry[key]) || 0);
   const polyline = points
     .map((value, index) => {
@@ -37,6 +45,14 @@ function chart(title: string, data: DailyEntry[], key: keyof DailyEntry, max = 1
   `;
 }
 
+function hasNumber(entry: DailyEntry, key: "capacityRemainingScore" | "morningActivationScore"): boolean {
+  return typeof entry[key] === "number";
+}
+
+function displayScore(value: number | ""): string {
+  return typeof value === "number" ? String(value) : "not noted";
+}
+
 function render(): void {
   const recent = filterRecent(entries, range);
   const summary = buildSummary(recent);
@@ -45,9 +61,13 @@ function render(): void {
     summaryRoot.innerHTML = [
       stat("Average energy", summary.averageEnergy.toFixed(1)),
       stat("Average clarity", summary.averageClarity.toFixed(1)),
+      stat("Average reserve left", summary.averageCapacityRemaining ? summary.averageCapacityRemaining.toFixed(1) : "Not enough yet"),
+      stat("Average morning activation", summary.averageMorningActivation ? summary.averageMorningActivation.toFixed(1) : "Not enough yet"),
       stat("Average sleep", `${summary.averageSleep.toFixed(1)}h`),
       stat("Low-energy days", summary.lowEnergyDays),
       stat("High-energy days", summary.highEnergyDays),
+      stat("High executive demand days", summary.highExecutiveDemandDays),
+      stat("Loud inner critic days", summary.highInnerCriticDays),
       stat("Poor sleep days", summary.poorSleepDays),
       stat("Relational stress days", summary.relationalStressDays),
       stat("Hormonal sign days", summary.hormonalDays),
@@ -67,7 +87,9 @@ function render(): void {
     chartsRoot.innerHTML = recent.length
       ? [
           chart("Energy", recent, "energyScore"),
-          chart("Brain clarity", recent, "clarityScore"),
+          chart("Executive clarity", recent, "clarityScore"),
+          chart("Reserve left", recent.filter((entry) => hasNumber(entry, "capacityRemainingScore")), "capacityRemainingScore"),
+          chart("Morning activation", recent.filter((entry) => hasNumber(entry, "morningActivationScore")), "morningActivationScore"),
           chart("Sleep hours", recent, "sleepHours", 12),
           chart("Relational stress score", recent.map((entry) => ({ ...entry, score: relationalStressScore(entry) })) as DailyEntry[], "score" as keyof DailyEntry, 9)
         ].join("")
@@ -95,7 +117,7 @@ function render(): void {
         <article class="entry-row">
           <div>
             <h3>${entry.date}</h3>
-            <p>Energy ${entry.energyScore}/10 · Clarity ${entry.clarityScore}/10 · ${relationalStressLevel(relationalStressScore(entry))} relational stress</p>
+            <p>Energy ${entry.energyScore}/10 - Clarity ${entry.clarityScore}/10 - Reserve ${displayScore(entry.capacityRemainingScore)}/10 - ${relationalStressLevel(relationalStressScore(entry))} relational stress</p>
           </div>
           <a class="secondary-button" href="${base}?date=${entry.date}">Edit</a>
         </article>

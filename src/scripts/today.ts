@@ -66,7 +66,7 @@ function renderField(field: FieldDefinition): string {
     return `<label class="field-label">${field.label}<textarea name="${field.name}" rows="3">${String(fieldValue(field.name) ?? "")}</textarea></label>`;
   }
   if (field.type === "number") {
-    return `<label class="field-label">${field.label}<input name="${field.name}" type="number" min="${field.min ?? ""}" step="${field.step ?? 1}" value="${Number(fieldValue(field.name) ?? 0)}" /></label>`;
+    return `<label class="field-label">${field.label}<input name="${field.name}" type="number" min="${field.min ?? ""}" max="${field.max ?? ""}" step="${field.step ?? 1}" value="${String(fieldValue(field.name) ?? "")}" /></label>`;
   }
   if (field.type === "time") {
     return `<label class="field-label">${field.label}<input name="${field.name}" type="time" value="${String(fieldValue(field.name) ?? "")}" /></label>`;
@@ -85,6 +85,7 @@ function renderForm(): void {
       (section) => `
         <section class="form-section">
           <h3>${section.title}</h3>
+          ${section.prompt ? `<p class="section-prompt">${section.prompt}</p>` : ""}
           ${section.fields.map(renderField).join("")}
         </section>
       `
@@ -116,7 +117,8 @@ function collectEntry(): DailyEntry {
       if (field.type === "multi") {
         (entry[field.name] as string[]) = data.getAll(String(field.name)).map(String);
       } else if (field.type === "score" || field.type === "number") {
-        (entry[field.name] as number) = Number(data.get(String(field.name)) || 0);
+        const rawValue = String(data.get(String(field.name)) ?? "");
+        (entry[field.name] as number | "") = rawValue === "" ? "" : Number(rawValue);
         if (field.type === "score") {
           (entry[field.notesName] as string) = String(data.get(String(field.notesName)) || "");
         }

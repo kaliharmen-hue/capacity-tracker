@@ -222,6 +222,13 @@ main {
   font-size: 1.1rem;
 }
 
+.section-prompt {
+  margin: -6px 0 0;
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
 .score-field {
   display: grid;
   gap: 10px;

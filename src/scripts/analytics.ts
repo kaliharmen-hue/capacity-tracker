@@ -38,6 +38,14 @@ export function hasFatigue(entry: DailyEntry): boolean {
   return entry.fatigueLevel === "Mild" || entry.fatigueLevel === "Moderate" || entry.fatigueLevel === "Significant";
 }
 
+function hasExecutiveDemand(entry: DailyEntry): boolean {
+  return entry.executiveDemandLevel === "High" || entry.executiveDemandLevel === "Very high";
+}
+
+function answeredNumber(value: number | ""): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
 function previousDate(date: string): string {
   const value = new Date(`${date}T00:00:00`);
   value.setDate(value.getDate() - 1);
@@ -124,16 +132,26 @@ export function buildSummary(entries: DailyEntry[]) {
   return {
     averageEnergy: average(entries.map((entry) => entry.energyScore)),
     averageClarity: average(entries.map((entry) => entry.clarityScore)),
+    averageCapacityRemaining: average(entries.map((entry) => entry.capacityRemainingScore).filter(answeredNumber)),
+    averageMorningActivation: average(entries.map((entry) => entry.morningActivationScore).filter(answeredNumber)),
     averageSleep: average(entries.map((entry) => entry.sleepHours)),
     lowEnergyDays: countWhere(entries, (entry) => entry.energyScore <= 4),
     highEnergyDays: countWhere(entries, (entry) => entry.energyScore >= 8),
+    highExecutiveDemandDays: countWhere(entries, hasExecutiveDemand),
+    highInnerCriticDays: countWhere(entries, (entry) => answeredNumber(entry.innerCriticScore) && entry.innerCriticScore >= 7),
     poorSleepDays: countWhere(entries, (entry) => entry.sleepQuality === "Poor"),
     relationalStressDays: countWhere(entries, (entry) => relationalStressScore(entry) >= 3),
     hormonalDays: countWhere(
       entries,
-      (entry) => entry.hormonalSigns.length > 0 && !entry.hormonalSigns.includes("No noticeable signs")
+      (entry) =>
+        (entry.hormonalSigns.length > 0 && !entry.hormonalSigns.includes("No noticeable signs")) ||
+        entry.familiarHormonalPattern === "Slightly" ||
+        entry.familiarHormonalPattern === "Yes"
     ),
-    weakAmfexaDays: countWhere(entries, (entry) => entry.activationSigns.includes("Amfexa felt weak/not noticeable")),
+    weakAmfexaDays: countWhere(
+      entries,
+      (entry) => entry.activationSigns.includes("Amfexa felt weak/not noticeable") || entry.amfexaEffect === "Too weak"
+    ),
     threeCoffeeDays: countWhere(entries, (entry) => entry.coffees >= 3),
     fatigueCurrentStreak: fatigue.currentStreak,
     fatigueLongestThisMonth: fatigue.longestThisMonth,
@@ -177,7 +195,8 @@ export function buildInsights(entries: DailyEntry[]): string[] {
   }
 
   const coffeeWeakAmfexa = sorted.filter(
-    (entry) => entry.coffees >= 3 && entry.activationSigns.includes("Amfexa felt weak/not noticeable")
+    (entry) =>
+      entry.coffees >= 3 && (entry.activationSigns.includes("Amfexa felt weak/not noticeable") || entry.amfexaEffect === "Too weak")
   );
   if (coffeeWeakAmfexa.length) {
     insights.push("3+ coffees appeared on days where Amfexa felt weak/not noticeable. This is worth watching gently.");
@@ -195,6 +214,41 @@ export function buildInsights(entries: DailyEntry[]): string[] {
   }
   if (fatigue.withLuteal >= 2) {
     insights.push("Fatigue has appeared alongside possible luteal phase days more than once.");
+  }
+
+  const executiveDemandLowReserve = sorted.filter(
+    (entry) => hasExecutiveDemand(entry) && answeredNumber(entry.capacityRemainingScore) && entry.capacityRemainingScore <= 3
+  );
+  if (executiveDemandLowReserve.length >= 2) {
+    insights.push("High executive demand appeared alongside low reserve more than once. This may help explain capacity dips even when energy is not the whole story.");
+  }
+
+  const highMorningActivation = sorted.filter((entry) => answeredNumber(entry.morningActivationScore) && entry.morningActivationScore >= 7);
+  if (highMorningActivation.length >= 2) {
+    insights.push("Morning activation was high more than once before coffee, food or medication. This may be a useful baseline signal to watch.");
+  }
+
+  const innerCriticLowCapacity = sorted.filter(
+    (entry) =>
+      answeredNumber(entry.innerCriticScore) &&
+      entry.innerCriticScore >= 7 &&
+      answeredNumber(entry.capacityRemainingScore) &&
+      entry.capacityRemainingScore <= 4
+  );
+  if (innerCriticLowCapacity.length >= 2) {
+    insights.push("A louder inner critic appeared alongside lower remaining capacity more than once.");
+  }
+
+  const familiarHormonalCluster = sorted.filter(
+    (entry) =>
+      (entry.familiarHormonalPattern === "Slightly" || entry.familiarHormonalPattern === "Yes") &&
+      (hasFatigue(entry) ||
+        entry.hotWaking === "Yes" ||
+        entry.hormonalSigns.includes("Increased sensitivity") ||
+        entry.hormonalSigns.includes("Bloating"))
+  );
+  if (familiarHormonalCluster.length >= 2) {
+    insights.push("Days that felt like the familiar hormonal pattern also carried other hormonal markers. This may become a useful shorthand with more entries.");
   }
 
   const bloatingEarlyWaking = sorted.filter((entry) => entry.hormonalSigns.includes("Bloating") && entry.wakingTime);

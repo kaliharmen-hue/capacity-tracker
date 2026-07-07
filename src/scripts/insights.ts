@@ -45,12 +45,16 @@ function renderTagCloud(title: string, subtitle: string, tags: Array<{ label: st
   `;
 }
 
+function displayOptionalScore(value: number | ""): string {
+  return typeof value === "number" ? String(value) : "-";
+}
+
 function renderRecentRibbon(entries: DailyEntry[]): string {
   const recent = [...entries].sort((a, b) => a.date.localeCompare(b.date)).slice(-10);
   return `
     <article class="pattern-card full-span">
       <h3>Recent days as a rhythm</h3>
-      <p>Each tile holds energy, relational load, and one recovery hint for that day.</p>
+      <p>Each tile holds energy, reserve, relational load, and one recovery hint for that day.</p>
       <div class="day-ribbon">
         ${
           recent.length
@@ -63,12 +67,40 @@ function renderRecentRibbon(entries: DailyEntry[]): string {
                     <div class="rhythm-tile ${level}">
                       <span>${entry.date.slice(5)}</span>
                       <strong>${entry.energyScore}</strong>
+                      <small>Reserve ${displayOptionalScore(entry.capacityRemainingScore)}</small>
                       <small>${recovery}</small>
                     </div>
                   `;
                 })
                 .join("")
             : `<span class="quiet-note">Save a few days and this will become a visual rhythm.</span>`
+        }
+      </div>
+    </article>
+  `;
+}
+
+function renderCapacityPattern(entries: DailyEntry[]): string {
+  const recent = [...entries].sort((a, b) => a.date.localeCompare(b.date)).slice(-10);
+  return `
+    <article class="pattern-card">
+      <h3>Energy is not the same as reserve</h3>
+      <p>This keeps tiredness separate from how much capacity was still left at the end of the day.</p>
+      <div class="energy-steps">
+        ${
+          recent.length
+            ? recent
+                .map(
+                  (entry) => `
+                    <div class="energy-step">
+                      <span>${entry.date.slice(5)}</span>
+                      <strong>${entry.energyScore}</strong>
+                      <small>R ${displayOptionalScore(entry.capacityRemainingScore)}</small>
+                    </div>
+                  `
+                )
+                .join("")
+            : `<span class="quiet-note">Save a few days and this will show energy beside reserve.</span>`
         }
       </div>
     </article>
@@ -107,6 +139,7 @@ function renderVisuals(): void {
     </article>
     ${renderTagCloud("What tends to gather around lower-energy days?", "Load tags from days scored 4 or below.", countTags(lowEnergyDays, "load"), "warm")}
     ${renderTagCloud("What tends to gather around steadier days?", "Recovery tags from days scored 7 or above.", countTags(highEnergyDays, "recovery"), "calm")}
+    ${renderCapacityPattern(entries)}
     ${renderRecentRibbon(entries)}
   `;
 }
@@ -129,7 +162,7 @@ if (insightList) {
     const score = relationalStressScore(latest);
     insightList.insertAdjacentHTML(
       "afterbegin",
-      `<article class="insight-card featured"><p>Latest relational stress score: ${score} (${relationalStressLevel(score)}). Energy and capacity are still separate signals.</p></article>`
+      `<article class="insight-card featured"><p>Latest relational stress score: ${score} (${relationalStressLevel(score)}). Energy, clarity, and reserve are still separate signals.</p></article>`
     );
   }
 }
