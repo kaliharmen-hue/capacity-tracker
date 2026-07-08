@@ -38,14 +38,17 @@ export interface DailyEntry {
   amfexaDose: number;
   amfexaEffect: string;
   amfexaWearOffTime: string;
+  adhdMedicationNotes: string;
   bowelMovementToday: Ternary;
   bowelMovementDescription: string;
   feltFullyEmptied: Ternary;
   digestiveSymptoms: string[];
   digestionNotes: string;
+  overallState: string;
   nervousSystemState: string[];
   nervousSystemNotes: string;
   morningActivationScore: number | "";
+  laterActivation: string;
   activationSigns: string[];
   coffees: number;
   amfexaTaken: Ternary;
@@ -64,6 +67,9 @@ export interface DailyEntry {
   capacityRemainingScore: number | "";
   innerCriticScore: number | "";
   innerCriticNotes: string;
+  reflectionInfluencedToday: string;
+  biggestEnergyDrain: string;
+  capacityImprovedBy: string;
   overloadIncreasedBy: string;
   firstCapacityDropSign: string;
   unexpectedlyHelped: string;
@@ -99,6 +105,10 @@ export type FieldDefinition =
       type: "textarea";
       name: keyof DailyEntry;
       label: string;
+      showWhen?: {
+        name: keyof DailyEntry;
+        min?: number;
+      };
     }
   | {
       type: "number";
@@ -158,50 +168,7 @@ export const digestiveOptions = [
   "Diarrhoea",
   "Appetite changes"
 ];
-export const medicationSideEffectOptions = [
-  "None",
-  "Nausea",
-  "Headache",
-  "Dizziness",
-  "Increased fatigue",
-  "Insomnia",
-  "Sleep disruption",
-  "Increased anxiety",
-  "Feeling emotionally flat",
-  "Feeling emotionally numb",
-  "Reduced appetite",
-  "Increased appetite",
-  "Digestive changes",
-  "Sweating/hot flushes",
-  "Restlessness",
-  "Sexual side effects",
-  "Other"
-];
-export const nervousOptions = [
-  "Wired but tired",
-  "Shutdown/heavy",
-  "Calm/regulated",
-  "Activated/anxious",
-  "Numb/disconnected",
-  "Motivated/engaged"
-];
-export const activationOptions = [
-  "Amfexa effects noticeable",
-  "Amfexa felt weak/not noticeable",
-  "Caffeine intake",
-  "Heart pounding/pulse awareness",
-  "Adrenaline feelings",
-  "Wired but exhausted",
-  "Internal restlessness",
-  "Sensitivity to noise/stimulation",
-  "Sleep fragmentation",
-  "Emotional flattening/numbness",
-  "Feeling on edge",
-  "Overstimulated by media/screens",
-  "Shallow breathing/not breathing fully",
-  "Felt like I could keep going and going",
-  "No noticeable activation"
-];
+export const overallStateOptions = ["Calm", "Balanced", "Engaged", "Activated", "Wired", "Drained", "Shutdown"];
 export const movementOptions = [
   "Walking",
   "Cardio",
@@ -218,6 +185,7 @@ export const movementOptions = [
 export const loadOptions = [
   "Poor sleep",
   "Pain / physical discomfort",
+  "High cognitive demand",
   "Computer work",
   "Work pressure",
   "Conflict",
@@ -248,6 +216,7 @@ export const recoveryOptions = [
   "Structure/routine",
   "Low stimulation",
   "Therapy",
+  "Variety / change of environment",
   "Doing something for myself",
   "Music",
   "Reduced pressure",
@@ -340,15 +309,6 @@ export const sections: SectionDefinition[] = [
     ]
   },
   {
-    key: "cycle",
-    title: "Possible cycle phase",
-    fields: [
-      { type: "select", name: "possibleLutealPhase", label: "Possible luteal phase?", options: ["", "Yes", "No", "Unsure"] },
-      { type: "select", name: "possiblePeriodSign", label: "Possible period sign?", options: ["", "Yes", "No", "Unsure"] },
-      { type: "textarea", name: "cycleNotes", label: "Cycle phase notes" }
-    ]
-  },
-  {
     key: "fatigue",
     title: "Fatigue",
     fields: [
@@ -364,54 +324,39 @@ export const sections: SectionDefinition[] = [
   },
   {
     key: "medication",
-    title: "Medication",
+    title: "ADHD medication",
     fields: [
-      { type: "number", name: "amfexaDose", label: "Amfexa dose in mg", min: 0, step: 2.5 },
+      { type: "number", name: "amfexaDose", label: "Dose (mg)", min: 0, step: 2.5 },
       {
         type: "select",
         name: "amfexaEffect",
-        label: "How did Amfexa feel today?",
-        options: ["", "Too weak", "About right", "Too strong", "Not taken", "Hard to tell"]
+        label: "Today's effect",
+        options: ["", "Too weak", "About right", "Too strong"]
       },
-      { type: "time", name: "amfexaWearOffTime", label: "What time did Amfexa seem to wear off?" },
-      { type: "select", name: "pmddMedicationTaken", label: "Did I take my PMDD medication today?", options: ["", "Yes", "No"] },
-      {
-        type: "multi",
-        name: "medicationSideEffects",
-        label: "Did I notice any side effects today?",
-        options: medicationSideEffectOptions
-      },
-      {
-        type: "select",
-        name: "medicationSideEffectSeverity",
-        label: "Side effect severity",
-        options: ["", "Mild", "Moderate", "Significant"]
-      },
-      { type: "textarea", name: "medicationNotes", label: "Medication notes" }
+      { type: "textarea", name: "adhdMedicationNotes", label: "Anything notable?" }
     ]
   },
   {
     key: "digestion",
     title: "Digestion",
     fields: [
-      { type: "select", name: "bowelMovementToday", label: "Did I have a bowel movement today?", options: ["", "Yes", "No", "Not sure"] },
+      { type: "select", name: "bowelMovementToday", label: "Bowel movement", options: ["", "Yes", "No", "Not sure"] },
       {
         type: "select",
         name: "bowelMovementDescription",
-        label: "If yes, which best describes it?",
+        label: "Stool type",
         options: ["", "Hard/difficult", "Normal", "Loose", "More complete than usual", "Smaller/less complete than usual"]
       },
-      { type: "select", name: "feltFullyEmptied", label: "Did I feel fully emptied?", options: ["", "Yes", "No", "Not sure"] },
-      { type: "multi", name: "digestiveSymptoms", label: "What digestive signs did I notice?", options: digestiveOptions },
+      { type: "multi", name: "digestiveSymptoms", label: "Digestive changes", options: digestiveOptions },
       { type: "textarea", name: "digestionNotes", label: "Digestion notes" }
     ]
   },
   {
     key: "nervous",
-    title: "Nervous system state",
+    title: "Overall state",
     fields: [
-      { type: "multi", name: "nervousSystemState", label: "What nervous system states are present?", options: nervousOptions },
-      { type: "textarea", name: "nervousSystemNotes", label: "Nervous system notes" }
+      { type: "select", name: "overallState", label: "What was my overall state today?", options: ["", ...overallStateOptions] },
+      { type: "textarea", name: "nervousSystemNotes", label: "Overall state notes" }
     ]
   },
   {
@@ -426,11 +371,8 @@ export const sections: SectionDefinition[] = [
         max: 10,
         step: 1
       },
-      { type: "multi", name: "activationSigns", label: "What activation signs did I notice?", options: activationOptions },
-      { type: "number", name: "coffees", label: "How many coffees did I have?", min: 0, step: 1 },
-      { type: "select", name: "amfexaTaken", label: "Did I take Amfexa?", options: ["", "Yes", "No"] },
-      { type: "textarea", name: "amfexaNotes", label: "Amfexa notes" },
-      { type: "textarea", name: "activationNotes", label: "Activation notes" }
+      { type: "select", name: "laterActivation", label: "Later activation", options: ["", "Lower", "Same", "Higher"] },
+      { type: "textarea", name: "activationNotes", label: "Notes" }
     ]
   },
   {
@@ -468,13 +410,13 @@ export const sections: SectionDefinition[] = [
   },
   {
     key: "capacity",
-    title: "Capacity remaining",
-    prompt: "At the end of today, 0 = completely empty and 10 = I could easily have kept going.",
+    title: "Capacity check",
+    prompt: "If I had to keep going for another 3 hours...",
     fields: [
       {
         type: "number",
         name: "capacityRemainingScore",
-        label: "How much reserve did I still have left? (0-10)",
+        label: "How capable would I feel? (0-10)",
         min: 0,
         max: 10,
         step: 1
@@ -487,18 +429,16 @@ export const sections: SectionDefinition[] = [
     prompt: "0 = quiet and 10 = relentless.",
     fields: [
       { type: "number", name: "innerCriticScore", label: "How loud was my inner critic today? (0-10)", min: 0, max: 10, step: 1 },
-      { type: "textarea", name: "innerCriticNotes", label: "Inner critic notes" }
+      { type: "textarea", name: "innerCriticNotes", label: "What was it saying?", showWhen: { name: "innerCriticScore", min: 3 } }
     ]
   },
   {
     key: "reflection",
     title: "End of day reflection",
     fields: [
-      { type: "textarea", name: "overloadIncreasedBy", label: "What seemed to increase overload?" },
-      { type: "textarea", name: "firstCapacityDropSign", label: "What was the first sign my capacity was beginning to drop?" },
-      { type: "textarea", name: "unexpectedlyHelped", label: "Did anything unexpectedly help today?" },
-      { type: "textarea", name: "earlyWarningSigns", label: "Any other early warning signs I noticed?" },
-      { type: "textarea", name: "easierOrHarder", label: "Did anything feel unexpectedly easier or harder today?" }
+      { type: "textarea", name: "reflectionInfluencedToday", label: "What most influenced today?" },
+      { type: "textarea", name: "biggestEnergyDrain", label: "What was today's biggest energy drain?" },
+      { type: "textarea", name: "capacityImprovedBy", label: "What most improved my capacity?" }
     ]
   }
 ];
@@ -540,14 +480,17 @@ export function createEmptyEntry(date: string): DailyEntry {
     amfexaDose: 15,
     amfexaEffect: "",
     amfexaWearOffTime: "",
+    adhdMedicationNotes: "",
     bowelMovementToday: "",
     bowelMovementDescription: "",
     feltFullyEmptied: "",
     digestiveSymptoms: [],
     digestionNotes: "",
+    overallState: "",
     nervousSystemState: [],
     nervousSystemNotes: "",
     morningActivationScore: "",
+    laterActivation: "",
     activationSigns: [],
     coffees: 0,
     amfexaTaken: "",
@@ -566,6 +509,9 @@ export function createEmptyEntry(date: string): DailyEntry {
     capacityRemainingScore: "",
     innerCriticScore: "",
     innerCriticNotes: "",
+    reflectionInfluencedToday: "",
+    biggestEnergyDrain: "",
+    capacityImprovedBy: "",
     overloadIncreasedBy: "",
     firstCapacityDropSign: "",
     unexpectedlyHelped: "",

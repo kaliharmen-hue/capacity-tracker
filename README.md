@@ -1,6 +1,6 @@
-# Capacity Tracker
+# Personal Operating System
 
-A private, local-first daily capacity tracking app for energy, executive capacity, sleep, nervous system state, hormonal signs, medication, digestion, movement, load, recovery, reserve, inner critic, and gentle pattern review.
+A private, local-first personal operating system for a daily log, weekly review, monthly insights, and one-at-a-time experiments.
 
 ## Stack
 
@@ -13,9 +13,10 @@ This can be hosted for free as a static site later, including GitHub Pages. If o
 
 ## Pages
 
-- `Today`: daily reflective tracker with first-person prompts
-- `History`: 7, 14, and 30 day dashboard with energy, clarity, reserve, activation, sleep, fatigue, and relational stress signals
-- `Insights`: cautious pattern notes, visual rhythm boards, relational stress scoring, and optimisation signals
+- `Daily Log`: daily reflective tracker with first-person prompts
+- `Weekly Review`: 7, 14, and 30 day dashboard with energy, clarity, capacity, activation, sleep, fatigue, and relational stress signals
+- `Monthly Insights`: cautious recent-month pattern notes, visual rhythm boards, relational stress scoring, and optimisation signals
+- `Experiments`: one active experiment at a time, with a simple before/during readout
 - `Export`: Markdown, CSV, JSON backup, and JSON import
 
 ## Local Commands

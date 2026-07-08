@@ -4,13 +4,13 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
 ---
 
-<BaseLayout title="Today" active="today">
+<BaseLayout title="Daily Log" active="daily">
   <section class="page-heading">
     <div>
-      <p class="eyebrow">Daily check-in</p>
+      <p class="eyebrow">Daily Log</p>
       <h2>What is true today?</h2>
     </div>
-    <p class="soft-copy">A gentle tracker for capacity, regulation, load, and recovery.</p>
+    <p class="soft-copy">A gentle daily log for capacity, regulation, load, and recovery.</p>
   </section>
 
   <form id="entry-form" class="tracker-form">

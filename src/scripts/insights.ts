@@ -1,6 +1,7 @@
 import {
   buildInsights,
   describeNextDayEnergyChange,
+  filterRecent,
   relationalStressLevel,
   relationalStressScore
 } from "./analytics";
@@ -9,7 +10,7 @@ import type { DailyEntry } from "./schema";
 
 const visualRoot = document.querySelector<HTMLDivElement>("#pattern-visuals");
 const insightList = document.querySelector<HTMLDivElement>("#insight-list");
-const entries = await getAllEntries();
+const entries = filterRecent(await getAllEntries(), 30);
 const insights = buildInsights(entries);
 
 function countTags(entries: DailyEntry[], key: "load" | "recovery"): Array<{ label: string; count: number }> {
@@ -54,7 +55,7 @@ function renderRecentRibbon(entries: DailyEntry[]): string {
   return `
     <article class="pattern-card full-span">
       <h3>Recent days as a rhythm</h3>
-      <p>Each tile holds energy, reserve, relational load, and one recovery hint for that day.</p>
+      <p>Each tile holds energy, capability, relational load, and one recovery hint for that day.</p>
       <div class="day-ribbon">
         ${
           recent.length
@@ -67,7 +68,7 @@ function renderRecentRibbon(entries: DailyEntry[]): string {
                     <div class="rhythm-tile ${level}">
                       <span>${entry.date.slice(5)}</span>
                       <strong>${entry.energyScore}</strong>
-                      <small>Reserve ${displayOptionalScore(entry.capacityRemainingScore)}</small>
+                      <small>Capacity ${displayOptionalScore(entry.capacityRemainingScore)}</small>
                       <small>${recovery}</small>
                     </div>
                   `;
@@ -84,8 +85,8 @@ function renderCapacityPattern(entries: DailyEntry[]): string {
   const recent = [...entries].sort((a, b) => a.date.localeCompare(b.date)).slice(-10);
   return `
     <article class="pattern-card">
-      <h3>Energy is not the same as reserve</h3>
-      <p>This keeps tiredness separate from how much capacity was still left at the end of the day.</p>
+      <h3>Energy is not the same as capability</h3>
+      <p>This keeps tiredness separate from how capable I felt to keep going.</p>
       <div class="energy-steps">
         ${
           recent.length
@@ -162,7 +163,7 @@ if (insightList) {
     const score = relationalStressScore(latest);
     insightList.insertAdjacentHTML(
       "afterbegin",
-      `<article class="insight-card featured"><p>Latest relational stress score: ${score} (${relationalStressLevel(score)}). Energy, clarity, and reserve are still separate signals.</p></article>`
+      `<article class="insight-card featured"><p>Latest relational stress score: ${score} (${relationalStressLevel(score)}). Energy, clarity, and capability are still separate signals.</p></article>`
     );
   }
 }

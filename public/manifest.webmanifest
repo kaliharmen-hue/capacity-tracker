@@ -1,7 +1,7 @@
 {
-  "name": "Capacity Tracker",
-  "short_name": "Capacity",
-  "description": "A private local-first daily capacity tracking journal.",
+  "name": "Personal Operating System",
+  "short_name": "Personal OS",
+  "description": "A private local-first personal operating system.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

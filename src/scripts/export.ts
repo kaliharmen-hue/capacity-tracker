@@ -9,7 +9,7 @@ const copyStatus = document.querySelector<HTMLParagraphElement>("#copy-status");
 const shareActions = document.querySelector<HTMLDivElement>("#share-actions");
 const sharePreviewButton = document.querySelector<HTMLButtonElement>("[data-share-preview]");
 const selectPreviewButton = document.querySelector<HTMLButtonElement>("[data-select-preview]");
-const backupKey = "capacity-tracker-last-json-backup";
+const backupKey = "personal-operating-system-last-json-backup";
 let latestPreviewText = "";
 
 dateInput!.value = new URLSearchParams(window.location.search).get("date") || todayIso();
@@ -58,7 +58,7 @@ function download(filename: string, content: string, type = "text/plain"): void 
 }
 
 function markdownForEntry(entry: DailyEntry): string {
-  const lines = [`# Daily Capacity Tracker - ${entry.date}`, ""];
+  const lines = [`# Personal Operating System Daily Log - ${entry.date}`, ""];
   for (const section of sections) {
     lines.push(`## ${section.title}`);
     for (const field of section.fields) {
@@ -120,7 +120,7 @@ async function sharePreviewText(): Promise<boolean> {
   if (!navigator.share) return false;
   try {
     await navigator.share({
-      title: "Capacity Tracker export",
+      title: "Personal Operating System export",
       text: latestPreviewText
     });
     if (copyStatus) copyStatus.textContent = "Shared. I can paste it into ChatGPT from there.";
@@ -150,7 +150,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) =
       const entry = entries.find((item) => item.date === selectedDate);
       const content = entry ? markdownForEntry(entry) : showEmptyState(selectedDate);
       setPreview(content);
-      if (entry) download(`capacity-${selectedDate}.md`, content, "text/markdown");
+      if (entry) download(`personal-os-${selectedDate}.md`, content, "text/markdown");
     }
 
     if (action === "day-copy") {
@@ -166,7 +166,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) =
         .map(markdownForEntry)
         .join("\n---\n");
       setPreview(content || showEmptyState(month));
-      if (content) download(`capacity-${month}.md`, content, "text/markdown");
+      if (content) download(`personal-os-${month}.md`, content, "text/markdown");
     }
 
     if (action === "month-copy") {
@@ -181,14 +181,14 @@ document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) =
     if (action === "csv") {
       const content = csv(entries);
       setPreview(content || showEmptyState("any date"));
-      if (content) download("capacity-tracker.csv", content, "text/csv");
+      if (content) download("personal-operating-system.csv", content, "text/csv");
     }
 
     if (action === "json") {
       const content = JSON.stringify(entries, null, 2);
       setPreview(entries.length ? content : showEmptyState("any date"));
       if (entries.length) {
-        download("capacity-tracker-backup.json", content, "application/json");
+        download("personal-operating-system-backup.json", content, "application/json");
         localStorage.setItem(backupKey, new Date().toISOString());
         renderBackupStatus();
       }

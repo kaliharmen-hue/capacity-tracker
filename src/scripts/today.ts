@@ -63,7 +63,10 @@ function renderField(field: FieldDefinition): string {
   if (field.type === "score") return renderScore(field);
   if (field.type === "multi") return renderMulti(field);
   if (field.type === "textarea") {
-    return `<label class="field-label">${field.label}<textarea name="${field.name}" rows="3">${String(fieldValue(field.name) ?? "")}</textarea></label>`;
+    const condition = field.showWhen
+      ? ` data-show-when="${String(field.showWhen.name)}" data-show-min="${field.showWhen.min ?? ""}"`
+      : "";
+    return `<label class="field-label"${condition}>${field.label}<textarea name="${field.name}" rows="3">${String(fieldValue(field.name) ?? "")}</textarea></label>`;
   }
   if (field.type === "number") {
     return `<label class="field-label">${field.label}<input name="${field.name}" type="number" min="${field.min ?? ""}" max="${field.max ?? ""}" step="${field.step ?? 1}" value="${String(fieldValue(field.name) ?? "")}" /></label>`;
@@ -98,7 +101,19 @@ function renderForm(): void {
       if (output) output.textContent = input.value;
     });
   });
+  updateConditionalFields();
   isLoading = false;
+}
+
+function updateConditionalFields(): void {
+  if (!sectionsRoot) return;
+  sectionsRoot.querySelectorAll<HTMLElement>("[data-show-when]").forEach((element) => {
+    const fieldName = element.dataset.showWhen;
+    const min = Number(element.dataset.showMin || 0);
+    const control = fieldName ? sectionsRoot.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${fieldName}"]`) : undefined;
+    const value = Number(control?.value || 0);
+    element.hidden = !Number.isFinite(value) || value < min;
+  });
 }
 
 async function loadEntry(date: string): Promise<void> {
@@ -110,7 +125,7 @@ async function loadEntry(date: string): Promise<void> {
 function collectEntry(): DailyEntry {
   if (!form || !dateInput) return currentEntry;
   const data = new FormData(form);
-  const entry = createEmptyEntry(dateInput.value || todayIso());
+  const entry = { ...createEmptyEntry(dateInput.value || todayIso()), ...currentEntry, date: dateInput.value || todayIso() };
 
   for (const section of sections) {
     for (const field of section.fields) {
@@ -158,7 +173,9 @@ dateInput?.addEventListener("change", () => {
 });
 
 form?.addEventListener("input", scheduleSave);
+form?.addEventListener("input", updateConditionalFields);
 form?.addEventListener("change", scheduleSave);
+form?.addEventListener("change", updateConditionalFields);
 form?.addEventListener("submit", (event) => {
   event.preventDefault();
   scheduleSave();

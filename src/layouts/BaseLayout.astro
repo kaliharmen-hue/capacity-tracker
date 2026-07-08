@@ -3,7 +3,7 @@ import "../styles/global.css";
 
 interface Props {
   title: string;
-  active: "today" | "history" | "insights" | "export";
+  active: "daily" | "weekly" | "monthly" | "experiments" | "export";
 }
 
 const { title, active } = Astro.props;
@@ -12,9 +12,10 @@ const manifestHref = `${base}manifest.webmanifest`;
 const icon192 = `${base}icons/icon-192.svg`;
 
 const links = [
-  { href: base, label: "Today", key: "today" },
-  { href: `${base}history/`, label: "History", key: "history" },
-  { href: `${base}insights/`, label: "Insights", key: "insights" },
+  { href: base, label: "Daily Log", key: "daily" },
+  { href: `${base}history/`, label: "Weekly Review", key: "weekly" },
+  { href: `${base}insights/`, label: "Monthly Insights", key: "monthly" },
+  { href: `${base}experiments/`, label: "Experiments", key: "experiments" },
   { href: `${base}export/`, label: "Export", key: "export" }
 ];
 ---
@@ -24,21 +25,21 @@ const links = [
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Private local-first capacity tracking journal." />
+    <meta name="description" content="Private local-first personal operating system." />
     <meta name="theme-color" content="#3f6f63" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Capacity" />
+    <meta name="apple-mobile-web-app-title" content="Personal OS" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="manifest" href={manifestHref} />
     <link rel="icon" href={icon192} type="image/svg+xml" />
     <link rel="apple-touch-icon" href={icon192} />
-    <title>{title} | Capacity Tracker</title>
+    <title>{title} | Personal Operating System</title>
   </head>
   <body>
     <header class="app-header">
       <div>
         <p class="eyebrow">Private local journal</p>
-        <h1>Capacity Tracker</h1>
+        <h1>Personal Operating System</h1>
       </div>
       <nav class="top-nav" aria-label="Main navigation">
         {

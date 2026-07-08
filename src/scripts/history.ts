@@ -61,7 +61,7 @@ function render(): void {
     summaryRoot.innerHTML = [
       stat("Average energy", summary.averageEnergy.toFixed(1)),
       stat("Average clarity", summary.averageClarity.toFixed(1)),
-      stat("Average reserve left", summary.averageCapacityRemaining ? summary.averageCapacityRemaining.toFixed(1) : "Not enough yet"),
+      stat("Average capability", summary.averageCapacityRemaining ? summary.averageCapacityRemaining.toFixed(1) : "Not enough yet"),
       stat("Average morning activation", summary.averageMorningActivation ? summary.averageMorningActivation.toFixed(1) : "Not enough yet"),
       stat("Average sleep", `${summary.averageSleep.toFixed(1)}h`),
       stat("Low-energy days", summary.lowEnergyDays),
@@ -71,14 +71,13 @@ function render(): void {
       stat("Poor sleep days", summary.poorSleepDays),
       stat("Relational stress days", summary.relationalStressDays),
       stat("Hormonal sign days", summary.hormonalDays),
-      stat("Weak Amfexa days", summary.weakAmfexaDays),
-      stat("3+ coffee days", summary.threeCoffeeDays),
+      stat("Medication felt weak days", summary.weakMedicationDays),
       stat("Current fatigue streak", summary.fatigueCurrentStreak),
       stat("Longest fatigue streak this month", summary.fatigueLongestThisMonth),
       stat("Fatigue days, last 30", summary.fatigueDaysLast30),
       stat("Fatigue + bloating", summary.fatigueBloatingDays),
       stat("Fatigue + poor sleep", summary.fatiguePoorSleepDays),
-      stat("Fatigue + luteal", summary.fatigueLutealDays),
+      stat("Fatigue + hormonal pattern", summary.fatigueHormonalPatternDays),
       stat("Training readout", summary.trainingReadout)
     ].join("");
   }
@@ -88,7 +87,7 @@ function render(): void {
       ? [
           chart("Energy", recent, "energyScore"),
           chart("Executive clarity", recent, "clarityScore"),
-          chart("Reserve left", recent.filter((entry) => hasNumber(entry, "capacityRemainingScore")), "capacityRemainingScore"),
+          chart("Capability", recent.filter((entry) => hasNumber(entry, "capacityRemainingScore")), "capacityRemainingScore"),
           chart("Morning activation", recent.filter((entry) => hasNumber(entry, "morningActivationScore")), "morningActivationScore"),
           chart("Sleep hours", recent, "sleepHours", 12),
           chart("Relational stress score", recent.map((entry) => ({ ...entry, score: relationalStressScore(entry) })) as DailyEntry[], "score" as keyof DailyEntry, 9)
@@ -117,7 +116,7 @@ function render(): void {
         <article class="entry-row">
           <div>
             <h3>${entry.date}</h3>
-            <p>Energy ${entry.energyScore}/10 - Clarity ${entry.clarityScore}/10 - Reserve ${displayScore(entry.capacityRemainingScore)}/10 - ${relationalStressLevel(relationalStressScore(entry))} relational stress</p>
+            <p>Energy ${entry.energyScore}/10 - Clarity ${entry.clarityScore}/10 - Capability ${displayScore(entry.capacityRemainingScore)}/10 - ${relationalStressLevel(relationalStressScore(entry))} relational stress</p>
           </div>
           <a class="secondary-button" href="${base}?date=${entry.date}">Edit</a>
         </article>

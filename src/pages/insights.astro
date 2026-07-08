@@ -2,20 +2,20 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 ---
 
-<BaseLayout title="Insights" active="insights">
+<BaseLayout title="Monthly Insights" active="monthly">
   <section class="page-heading">
     <div>
-      <p class="eyebrow">Cautious signals</p>
+      <p class="eyebrow">Monthly Insights</p>
       <h2>What might be worth watching?</h2>
     </div>
-    <p class="soft-copy">These are gentle pattern notes, not diagnosis or certainty.</p>
+    <p class="soft-copy">These are gentle pattern notes from the recent month, not diagnosis or certainty.</p>
   </section>
 
   <section id="pattern-visuals" class="pattern-visuals" aria-live="polite"></section>
   <section id="insight-list" class="insight-list" aria-live="polite"></section>
   <section class="plain-panel">
     <h3>How insights work</h3>
-    <p>Insights are generated from entries saved in this browser. They get more useful after several days, and stronger patterns need more than one week of data.</p>
+    <p>Insights are generated from recent entries saved in this browser. They get more useful after several days, and stronger patterns need more than one week of data.</p>
   </section>
   <section class="plain-panel">
     <h3>Relational stress scoring</h3>

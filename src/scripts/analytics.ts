@@ -39,7 +39,7 @@ export function hasFatigue(entry: DailyEntry): boolean {
 }
 
 function hasExecutiveDemand(entry: DailyEntry): boolean {
-  return entry.executiveDemandLevel === "High" || entry.executiveDemandLevel === "Very high";
+  return entry.executiveDemandLevel === "High" || entry.executiveDemandLevel === "Very high" || entry.load.includes("High cognitive demand");
 }
 
 function answeredNumber(value: number | ""): value is number {
@@ -104,7 +104,10 @@ export function fatigueStats(entries: DailyEntry[]) {
       (entry) => entry.hormonalSigns.includes("Bloating") || entry.digestiveSymptoms.includes("Bloating")
     ),
     withPoorSleep: countWhere(fatigueDays, (entry) => entry.sleepQuality === "Poor"),
-    withLuteal: countWhere(fatigueDays, (entry) => entry.possibleLutealPhase === "Yes")
+    withHormonalPattern: countWhere(
+      fatigueDays,
+      (entry) => entry.familiarHormonalPattern === "Slightly" || entry.familiarHormonalPattern === "Yes"
+    )
   };
 }
 
@@ -148,17 +151,13 @@ export function buildSummary(entries: DailyEntry[]) {
         entry.familiarHormonalPattern === "Slightly" ||
         entry.familiarHormonalPattern === "Yes"
     ),
-    weakAmfexaDays: countWhere(
-      entries,
-      (entry) => entry.activationSigns.includes("Amfexa felt weak/not noticeable") || entry.amfexaEffect === "Too weak"
-    ),
-    threeCoffeeDays: countWhere(entries, (entry) => entry.coffees >= 3),
+    weakMedicationDays: countWhere(entries, (entry) => entry.amfexaEffect === "Too weak"),
     fatigueCurrentStreak: fatigue.currentStreak,
     fatigueLongestThisMonth: fatigue.longestThisMonth,
     fatigueDaysLast30: fatigue.daysLast30,
     fatigueBloatingDays: fatigue.withBloating,
     fatiguePoorSleepDays: fatigue.withPoorSleep,
-    fatigueLutealDays: fatigue.withLuteal,
+    fatigueHormonalPatternDays: fatigue.withHormonalPattern,
     trainingReadout: nextDayEnergyAfterTraining(entries)
   };
 }
@@ -186,20 +185,15 @@ export function buildInsights(entries: DailyEntry[]): string[] {
   }
 
   const connectionRegulated = sorted.filter(
-    (entry) =>
-      entry.recovery.includes("Meaningful connection") &&
-      (entry.nervousSystemState.includes("Calm/regulated") || entry.recovery.includes("Being heard/seen"))
+    (entry) => entry.recovery.includes("Meaningful connection") && (entry.overallState === "Calm" || entry.overallState === "Balanced" || entry.recovery.includes("Being heard/seen"))
   );
   if (connectionRegulated.length >= 2) {
     insights.push("Meaningful connection appeared alongside better regulation or feeling heard/seen.");
   }
 
-  const coffeeWeakAmfexa = sorted.filter(
-    (entry) =>
-      entry.coffees >= 3 && (entry.activationSigns.includes("Amfexa felt weak/not noticeable") || entry.amfexaEffect === "Too weak")
-  );
-  if (coffeeWeakAmfexa.length) {
-    insights.push("3+ coffees appeared on days where Amfexa felt weak/not noticeable. This is worth watching gently.");
+  const weakMedicationLowClarity = sorted.filter((entry) => entry.amfexaEffect === "Too weak" && entry.clarityScore <= 5);
+  if (weakMedicationLowClarity.length) {
+    insights.push("Medication feeling too weak appeared alongside lower clarity at least once. This may be worth watching gently.");
   }
 
   const fatigue = fatigueStats(sorted);
@@ -212,8 +206,8 @@ export function buildInsights(entries: DailyEntry[]): string[] {
   if (fatigue.withPoorSleep >= 2) {
     insights.push("Fatigue and poor sleep have appeared together more than once.");
   }
-  if (fatigue.withLuteal >= 2) {
-    insights.push("Fatigue has appeared alongside possible luteal phase days more than once.");
+  if (fatigue.withHormonalPattern >= 2) {
+    insights.push("Fatigue has appeared alongside familiar hormonal-pattern days more than once.");
   }
 
   const executiveDemandLowReserve = sorted.filter(
@@ -226,6 +220,11 @@ export function buildInsights(entries: DailyEntry[]): string[] {
   const highMorningActivation = sorted.filter((entry) => answeredNumber(entry.morningActivationScore) && entry.morningActivationScore >= 7);
   if (highMorningActivation.length >= 2) {
     insights.push("Morning activation was high more than once before coffee, food or medication. This may be a useful baseline signal to watch.");
+  }
+
+  const laterActivationHigher = sorted.filter((entry) => entry.laterActivation === "Higher" && entry.capacityRemainingScore !== "" && entry.capacityRemainingScore <= 4);
+  if (laterActivationHigher.length >= 2) {
+    insights.push("Later activation being higher appeared alongside lower remaining capacity more than once.");
   }
 
   const innerCriticLowCapacity = sorted.filter(
@@ -290,7 +289,8 @@ export function buildInsights(entries: DailyEntry[]): string[] {
       entry.bowelMovementDescription === "Smaller/less complete than usual" ||
       entry.digestiveSymptoms.some((symptom) => symptom !== "None");
     const hormonalSignal =
-      entry.possiblePeriodSign === "Yes" ||
+      entry.familiarHormonalPattern === "Slightly" ||
+      entry.familiarHormonalPattern === "Yes" ||
       hasFatigue(entry) ||
       entry.hotWaking === "Yes" ||
       entry.hormonalSigns.some((sign) =>

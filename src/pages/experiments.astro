@@ -1,0 +1,67 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Experiments" active="experiments">
+  <section class="page-heading">
+    <div>
+      <p class="eyebrow">One thing at a time</p>
+      <h2>What am I testing?</h2>
+    </div>
+    <p class="soft-copy">Run one gentle experiment for a set window, then compare how the days actually felt.</p>
+  </section>
+
+  <section id="experiment-status" class="backup-status" aria-live="polite"></section>
+
+  <section class="export-grid">
+    <form id="experiment-form" class="plain-panel">
+      <h3>Current experiment</h3>
+      <label class="field-label">
+        Experiment idea
+        <select id="experiment-preset" name="preset">
+          <option value="">Choose an idea</option>
+          <option>Protein before Amfexa</option>
+          <option>Different dosing time</option>
+          <option>90-minute work blocks</option>
+          <option>Morning walk</option>
+          <option>Coffee timing</option>
+          <option>Hormonal window strategy</option>
+          <option>Custom</option>
+        </select>
+      </label>
+      <label class="field-label">
+        Custom name
+        <input name="name" type="text" placeholder="Only needed for a custom experiment" />
+      </label>
+      <label class="field-label">
+        Start date
+        <input name="startDate" type="date" />
+      </label>
+      <label class="field-label">
+        Duration in weeks
+        <input name="durationWeeks" type="number" min="1" max="8" step="1" value="3" />
+      </label>
+      <label class="field-label">
+        What am I trying?
+        <textarea name="plan" rows="3"></textarea>
+      </label>
+      <label class="field-label">
+        What would count as helping?
+        <textarea name="successMarker" rows="3"></textarea>
+      </label>
+      <label class="field-label">
+        Notes while it is running
+        <textarea name="notes" rows="3"></textarea>
+      </label>
+      <button type="submit" class="primary-button full-width">Save experiment</button>
+      <button type="button" id="clear-experiment" class="secondary-button full-width">Clear experiment</button>
+    </form>
+
+    <section class="plain-panel">
+      <h3>Experiment readout</h3>
+      <div id="experiment-readout" class="experiment-readout" aria-live="polite"></div>
+    </section>
+  </section>
+
+  <script src="../scripts/experiments.ts"></script>
+</BaseLayout>
