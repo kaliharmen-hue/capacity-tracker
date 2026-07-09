@@ -16,17 +16,24 @@ function fieldValue(name: keyof DailyEntry): DailyEntry[keyof DailyEntry] {
   return currentEntry[name];
 }
 
-function renderScore(field: Extract<FieldDefinition, { type: "score" }>): string {
+function renderScoreControl(field: Extract<FieldDefinition, { type: "score" | "scoreOnly" }>): string {
   const value = Number(fieldValue(field.name) || 5);
   return `
     <div class="score-field">
       <label for="${field.name}">${field.label}</label>
+      ${field.helperText ? `<p class="field-helper">${field.helperText}</p>` : ""}
       <div class="score-row">
         <span>1</span>
         <input id="${field.name}" name="${field.name}" type="range" min="1" max="10" step="1" value="${value}" />
         <output for="${field.name}">${value}</output>
       </div>
     </div>
+  `;
+}
+
+function renderScore(field: Extract<FieldDefinition, { type: "score" }>): string {
+  return `
+    ${renderScoreControl(field)}
     <label class="field-label">${field.notesLabel}
       <textarea name="${field.notesName}" rows="3">${String(fieldValue(field.notesName) ?? "")}</textarea>
     </label>
@@ -38,6 +45,7 @@ function renderMulti(field: Extract<FieldDefinition, { type: "multi" }>): string
   return `
     <fieldset class="option-group">
       <legend>${field.label}</legend>
+      ${field.helperText ? `<p class="field-helper">${field.helperText}</p>` : ""}
       <div class="chips">
         ${field.options
           .map(
@@ -60,22 +68,24 @@ function renderMulti(field: Extract<FieldDefinition, { type: "multi" }>): string
 }
 
 function renderField(field: FieldDefinition): string {
+  if (field.type === "info") return `<div class="field-divider">${field.text}</div>`;
   if (field.type === "score") return renderScore(field);
+  if (field.type === "scoreOnly") return renderScoreControl(field);
   if (field.type === "multi") return renderMulti(field);
   if (field.type === "textarea") {
     const condition = field.showWhen
       ? ` data-show-when="${String(field.showWhen.name)}" data-show-min="${field.showWhen.min ?? ""}"`
       : "";
-    return `<label class="field-label"${condition}>${field.label}<textarea name="${field.name}" rows="3">${String(fieldValue(field.name) ?? "")}</textarea></label>`;
+    return `<label class="field-label"${condition}>${field.label}${field.helperText ? `<span class="field-helper">${field.helperText}</span>` : ""}<textarea name="${field.name}" rows="3">${String(fieldValue(field.name) ?? "")}</textarea></label>`;
   }
   if (field.type === "number") {
-    return `<label class="field-label">${field.label}<input name="${field.name}" type="number" min="${field.min ?? ""}" max="${field.max ?? ""}" step="${field.step ?? 1}" value="${String(fieldValue(field.name) ?? "")}" /></label>`;
+    return `<label class="field-label">${field.label}${field.helperText ? `<span class="field-helper">${field.helperText}</span>` : ""}<input name="${field.name}" type="number" min="${field.min ?? ""}" max="${field.max ?? ""}" step="${field.step ?? 1}" value="${String(fieldValue(field.name) ?? "")}" /></label>`;
   }
   if (field.type === "time") {
     return `<label class="field-label">${field.label}<input name="${field.name}" type="time" value="${String(fieldValue(field.name) ?? "")}" /></label>`;
   }
-  return `<label class="field-label">${field.label}<select name="${field.name}">${field.options
-    .map((option) => `<option value="${option}" ${fieldValue(field.name) === option ? "selected" : ""}>${option || "Not answered"}</option>`)
+  return `<label class="field-label">${field.label}${field.helperText ? `<span class="field-helper">${field.helperText}</span>` : ""}<select name="${field.name}">${field.options
+    .map((option) => `<option value="${option}" ${String(fieldValue(field.name) ?? "") === option ? "selected" : ""}>${option || "Not answered"}</option>`)
     .join("")}</select></label>`;
 }
 
@@ -129,9 +139,11 @@ function collectEntry(): DailyEntry {
 
   for (const section of sections) {
     for (const field of section.fields) {
-      if (field.type === "multi") {
+      if (field.type === "info") {
+        continue;
+      } else if (field.type === "multi") {
         (entry[field.name] as string[]) = data.getAll(String(field.name)).map(String);
-      } else if (field.type === "score" || field.type === "number") {
+      } else if (field.type === "score" || field.type === "scoreOnly" || field.type === "number") {
         const rawValue = String(data.get(String(field.name)) ?? "");
         (entry[field.name] as number | "") = rawValue === "" ? "" : Number(rawValue);
         if (field.type === "score") {

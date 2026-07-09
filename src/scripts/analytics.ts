@@ -38,6 +38,15 @@ export function hasFatigue(entry: DailyEntry): boolean {
   return entry.fatigueLevel === "Mild" || entry.fatigueLevel === "Moderate" || entry.fatigueLevel === "Significant";
 }
 
+function hasTiredEnergyPattern(entry: DailyEntry): boolean {
+  return (
+    entry.energyPattern === "Tired but functional" ||
+    entry.energyPattern === "Exhausted / pushed too far" ||
+    entry.endOfDayEnergy === "Exhausted / did too much" ||
+    entry.endOfDayEnergy === "Running on fumes"
+  );
+}
+
 function hasExecutiveDemand(entry: DailyEntry): boolean {
   return entry.executiveDemandLevel === "High" || entry.executiveDemandLevel === "Very high" || entry.load.includes("High cognitive demand");
 }
@@ -131,15 +140,20 @@ export function nextDayEnergyAfterTraining(entries: DailyEntry[]): string {
 }
 
 export function buildSummary(entries: DailyEntry[]) {
-  const fatigue = fatigueStats(entries);
+  const meaningScores = entries.flatMap((entry) =>
+    [entry.activity1MeaningScore, entry.activity2MeaningScore, entry.activity3MeaningScore, entry.activity4MeaningScore].filter(answeredNumber)
+  );
   return {
     averageEnergy: average(entries.map((entry) => entry.energyScore)),
     averageClarity: average(entries.map((entry) => entry.clarityScore)),
     averageCapacityRemaining: average(entries.map((entry) => entry.capacityRemainingScore).filter(answeredNumber)),
-    averageMorningActivation: average(entries.map((entry) => entry.morningActivationScore).filter(answeredNumber)),
+    averageWorkSatisfaction: average(entries.map((entry) => entry.workSatisfactionScore).filter(answeredNumber)),
+    averageMeaningContentment: average(meaningScores),
     averageSleep: average(entries.map((entry) => entry.sleepHours)),
     lowEnergyDays: countWhere(entries, (entry) => entry.energyScore <= 4),
     highEnergyDays: countWhere(entries, (entry) => entry.energyScore >= 8),
+    crashDays: countWhere(entries, (entry) => ["Afternoon crash", "Evening crash", "Up and down"].includes(entry.energyPattern)),
+    exhaustedEndDays: countWhere(entries, (entry) => entry.endOfDayEnergy === "Exhausted / did too much" || entry.endOfDayEnergy === "Running on fumes"),
     highExecutiveDemandDays: countWhere(entries, hasExecutiveDemand),
     highInnerCriticDays: countWhere(entries, (entry) => answeredNumber(entry.innerCriticScore) && entry.innerCriticScore >= 7),
     poorSleepDays: countWhere(entries, (entry) => entry.sleepQuality === "Poor"),
@@ -152,12 +166,7 @@ export function buildSummary(entries: DailyEntry[]) {
         entry.familiarHormonalPattern === "Yes"
     ),
     weakMedicationDays: countWhere(entries, (entry) => entry.amfexaEffect === "Too weak"),
-    fatigueCurrentStreak: fatigue.currentStreak,
-    fatigueLongestThisMonth: fatigue.longestThisMonth,
-    fatigueDaysLast30: fatigue.daysLast30,
-    fatigueBloatingDays: fatigue.withBloating,
-    fatiguePoorSleepDays: fatigue.withPoorSleep,
-    fatigueHormonalPatternDays: fatigue.withHormonalPattern,
+    activatedOnWakingDays: countWhere(entries, (entry) => entry.activationFirstNotice === "Immediately on waking"),
     trainingReadout: nextDayEnergyAfterTraining(entries)
   };
 }
@@ -196,35 +205,40 @@ export function buildInsights(entries: DailyEntry[]): string[] {
     insights.push("Medication feeling too weak appeared alongside lower clarity at least once. This may be worth watching gently.");
   }
 
-  const fatigue = fatigueStats(sorted);
-  if (fatigue.currentStreak > 0) {
-    insights.push(`Current fatigue streak is ${fatigue.currentStreak} day${fatigue.currentStreak === 1 ? "" : "s"}. The app is calculating this automatically.`);
+  const tiredPatternBloating = sorted.filter(
+    (entry) => hasTiredEnergyPattern(entry) && (entry.hormonalSigns.includes("Bloating") || entry.digestiveSymptoms.includes("Bloating"))
+  );
+  if (tiredPatternBloating.length >= 2) {
+    insights.push("Tired/exhausted energy patterns and bloating have appeared together more than once. This may be worth watching gently.");
   }
-  if (fatigue.withBloating >= 2) {
-    insights.push("Fatigue and bloating have appeared together more than once. This may be worth watching gently.");
+  const tiredPatternPoorSleep = sorted.filter((entry) => hasTiredEnergyPattern(entry) && entry.sleepQuality === "Poor");
+  if (tiredPatternPoorSleep.length >= 2) {
+    insights.push("Tired/exhausted energy patterns and poor sleep have appeared together more than once.");
   }
-  if (fatigue.withPoorSleep >= 2) {
-    insights.push("Fatigue and poor sleep have appeared together more than once.");
-  }
-  if (fatigue.withHormonalPattern >= 2) {
-    insights.push("Fatigue has appeared alongside familiar hormonal-pattern days more than once.");
+  const tiredPatternHormonal = sorted.filter(
+    (entry) => hasTiredEnergyPattern(entry) && (entry.familiarHormonalPattern === "Slightly" || entry.familiarHormonalPattern === "Yes")
+  );
+  if (tiredPatternHormonal.length >= 2) {
+    insights.push("Tired/exhausted energy patterns have appeared alongside familiar hormonal-pattern days more than once.");
   }
 
   const executiveDemandLowReserve = sorted.filter(
     (entry) => hasExecutiveDemand(entry) && answeredNumber(entry.capacityRemainingScore) && entry.capacityRemainingScore <= 3
   );
   if (executiveDemandLowReserve.length >= 2) {
-    insights.push("High executive demand appeared alongside low reserve more than once. This may help explain capacity dips even when energy is not the whole story.");
+    insights.push("High executive demand appeared alongside low capacity more than once. This may help explain capacity dips even when energy is not the whole story.");
   }
 
-  const highMorningActivation = sorted.filter((entry) => answeredNumber(entry.morningActivationScore) && entry.morningActivationScore >= 7);
-  if (highMorningActivation.length >= 2) {
-    insights.push("Morning activation was high more than once before coffee, food or medication. This may be a useful baseline signal to watch.");
+  const wakingActivation = sorted.filter((entry) => entry.activationFirstNotice === "Immediately on waking");
+  if (wakingActivation.length >= 2) {
+    insights.push("Activation was noticed immediately on waking more than once. This may be a useful baseline signal to watch.");
   }
 
-  const laterActivationHigher = sorted.filter((entry) => entry.laterActivation === "Higher" && entry.capacityRemainingScore !== "" && entry.capacityRemainingScore <= 4);
-  if (laterActivationHigher.length >= 2) {
-    insights.push("Later activation being higher appeared alongside lower remaining capacity more than once.");
+  const defensiveLowCapacity = sorted.filter(
+    (entry) => entry.activationSigns.includes("Defensive / reactive") && entry.capacityRemainingScore !== "" && entry.capacityRemainingScore <= 4
+  );
+  if (defensiveLowCapacity.length >= 2) {
+    insights.push("Defensive/reactive activation signs appeared alongside lower remaining capacity more than once.");
   }
 
   const innerCriticLowCapacity = sorted.filter(
@@ -241,7 +255,7 @@ export function buildInsights(entries: DailyEntry[]): string[] {
   const familiarHormonalCluster = sorted.filter(
     (entry) =>
       (entry.familiarHormonalPattern === "Slightly" || entry.familiarHormonalPattern === "Yes") &&
-      (hasFatigue(entry) ||
+      (hasTiredEnergyPattern(entry) ||
         entry.hotWaking === "Yes" ||
         entry.hormonalSigns.includes("Increased sensitivity") ||
         entry.hormonalSigns.includes("Bloating"))
@@ -291,7 +305,7 @@ export function buildInsights(entries: DailyEntry[]): string[] {
     const hormonalSignal =
       entry.familiarHormonalPattern === "Slightly" ||
       entry.familiarHormonalPattern === "Yes" ||
-      hasFatigue(entry) ||
+      hasTiredEnergyPattern(entry) ||
       entry.hotWaking === "Yes" ||
       entry.hormonalSigns.some((sign) =>
         ["Unusual body aches or pains", "Increased sensitivity", "Head pressure/tension", "Bloating"].includes(sign)

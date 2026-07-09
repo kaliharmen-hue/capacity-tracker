@@ -62,7 +62,9 @@ function markdownForEntry(entry: DailyEntry): string {
   for (const section of sections) {
     lines.push(`## ${section.title}`);
     for (const field of section.fields) {
-      if (field.type === "score") {
+      if (field.type === "info") {
+        lines.push(`- ${field.text}`);
+      } else if (field.type === "score") {
         lines.push(`- ${field.label}: ${entry[field.name]}/10`);
         lines.push(`- ${field.notesLabel}: ${entry[field.notesName] || ""}`);
       } else if (field.type === "multi") {

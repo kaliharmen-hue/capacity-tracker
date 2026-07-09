@@ -101,7 +101,7 @@ function renderCapacityPattern(entries: DailyEntry[]): string {
                   `
                 )
                 .join("")
-            : `<span class="quiet-note">Save a few days and this will show energy beside reserve.</span>`
+            : `<span class="quiet-note">Save a few days and this will show energy beside capacity.</span>`
         }
       </div>
     </article>

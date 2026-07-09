@@ -17,6 +17,9 @@ const form = document.querySelector<HTMLFormElement>("#experiment-form");
 const statusRoot = document.querySelector<HTMLDivElement>("#experiment-status");
 const readoutRoot = document.querySelector<HTMLDivElement>("#experiment-readout");
 const clearButton = document.querySelector<HTMLButtonElement>("#clear-experiment");
+const copyButton = document.querySelector<HTMLButtonElement>("#copy-experiment");
+const copyStatus = document.querySelector<HTMLParagraphElement>("#experiment-copy-status");
+let latestExperimentText = "";
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -86,6 +89,35 @@ function rangeEntries(entries: DailyEntry[], start: string, end: string): DailyE
   return entries.filter((entry) => entry.date >= start && entry.date <= end);
 }
 
+function experimentMarkdown(experiment: Experiment, before: DailyEntry[], during: DailyEntry[], endDate: string): string {
+  return [
+    `# Personal Operating System Experiment - ${getExperimentName(experiment)}`,
+    "",
+    `- Start date: ${experiment.startDate}`,
+    `- End date: ${endDate}`,
+    `- Duration: ${experiment.durationWeeks} week${experiment.durationWeeks === 1 ? "" : "s"}`,
+    "",
+    "## What I am trying",
+    experiment.plan || "Not noted",
+    "",
+    "## What would count as helping",
+    experiment.successMarker || "Not noted",
+    "",
+    "## Notes while running",
+    experiment.notes || "Not noted",
+    "",
+    "## Before vs during",
+    `- Logged days before: ${before.length}`,
+    `- Logged days during: ${during.length}`,
+    `- Average energy before: ${average(before.map((entry) => entry.energyScore))}`,
+    `- Average energy during: ${average(during.map((entry) => entry.energyScore))}`,
+    `- Average clarity before: ${average(before.map((entry) => entry.clarityScore))}`,
+    `- Average clarity during: ${average(during.map((entry) => entry.clarityScore))}`,
+    `- Average capacity before: ${average(before.map(answeredCapacity).filter((value): value is number => value !== undefined))}`,
+    `- Average capacity during: ${average(during.map(answeredCapacity).filter((value): value is number => value !== undefined))}`
+  ].join("\n");
+}
+
 async function render(): Promise<void> {
   const experiment = loadExperiment();
   fillForm(experiment);
@@ -102,6 +134,7 @@ async function render(): Promise<void> {
     if (readoutRoot) {
       readoutRoot.innerHTML = `<p class="empty-state">Save an experiment and this will compare the experiment window with the same length of time before it.</p>`;
     }
+    latestExperimentText = "";
     return;
   }
 
@@ -115,6 +148,7 @@ async function render(): Promise<void> {
   const today = todayIso();
   const daysRemaining = Math.max(0, Math.ceil((new Date(`${endDate}T00:00:00`).getTime() - new Date(`${today}T00:00:00`).getTime()) / 86400000));
   const complete = today > endDate;
+  latestExperimentText = experimentMarkdown(experiment, before, during, endDate);
 
   if (statusRoot) {
     statusRoot.innerHTML = `
@@ -163,6 +197,28 @@ form?.addEventListener("submit", (event) => {
 clearButton?.addEventListener("click", () => {
   localStorage.removeItem(storageKey);
   void render();
+});
+
+copyButton?.addEventListener("click", async () => {
+  if (!latestExperimentText.trim()) {
+    if (copyStatus) copyStatus.textContent = "Save an experiment first, then I can copy it.";
+    return;
+  }
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "Personal Operating System experiment", text: latestExperimentText });
+      if (copyStatus) copyStatus.textContent = "Shared. I can paste it into ChatGPT from there.";
+      return;
+    } catch {
+      // Fall through to clipboard.
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(latestExperimentText);
+    if (copyStatus) copyStatus.textContent = "Copied. I can paste this into ChatGPT now.";
+  } catch {
+    if (copyStatus) copyStatus.textContent = "Copy did not complete automatically. I can select the text from Export if needed.";
+  }
 });
 
 void render();

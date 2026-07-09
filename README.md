@@ -14,7 +14,7 @@ This can be hosted for free as a static site later, including GitHub Pages. If o
 ## Pages
 
 - `Daily Log`: daily reflective tracker with first-person prompts
-- `Weekly Review`: 7, 14, and 30 day dashboard with energy, clarity, capacity, activation, sleep, fatigue, and relational stress signals
+- `Weekly Review`: 7, 14, and 30 day dashboard with energy, clarity, capacity, activation, sleep, work/activity fit, and relational stress signals
 - `Monthly Insights`: cautious recent-month pattern notes, visual rhythm boards, relational stress scoring, and optimisation signals
 - `Experiments`: one active experiment at a time, with a simple before/during readout
 - `Export`: Markdown, CSV, JSON backup, and JSON import

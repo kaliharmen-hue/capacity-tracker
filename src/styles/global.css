@@ -229,6 +229,23 @@ main {
   line-height: 1.45;
 }
 
+.field-helper {
+  display: block;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.field-divider {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--accent-dark);
+  font-weight: 800;
+}
+
 .score-field {
   display: grid;
   gap: 10px;
