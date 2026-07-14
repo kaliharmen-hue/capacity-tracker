@@ -114,6 +114,7 @@ function renderWeeklyInsights(data: DailyEntry[]): void {
     `Best capacity days: ${bestCapacity.length ? bestCapacity.map((entry) => `${entry.date} (${entry.capacityRemainingScore}/10)`).join(", ") : "Not enough data yet"}`,
     `Worst capacity days: ${worstCapacity.length ? worstCapacity.map((entry) => `${entry.date} (${entry.capacityRemainingScore}/10)`).join(", ") : "Not enough data yet"}`,
     `Biggest energy drains: ${mostCommon(data.map((entry) => entry.biggestEnergyDrain))}`,
+    `Most common executive friction: ${mostCommon(data.flatMap((entry) => entry.executiveFriction))}`,
     `Activities with highest satisfaction: ${data.some((entry) => typeof entry.workSatisfactionScore === "number") ? "Work satisfaction is tracked by day for now; activity-level satisfaction can be added later if useful." : "Not enough data yet"}`,
     `Activities with highest meaning/contentment: ${highestMeaning ? `${highestMeaning.type} (${highestMeaning.meaning}/10)` : "Not enough data yet"}`,
     `Computer work and crashes: ${computerCrashDays.length ? `${computerCrashDays.length} day${computerCrashDays.length === 1 ? "" : "s"} matched.` : "No clear link yet."}`,

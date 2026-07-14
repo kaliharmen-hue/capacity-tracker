@@ -12,6 +12,7 @@ export interface DailyEntry {
   clarityNotes: string;
   executiveDemandLevel: string;
   executiveDemandTypes: string[];
+  executiveFriction: string[];
   emotionalState: string[];
   emotionalNotes: string;
   socialTolerance: string[];
@@ -182,6 +183,19 @@ export const refinedExecutiveDemandOptions = [
   "Repetitive tasks",
   "High task switching",
   "Decision-making",
+  "Other"
+];
+export const executiveFrictionOptions = [
+  "Interruptions",
+  "Waiting for other people",
+  "Too many decisions",
+  "Task switching",
+  "Boring/repetitive work",
+  "Relationship stress",
+  "Fatigue",
+  "Poor sleep",
+  "Physical symptoms",
+  "Perfectionism",
   "Other"
 ];
 export const hormonalOptions = [
@@ -369,6 +383,19 @@ export const sections: SectionDefinition[] = [
     ]
   },
   {
+    key: "executiveFriction",
+    title: "Executive friction",
+    fields: [
+      {
+        type: "multi",
+        name: "executiveFriction",
+        label: "What got in the way of doing good work today?",
+        helperText: "Tick all that apply.",
+        options: executiveFrictionOptions
+      }
+    ]
+  },
+  {
     key: "medication",
     title: "ADHD medication",
     fields: [
@@ -404,14 +431,6 @@ export const sections: SectionDefinition[] = [
     fields: [
       { type: "select", name: "overallState", label: "What was my overall state today?", options: ["", ...overallStateOptions] },
       { type: "textarea", name: "nervousSystemNotes", label: "Overall state notes" }
-    ]
-  },
-  {
-    key: "emotional",
-    title: "Emotional state",
-    fields: [
-      { type: "multi", name: "emotionalState", label: "What emotional states are present?", options: emotionalOptions },
-      { type: "textarea", name: "emotionalNotes", label: "Emotional notes" }
     ]
   },
   {
@@ -590,6 +609,7 @@ export function createEmptyEntry(date: string): DailyEntry {
     clarityNotes: "",
     executiveDemandLevel: "",
     executiveDemandTypes: [],
+    executiveFriction: [],
     emotionalState: [],
     emotionalNotes: "",
     socialTolerance: [],

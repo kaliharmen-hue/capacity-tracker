@@ -48,7 +48,14 @@ function hasTiredEnergyPattern(entry: DailyEntry): boolean {
 }
 
 function hasExecutiveDemand(entry: DailyEntry): boolean {
-  return entry.executiveDemandLevel === "High" || entry.executiveDemandLevel === "Very high" || entry.load.includes("High cognitive demand");
+  return (
+    entry.executiveDemandLevel === "High" ||
+    entry.executiveDemandLevel === "Very high" ||
+    entry.load.includes("High cognitive demand") ||
+    entry.executiveFriction.includes("Too many decisions") ||
+    entry.executiveFriction.includes("Task switching") ||
+    entry.executiveFriction.includes("Interruptions")
+  );
 }
 
 function answeredNumber(value: number | ""): value is number {
@@ -227,6 +234,11 @@ export function buildInsights(entries: DailyEntry[]): string[] {
   );
   if (executiveDemandLowReserve.length >= 2) {
     insights.push("High executive demand appeared alongside low capacity more than once. This may help explain capacity dips even when energy is not the whole story.");
+  }
+
+  const frictionLowerClarity = sorted.filter((entry) => entry.executiveFriction.length > 0 && entry.clarityScore <= 5);
+  if (frictionLowerClarity.length >= 2) {
+    insights.push("Executive friction appeared alongside lower clarity more than once.");
   }
 
   const wakingActivation = sorted.filter((entry) => entry.activationFirstNotice === "Immediately on waking");
