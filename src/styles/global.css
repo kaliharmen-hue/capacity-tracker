@@ -260,6 +260,10 @@ main {
   color: var(--muted);
 }
 
+.slider-row {
+  grid-template-columns: auto 1fr 44px auto;
+}
+
 .score-row input {
   accent-color: var(--accent);
 }

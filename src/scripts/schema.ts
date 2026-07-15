@@ -160,6 +160,17 @@ export type FieldDefinition =
       helperText?: string;
     }
   | {
+      type: "slider";
+      name: keyof DailyEntry;
+      label: string;
+      min: number;
+      max: number;
+      step: number;
+      helperText?: string;
+      minLabel?: string;
+      maxLabel?: string;
+    }
+  | {
       type: "select";
       name: keyof DailyEntry;
       label: string;
@@ -341,6 +352,10 @@ export const activityCapacityEffectOptions = [
   "Slightly drained",
   "Very drained"
 ];
+export const activityExecutiveDemandHelper =
+  "How much did today's activities require from my executive system? Think about planning, organising, switching tasks, holding information in mind, making decisions, inhibiting distractions, and maintaining focus.<br><br>0-1: Almost no executive effort (holiday, relaxing, passive activities)<br>2-3: Light demand (simple routine tasks, driving familiar routes, easy conversations)<br>4-5: Moderate demand (some planning, meetings, emails, a few task switches)<br>6-7: High demand (sustained concentration, coaching, creative thinking, multiple decisions, problem-solving)<br>8-9: Very high demand (complex planning, constant switching, deadlines, mentally intense work)<br>10: Near maximum demand (brain felt stretched all day, constantly juggling multiple cognitive demands)";
+export const activityMeaningHelper =
+  "Considering the effort this activity required, how much did it give back? This isn't about enjoyment or how tired I felt afterwards. It's about whether the activity felt worthwhile, nourishing, helped me grow, aligned with my values, or added something meaningful to my life.<br><br>0 = It took far more than it gave back.<br>10 = It gave me far more than it cost.";
 
 export const sections: SectionDefinition[] = [
   {
@@ -528,12 +543,13 @@ export const sections: SectionDefinition[] = [
       { type: "select", name: "activity1Type", label: "Activity", options: ["", ...activityTypeOptions] },
       { type: "select", name: "activity1Time", label: "Time", options: ["", ...activityTimeOptions] },
       {
-        type: "number",
+        type: "slider",
         name: "activity1ExecutiveDemandScore",
-        label: "Executive demand",
+        label: "Executive demand (0-10)",
         min: 0,
         max: 10,
-        step: 1
+        step: 1,
+        helperText: activityExecutiveDemandHelper
       },
       {
         type: "select",
@@ -542,48 +558,95 @@ export const sections: SectionDefinition[] = [
         options: ["", ...activityCapacityEffectOptions]
       },
       {
-        type: "number",
+        type: "slider",
         name: "activity1MeaningScore",
         label: "Meaning / contentment",
         min: 0,
         max: 10,
         step: 1,
-        helperText:
-          "Meaning / Contentment measures how nourishing or aligned an activity felt. It asks whether the activity left me feeling more like myself, even if it required effort."
+        helperText: activityMeaningHelper
       },
       { type: "info", text: "Activity 2" },
       { type: "select", name: "activity2Type", label: "Activity", options: ["", ...activityTypeOptions] },
       { type: "select", name: "activity2Time", label: "Time", options: ["", ...activityTimeOptions] },
-      { type: "number", name: "activity2ExecutiveDemandScore", label: "Executive demand", min: 0, max: 10, step: 1 },
+      {
+        type: "slider",
+        name: "activity2ExecutiveDemandScore",
+        label: "Executive demand (0-10)",
+        min: 0,
+        max: 10,
+        step: 1,
+        helperText: activityExecutiveDemandHelper
+      },
       {
         type: "select",
         name: "activity2CapacityEffect",
         label: "After doing this activity I felt...",
         options: ["", ...activityCapacityEffectOptions]
       },
-      { type: "number", name: "activity2MeaningScore", label: "Meaning / contentment", min: 0, max: 10, step: 1 },
+      {
+        type: "slider",
+        name: "activity2MeaningScore",
+        label: "Meaning / contentment",
+        min: 0,
+        max: 10,
+        step: 1,
+        helperText: activityMeaningHelper
+      },
       { type: "info", text: "Activity 3" },
       { type: "select", name: "activity3Type", label: "Activity", options: ["", ...activityTypeOptions] },
       { type: "select", name: "activity3Time", label: "Time", options: ["", ...activityTimeOptions] },
-      { type: "number", name: "activity3ExecutiveDemandScore", label: "Executive demand", min: 0, max: 10, step: 1 },
+      {
+        type: "slider",
+        name: "activity3ExecutiveDemandScore",
+        label: "Executive demand (0-10)",
+        min: 0,
+        max: 10,
+        step: 1,
+        helperText: activityExecutiveDemandHelper
+      },
       {
         type: "select",
         name: "activity3CapacityEffect",
         label: "After doing this activity I felt...",
         options: ["", ...activityCapacityEffectOptions]
       },
-      { type: "number", name: "activity3MeaningScore", label: "Meaning / contentment", min: 0, max: 10, step: 1 },
+      {
+        type: "slider",
+        name: "activity3MeaningScore",
+        label: "Meaning / contentment",
+        min: 0,
+        max: 10,
+        step: 1,
+        helperText: activityMeaningHelper
+      },
       { type: "info", text: "Activity 4" },
       { type: "select", name: "activity4Type", label: "Activity", options: ["", ...activityTypeOptions] },
       { type: "select", name: "activity4Time", label: "Time", options: ["", ...activityTimeOptions] },
-      { type: "number", name: "activity4ExecutiveDemandScore", label: "Executive demand", min: 0, max: 10, step: 1 },
+      {
+        type: "slider",
+        name: "activity4ExecutiveDemandScore",
+        label: "Executive demand (0-10)",
+        min: 0,
+        max: 10,
+        step: 1,
+        helperText: activityExecutiveDemandHelper
+      },
       {
         type: "select",
         name: "activity4CapacityEffect",
         label: "After doing this activity I felt...",
         options: ["", ...activityCapacityEffectOptions]
       },
-      { type: "number", name: "activity4MeaningScore", label: "Meaning / contentment", min: 0, max: 10, step: 1 },
+      {
+        type: "slider",
+        name: "activity4MeaningScore",
+        label: "Meaning / contentment",
+        min: 0,
+        max: 10,
+        step: 1,
+        helperText: activityMeaningHelper
+      },
       {
         type: "textarea",
         name: "flowContentmentActivity",

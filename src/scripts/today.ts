@@ -31,6 +31,23 @@ function renderScoreControl(field: Extract<FieldDefinition, { type: "score" | "s
   `;
 }
 
+function renderSlider(field: Extract<FieldDefinition, { type: "slider" }>): string {
+  const storedValue = fieldValue(field.name);
+  const value = typeof storedValue === "number" ? storedValue : field.min;
+  return `
+    <div class="score-field">
+      <label for="${field.name}">${field.label}</label>
+      ${field.helperText ? `<p class="field-helper">${field.helperText}</p>` : ""}
+      <div class="score-row slider-row">
+        <span>${field.minLabel ?? field.min}</span>
+        <input id="${field.name}" name="${field.name}" type="range" min="${field.min}" max="${field.max}" step="${field.step}" value="${value}" />
+        <output for="${field.name}">${value}</output>
+        <span>${field.maxLabel ?? field.max}</span>
+      </div>
+    </div>
+  `;
+}
+
 function renderScore(field: Extract<FieldDefinition, { type: "score" }>): string {
   return `
     ${renderScoreControl(field)}
@@ -71,6 +88,7 @@ function renderField(field: FieldDefinition): string {
   if (field.type === "info") return `<div class="field-divider">${field.text}</div>`;
   if (field.type === "score") return renderScore(field);
   if (field.type === "scoreOnly") return renderScoreControl(field);
+  if (field.type === "slider") return renderSlider(field);
   if (field.type === "multi") return renderMulti(field);
   if (field.type === "textarea") {
     const condition = field.showWhen
@@ -143,7 +161,7 @@ function collectEntry(): DailyEntry {
         continue;
       } else if (field.type === "multi") {
         (entry[field.name] as string[]) = data.getAll(String(field.name)).map(String);
-      } else if (field.type === "score" || field.type === "scoreOnly" || field.type === "number") {
+      } else if (field.type === "score" || field.type === "scoreOnly" || field.type === "number" || field.type === "slider") {
         const rawValue = String(data.get(String(field.name)) ?? "");
         (entry[field.name] as number | "") = rawValue === "" ? "" : Number(rawValue);
         if (field.type === "score") {
