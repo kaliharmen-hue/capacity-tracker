@@ -46,7 +46,7 @@ function chart(title: string, data: DailyEntry[], key: keyof DailyEntry, max = 1
   `;
 }
 
-function hasNumber(entry: DailyEntry, key: "capacityRemainingScore" | "workSatisfactionScore"): boolean {
+function hasNumber(entry: DailyEntry, key: "capacityRemainingScore"): boolean {
   return typeof entry[key] === "number";
 }
 
@@ -65,12 +65,36 @@ function topCapacityDays(data: DailyEntry[], highest: boolean): DailyEntry[] {
     .slice(0, 2);
 }
 
-function activityRows(entry: DailyEntry): Array<{ type: string; meaning: number | ""; time: string }> {
+function activityRows(entry: DailyEntry): Array<{ type: string; meaning: number | ""; time: string; executiveDemand: number | ""; capacityEffect: string }> {
   return [
-    { type: entry.activity1Type, meaning: entry.activity1MeaningScore, time: entry.activity1Time },
-    { type: entry.activity2Type, meaning: entry.activity2MeaningScore, time: entry.activity2Time },
-    { type: entry.activity3Type, meaning: entry.activity3MeaningScore, time: entry.activity3Time },
-    { type: entry.activity4Type, meaning: entry.activity4MeaningScore, time: entry.activity4Time }
+    {
+      type: entry.activity1Type,
+      meaning: entry.activity1MeaningScore,
+      time: entry.activity1Time,
+      executiveDemand: entry.activity1ExecutiveDemandScore,
+      capacityEffect: entry.activity1CapacityEffect
+    },
+    {
+      type: entry.activity2Type,
+      meaning: entry.activity2MeaningScore,
+      time: entry.activity2Time,
+      executiveDemand: entry.activity2ExecutiveDemandScore,
+      capacityEffect: entry.activity2CapacityEffect
+    },
+    {
+      type: entry.activity3Type,
+      meaning: entry.activity3MeaningScore,
+      time: entry.activity3Time,
+      executiveDemand: entry.activity3ExecutiveDemandScore,
+      capacityEffect: entry.activity3CapacityEffect
+    },
+    {
+      type: entry.activity4Type,
+      meaning: entry.activity4MeaningScore,
+      time: entry.activity4Time,
+      executiveDemand: entry.activity4ExecutiveDemandScore,
+      capacityEffect: entry.activity4CapacityEffect
+    }
   ].filter((activity) => activity.type);
 }
 
@@ -89,6 +113,13 @@ function renderWeeklyInsights(data: DailyEntry[]): void {
   const highestMeaning = activities
     .filter((activity) => typeof activity.meaning === "number")
     .sort((a, b) => Number(b.meaning) - Number(a.meaning))[0];
+  const highestActivityExecutiveDemand = activities
+    .filter((activity) => typeof activity.executiveDemand === "number")
+    .sort((a, b) => Number(b.executiveDemand) - Number(a.executiveDemand))[0];
+  const energisingActivities = activities.filter((activity) =>
+    ["Much more energised", "Slightly more energised"].includes(activity.capacityEffect)
+  );
+  const drainingActivities = activities.filter((activity) => ["Slightly drained", "Very drained"].includes(activity.capacityEffect));
   const computerCrashDays = data.filter(
     (entry) =>
       (entry.executiveDemandTypes.includes("Computer work") || entry.load.includes("Computer work")) &&
@@ -115,8 +146,10 @@ function renderWeeklyInsights(data: DailyEntry[]): void {
     `Worst capacity days: ${worstCapacity.length ? worstCapacity.map((entry) => `${entry.date} (${entry.capacityRemainingScore}/10)`).join(", ") : "Not enough data yet"}`,
     `Biggest energy drains: ${mostCommon(data.map((entry) => entry.biggestEnergyDrain))}`,
     `Most common executive friction: ${mostCommon(data.flatMap((entry) => entry.executiveFriction))}`,
-    `Activities with highest satisfaction: ${data.some((entry) => typeof entry.workSatisfactionScore === "number") ? "Work satisfaction is tracked by day for now; activity-level satisfaction can be added later if useful." : "Not enough data yet"}`,
     `Activities with highest meaning/contentment: ${highestMeaning ? `${highestMeaning.type} (${highestMeaning.meaning}/10)` : "Not enough data yet"}`,
+    `Highest activity executive demand: ${highestActivityExecutiveDemand ? `${highestActivityExecutiveDemand.type} (${highestActivityExecutiveDemand.executiveDemand}/10)` : "Not enough data yet"}`,
+    `Activities that tended to energise me: ${mostCommon(energisingActivities.map((activity) => activity.type))}`,
+    `Activities that tended to drain me: ${mostCommon(drainingActivities.map((activity) => activity.type))}`,
     `Computer work and crashes: ${computerCrashDays.length ? `${computerCrashDays.length} day${computerCrashDays.length === 1 ? "" : "s"} matched.` : "No clear link yet."}`,
     `Hormonal signs and executive capacity: ${hormonalExecutiveDays.length ? `${hormonalExecutiveDays.length} lower-clarity hormonal day${hormonalExecutiveDays.length === 1 ? "" : "s"}.` : "No clear link yet."}`,
     `Amfexa dose/effect patterns: ${weakMedicationDays.length ? `${weakMedicationDays.length} day${weakMedicationDays.length === 1 ? "" : "s"} felt too weak.` : "No clear pattern yet."}`,
@@ -137,7 +170,10 @@ function render(): void {
       stat("Average energy", summary.averageEnergy.toFixed(1)),
       stat("Average clarity", summary.averageClarity.toFixed(1)),
       stat("Average capability", summary.averageCapacityRemaining ? summary.averageCapacityRemaining.toFixed(1) : "Not enough yet"),
-      stat("Average work satisfaction", summary.averageWorkSatisfaction ? summary.averageWorkSatisfaction.toFixed(1) : "Not enough yet"),
+      stat(
+        "Average activity executive demand",
+        summary.averageActivityExecutiveDemand ? summary.averageActivityExecutiveDemand.toFixed(1) : "Not enough yet"
+      ),
       stat("Average activity meaning", summary.averageMeaningContentment ? summary.averageMeaningContentment.toFixed(1) : "Not enough yet"),
       stat("Average sleep", `${summary.averageSleep.toFixed(1)}h`),
       stat("Low-energy days", summary.lowEnergyDays),
@@ -163,7 +199,6 @@ function render(): void {
           chart("Energy", recent, "energyScore"),
           chart("Executive clarity", recent, "clarityScore"),
           chart("Capability", recent.filter((entry) => hasNumber(entry, "capacityRemainingScore")), "capacityRemainingScore"),
-          chart("Work satisfaction", recent.filter((entry) => hasNumber(entry, "workSatisfactionScore")), "workSatisfactionScore"),
           chart("Sleep hours", recent, "sleepHours", 12),
           chart("Relational stress score", recent.map((entry) => ({ ...entry, score: relationalStressScore(entry) })) as DailyEntry[], "score" as keyof DailyEntry, 9)
         ].join("")

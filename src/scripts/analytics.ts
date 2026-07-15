@@ -150,11 +150,19 @@ export function buildSummary(entries: DailyEntry[]) {
   const meaningScores = entries.flatMap((entry) =>
     [entry.activity1MeaningScore, entry.activity2MeaningScore, entry.activity3MeaningScore, entry.activity4MeaningScore].filter(answeredNumber)
   );
+  const activityExecutiveDemandScores = entries.flatMap((entry) =>
+    [
+      entry.activity1ExecutiveDemandScore,
+      entry.activity2ExecutiveDemandScore,
+      entry.activity3ExecutiveDemandScore,
+      entry.activity4ExecutiveDemandScore
+    ].filter(answeredNumber)
+  );
   return {
     averageEnergy: average(entries.map((entry) => entry.energyScore)),
     averageClarity: average(entries.map((entry) => entry.clarityScore)),
     averageCapacityRemaining: average(entries.map((entry) => entry.capacityRemainingScore).filter(answeredNumber)),
-    averageWorkSatisfaction: average(entries.map((entry) => entry.workSatisfactionScore).filter(answeredNumber)),
+    averageActivityExecutiveDemand: average(activityExecutiveDemandScores),
     averageMeaningContentment: average(meaningScores),
     averageSleep: average(entries.map((entry) => entry.sleepHours)),
     lowEnergyDays: countWhere(entries, (entry) => entry.energyScore <= 4),

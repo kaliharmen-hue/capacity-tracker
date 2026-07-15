@@ -71,15 +71,23 @@ export interface DailyEntry {
   workSatisfactionScore: number | "";
   activity1Type: string;
   activity1Time: string;
+  activity1ExecutiveDemandScore: number | "";
+  activity1CapacityEffect: string;
   activity1MeaningScore: number | "";
   activity2Type: string;
   activity2Time: string;
+  activity2ExecutiveDemandScore: number | "";
+  activity2CapacityEffect: string;
   activity2MeaningScore: number | "";
   activity3Type: string;
   activity3Time: string;
+  activity3ExecutiveDemandScore: number | "";
+  activity3CapacityEffect: string;
   activity3MeaningScore: number | "";
   activity4Type: string;
   activity4Time: string;
+  activity4ExecutiveDemandScore: number | "";
+  activity4CapacityEffect: string;
   activity4MeaningScore: number | "";
   flowContentmentActivity: string;
   capacityRemainingScore: number | "";
@@ -326,6 +334,13 @@ export const activityTypeOptions = [
   "Other"
 ];
 export const activityTimeOptions = ["Less than 30 mins", "30-60 mins", "1-2 hours", "2-4 hours", "4+ hours"];
+export const activityCapacityEffectOptions = [
+  "Much more energised",
+  "Slightly more energised",
+  "No real change",
+  "Slightly drained",
+  "Very drained"
+];
 
 export const sections: SectionDefinition[] = [
   {
@@ -483,22 +498,6 @@ export const sections: SectionDefinition[] = [
     ]
   },
   {
-    key: "workSatisfaction",
-    title: "Work satisfaction",
-    prompt:
-      "Work Satisfaction measures how satisfying the work itself felt. This may come from achievement, progress, usefulness or feeling that the work was worthwhile, regardless of how meaningful it was.",
-    fields: [
-      {
-        type: "number",
-        name: "workSatisfactionScore",
-        label: "Work satisfaction (0 = completely unsatisfying, 10 = extremely satisfying)",
-        min: 0,
-        max: 10,
-        step: 1
-      }
-    ]
-  },
-  {
     key: "load",
     title: "Load",
     fields: [
@@ -526,12 +525,26 @@ export const sections: SectionDefinition[] = [
       "This section helps identify which activities drain me, which are neutral, and which leave me feeling more like myself.",
     fields: [
       { type: "info", text: "Activity 1" },
-      { type: "select", name: "activity1Type", label: "Activity type", options: ["", ...activityTypeOptions] },
-      { type: "select", name: "activity1Time", label: "Approximate time spent", options: ["", ...activityTimeOptions] },
+      { type: "select", name: "activity1Type", label: "Activity", options: ["", ...activityTypeOptions] },
+      { type: "select", name: "activity1Time", label: "Time", options: ["", ...activityTimeOptions] },
+      {
+        type: "number",
+        name: "activity1ExecutiveDemandScore",
+        label: "Executive demand",
+        min: 0,
+        max: 10,
+        step: 1
+      },
+      {
+        type: "select",
+        name: "activity1CapacityEffect",
+        label: "After doing this activity I felt...",
+        options: ["", ...activityCapacityEffectOptions]
+      },
       {
         type: "number",
         name: "activity1MeaningScore",
-        label: "Meaning / contentment (0 = drained me, 10 = nourishing)",
+        label: "Meaning / contentment",
         min: 0,
         max: 10,
         step: 1,
@@ -539,16 +552,37 @@ export const sections: SectionDefinition[] = [
           "Meaning / Contentment measures how nourishing or aligned an activity felt. It asks whether the activity left me feeling more like myself, even if it required effort."
       },
       { type: "info", text: "Activity 2" },
-      { type: "select", name: "activity2Type", label: "Activity type", options: ["", ...activityTypeOptions] },
-      { type: "select", name: "activity2Time", label: "Approximate time spent", options: ["", ...activityTimeOptions] },
+      { type: "select", name: "activity2Type", label: "Activity", options: ["", ...activityTypeOptions] },
+      { type: "select", name: "activity2Time", label: "Time", options: ["", ...activityTimeOptions] },
+      { type: "number", name: "activity2ExecutiveDemandScore", label: "Executive demand", min: 0, max: 10, step: 1 },
+      {
+        type: "select",
+        name: "activity2CapacityEffect",
+        label: "After doing this activity I felt...",
+        options: ["", ...activityCapacityEffectOptions]
+      },
       { type: "number", name: "activity2MeaningScore", label: "Meaning / contentment", min: 0, max: 10, step: 1 },
       { type: "info", text: "Activity 3" },
-      { type: "select", name: "activity3Type", label: "Activity type", options: ["", ...activityTypeOptions] },
-      { type: "select", name: "activity3Time", label: "Approximate time spent", options: ["", ...activityTimeOptions] },
+      { type: "select", name: "activity3Type", label: "Activity", options: ["", ...activityTypeOptions] },
+      { type: "select", name: "activity3Time", label: "Time", options: ["", ...activityTimeOptions] },
+      { type: "number", name: "activity3ExecutiveDemandScore", label: "Executive demand", min: 0, max: 10, step: 1 },
+      {
+        type: "select",
+        name: "activity3CapacityEffect",
+        label: "After doing this activity I felt...",
+        options: ["", ...activityCapacityEffectOptions]
+      },
       { type: "number", name: "activity3MeaningScore", label: "Meaning / contentment", min: 0, max: 10, step: 1 },
       { type: "info", text: "Activity 4" },
-      { type: "select", name: "activity4Type", label: "Activity type", options: ["", ...activityTypeOptions] },
-      { type: "select", name: "activity4Time", label: "Approximate time spent", options: ["", ...activityTimeOptions] },
+      { type: "select", name: "activity4Type", label: "Activity", options: ["", ...activityTypeOptions] },
+      { type: "select", name: "activity4Time", label: "Time", options: ["", ...activityTimeOptions] },
+      { type: "number", name: "activity4ExecutiveDemandScore", label: "Executive demand", min: 0, max: 10, step: 1 },
+      {
+        type: "select",
+        name: "activity4CapacityEffect",
+        label: "After doing this activity I felt...",
+        options: ["", ...activityCapacityEffectOptions]
+      },
       { type: "number", name: "activity4MeaningScore", label: "Meaning / contentment", min: 0, max: 10, step: 1 },
       {
         type: "textarea",
@@ -668,15 +702,23 @@ export function createEmptyEntry(date: string): DailyEntry {
     workSatisfactionScore: "",
     activity1Type: "",
     activity1Time: "",
+    activity1ExecutiveDemandScore: "",
+    activity1CapacityEffect: "",
     activity1MeaningScore: "",
     activity2Type: "",
     activity2Time: "",
+    activity2ExecutiveDemandScore: "",
+    activity2CapacityEffect: "",
     activity2MeaningScore: "",
     activity3Type: "",
     activity3Time: "",
+    activity3ExecutiveDemandScore: "",
+    activity3CapacityEffect: "",
     activity3MeaningScore: "",
     activity4Type: "",
     activity4Time: "",
+    activity4ExecutiveDemandScore: "",
+    activity4CapacityEffect: "",
     activity4MeaningScore: "",
     flowContentmentActivity: "",
     capacityRemainingScore: "",
