@@ -1,0 +1,47 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="PMDD Review" active="pmdd">
+  <section class="page-heading">
+    <div>
+      <p class="eyebrow">PMDD Review</p>
+      <h2>When do the clusters appear?</h2>
+    </div>
+    <p class="soft-copy">A record of my intermittent PMDD medication periods and the signs that gathered around each start. This is a tracking summary, not a diagnosis.</p>
+  </section>
+
+  <section id="pmdd-summary" class="summary-grid" aria-live="polite"></section>
+
+  <section class="pmdd-actions">
+    <button type="button" id="copy-pmdd-summary" class="primary-button">Copy summary for my GP</button>
+    <p id="pmdd-copy-status" class="copy-status" aria-live="polite"></p>
+  </section>
+
+  <section>
+    <div class="section-title">
+      <div>
+        <h3>Typical cluster around a start</h3>
+        <p>Signs recorded on the start date and the three days beforehand.</p>
+      </div>
+    </div>
+    <div id="pmdd-cluster" class="plain-panel" aria-live="polite"></div>
+  </section>
+
+  <section>
+    <div class="section-title">
+      <div>
+        <h3>Medication periods</h3>
+        <p>A stop is only recorded when I explicitly log “No”; an unrecorded day will not create a false stop.</p>
+      </div>
+    </div>
+    <div id="pmdd-periods" class="pmdd-periods" aria-live="polite"></div>
+  </section>
+
+  <section class="plain-panel pmdd-method-note">
+    <h3>How this is worked out</h3>
+    <p>Each switch from not taking the medication to “Yes” begins a period. The first recorded “No” afterwards is its stop date. Days between starts are measured from one start date to the next.</p>
+  </section>
+
+  <script src="../scripts/pmdd.ts"></script>
+</BaseLayout>

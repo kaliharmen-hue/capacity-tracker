@@ -75,7 +75,7 @@ textarea {
 
 .top-nav {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 6px;
 }
 
@@ -664,6 +664,124 @@ main {
   gap: 12px;
 }
 
+.pmdd-actions {
+  display: grid;
+  grid-template-columns: minmax(220px, max-content) 1fr;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.pmdd-periods {
+  display: grid;
+  gap: 12px;
+}
+
+.pmdd-period-card {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.pmdd-period-heading,
+.pmdd-date-line,
+.pmdd-period-facts {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.pmdd-period-heading h3,
+.pmdd-period-card h4,
+.pmdd-period-notes {
+  margin: 0;
+}
+
+.pmdd-status {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: var(--muted);
+  background: var(--surface-strong);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.pmdd-status.current {
+  border-color: #bdd1c7;
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+}
+
+.pmdd-date-line {
+  justify-content: flex-start;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f9f7f2;
+}
+
+.pmdd-date-line div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.pmdd-date-line small,
+.pmdd-period-facts,
+.pmdd-inline-tags small,
+.pmdd-period-notes {
+  color: var(--muted);
+}
+
+.pmdd-period-facts {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.pmdd-period-facts span {
+  padding-right: 16px;
+}
+
+.pmdd-cluster-list,
+.pmdd-inline-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pmdd-symptom,
+.pmdd-inline-tags span {
+  border: 1px solid #d8b0bb;
+  border-radius: 8px;
+  background: #fff8fa;
+}
+
+.pmdd-symptom {
+  display: grid;
+  gap: 2px;
+  padding: 9px 11px;
+}
+
+.pmdd-symptom small {
+  color: var(--rose);
+}
+
+.pmdd-inline-tags span {
+  padding: 7px 9px;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.pmdd-method-note {
+  margin-top: 20px;
+}
+
 .export-grid {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
@@ -742,5 +860,19 @@ main {
   .entry-row,
   .section-title {
     display: grid;
+  }
+
+  .pmdd-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .pmdd-date-line {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: start;
+  }
+
+  .pmdd-date-line strong {
+    overflow-wrap: anywhere;
   }
 }

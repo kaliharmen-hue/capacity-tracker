@@ -246,6 +246,25 @@ export const digestiveOptions = [
   "Diarrhoea",
   "Appetite changes"
 ];
+export const medicationSideEffectOptions = [
+  "None",
+  "Nausea",
+  "Headache",
+  "Dizziness",
+  "Increased fatigue",
+  "Insomnia",
+  "Sleep disruption",
+  "Increased anxiety",
+  "Feeling emotionally flat",
+  "Feeling emotionally numb",
+  "Reduced appetite",
+  "Increased appetite",
+  "Digestive changes",
+  "Sweating/hot flushes",
+  "Restlessness",
+  "Sexual side effects",
+  "Other"
+];
 export const overallStateOptions = ["Calm", "Balanced", "Engaged", "Activated", "Wired", "Drained", "Shutdown"];
 export const movementOptions = [
   "Walking",
@@ -437,6 +456,31 @@ export const sections: SectionDefinition[] = [
         options: ["", "Too weak", "About right", "Too strong"]
       },
       { type: "textarea", name: "adhdMedicationNotes", label: "Anything notable?" }
+    ]
+  },
+  {
+    key: "pmddMedication",
+    title: "PMDD medication",
+    fields: [
+      {
+        type: "select",
+        name: "pmddMedicationTaken",
+        label: "Did I take my PMDD medication today?",
+        options: ["", "Yes", "No"]
+      },
+      {
+        type: "multi",
+        name: "medicationSideEffects",
+        label: "Did I notice any side effects today?",
+        options: medicationSideEffectOptions
+      },
+      {
+        type: "select",
+        name: "medicationSideEffectSeverity",
+        label: "Side effect severity",
+        options: ["", "Mild", "Moderate", "Significant"]
+      },
+      { type: "textarea", name: "medicationNotes", label: "PMDD medication notes" }
     ]
   },
   {
