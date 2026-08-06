@@ -1,5 +1,6 @@
-import { getAllEntries, importEntries } from "./db";
+import { getAllEntries, getClusterDecisions, importClusterDecisions, importEntries } from "./db";
 import { createEmptyEntry, sections, todayIso, type DailyEntry } from "./schema";
+import type { ClusterDecision } from "./timeline-model";
 
 const dateInput = document.querySelector<HTMLInputElement>("#export-date");
 const preview = document.querySelector<HTMLPreElement>("#export-preview");
@@ -11,6 +12,12 @@ const sharePreviewButton = document.querySelector<HTMLButtonElement>("[data-shar
 const selectPreviewButton = document.querySelector<HTMLButtonElement>("[data-select-preview]");
 const backupKey = "personal-operating-system-last-json-backup";
 let latestPreviewText = "";
+
+interface PersonalOperatingSystemBackup {
+  version: 2;
+  entries: DailyEntry[];
+  clusterDecisions: ClusterDecision[];
+}
 
 dateInput!.value = new URLSearchParams(window.location.search).get("date") || todayIso();
 
@@ -187,7 +194,9 @@ document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) =
     }
 
     if (action === "json") {
-      const content = JSON.stringify(entries, null, 2);
+      const clusterDecisions = await getClusterDecisions();
+      const backup: PersonalOperatingSystemBackup = { version: 2, entries, clusterDecisions };
+      const content = JSON.stringify(backup, null, 2);
       setPreview(entries.length ? content : showEmptyState("any date"));
       if (entries.length) {
         download("personal-operating-system-backup.json", content, "application/json");
@@ -202,9 +211,12 @@ importInput?.addEventListener("change", async () => {
   const file = importInput.files?.[0];
   if (!file) return;
   const text = await file.text();
-  const entries = JSON.parse(text) as DailyEntry[];
+  const parsed = JSON.parse(text) as DailyEntry[] | PersonalOperatingSystemBackup;
+  const entries = Array.isArray(parsed) ? parsed : parsed.entries;
+  const clusterDecisions = Array.isArray(parsed) ? [] : parsed.clusterDecisions ?? [];
   await importEntries(entries);
-  setPreview(`Imported ${entries.length} entries.`);
+  if (clusterDecisions.length) await importClusterDecisions(clusterDecisions);
+  setPreview(`Imported ${entries.length} entries${clusterDecisions.length ? ` and ${clusterDecisions.length} cluster decisions` : ""}.`);
 });
 
 sharePreviewButton?.addEventListener("click", () => {

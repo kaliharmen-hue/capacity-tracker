@@ -1,13 +1,19 @@
 import Dexie, { type Table } from "dexie";
 import type { DailyEntry } from "./schema";
+import type { ClusterDecision } from "./timeline-model";
 
 class CapacityDatabase extends Dexie {
   entries!: Table<DailyEntry, string>;
+  clusterDecisions!: Table<ClusterDecision, string>;
 
   constructor() {
     super("capacity-tracker");
     this.version(1).stores({
       entries: "date, updatedAt"
+    });
+    this.version(2).stores({
+      entries: "date, updatedAt",
+      clusterDecisions: "id, status, startDate, endDate, updatedAt"
     });
   }
 }
@@ -30,4 +36,16 @@ export async function importEntries(entries: DailyEntry[]): Promise<void> {
   await db.transaction("rw", db.entries, async () => {
     await db.entries.bulkPut(entries);
   });
+}
+
+export async function getClusterDecisions(): Promise<ClusterDecision[]> {
+  return db.clusterDecisions.toArray();
+}
+
+export async function saveClusterDecision(decision: ClusterDecision): Promise<void> {
+  await db.clusterDecisions.put(decision);
+}
+
+export async function importClusterDecisions(decisions: ClusterDecision[]): Promise<void> {
+  await db.clusterDecisions.bulkPut(decisions);
 }

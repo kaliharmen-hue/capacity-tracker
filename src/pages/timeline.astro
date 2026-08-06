@@ -1,0 +1,81 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Capacity Timeline" active="timeline">
+  <section class="page-heading timeline-heading">
+    <div>
+      <p class="eyebrow">Capacity Timeline</p>
+      <h2>How has capacity changed over time?</h2>
+    </div>
+    <p class="soft-copy">Capacity State is a visual summary derived from the daily log. It is intended to reveal patterns over time and is not a medical diagnosis.</p>
+  </section>
+
+  <section class="timeline-toolbar" aria-label="Timeline controls">
+    <div class="month-navigation">
+      <button id="previous-month" class="icon-button" type="button" aria-label="Previous month" title="Previous month">‹</button>
+      <h3 id="selected-month" aria-live="polite"></h3>
+      <button id="next-month" class="icon-button" type="button" aria-label="Next month" title="Next month">›</button>
+      <button id="current-month" class="secondary-button" type="button">Current month</button>
+    </div>
+    <div class="timeline-toolbar-actions">
+      <label class="focus-toggle">
+        <input id="hormone-focus" type="checkbox" />
+        <span>Hormone Focus</span>
+      </label>
+      <button id="export-timeline" class="secondary-button" type="button">Export month CSV</button>
+    </div>
+  </section>
+
+  <section id="baseline-profile" class="baseline-profile plain-panel" aria-live="polite"></section>
+
+  <section class="timeline-legend plain-panel" aria-label="Capacity Timeline legend">
+    <div>
+      <h3>Capacity State</h3>
+      <div class="state-legend">
+        <span><i class="state-key baseline"></i>Baseline</span>
+        <span><i class="state-key slight"></i>Slightly reduced</span>
+        <span><i class="state-key reduced"></i>Reduced</span>
+        <span><i class="state-key significant"></i>Significant reduction</span>
+        <span><i class="state-key empty"></i>No entry</span>
+      </div>
+    </div>
+    <div>
+      <h3>Indicators</h3>
+      <div id="indicator-legend" class="indicator-legend"></div>
+      <p class="legend-note">No indicator can mean absent or not recorded; it is never treated as evidence of a symptom-free day.</p>
+    </div>
+  </section>
+
+  <section class="calendar-panel">
+    <div class="calendar-weekdays" aria-hidden="true">
+      <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+    </div>
+    <div id="capacity-calendar" class="capacity-calendar" aria-live="polite"></div>
+  </section>
+
+  <section id="day-detail" class="day-detail plain-panel" hidden aria-live="polite"></section>
+
+  <section>
+    <div class="section-title">
+      <div>
+        <h3>Month at a glance</h3>
+        <p>Daily values stay blank when they were not recorded.</p>
+      </div>
+    </div>
+    <div id="metric-timeline" class="metric-timeline" aria-live="polite"></div>
+  </section>
+
+  <section>
+    <div class="section-title">
+      <div>
+        <h3>Possible capacity clusters</h3>
+        <p>Provisional groupings only. I can confirm, reject, or adjust them without changing a daily log.</p>
+      </div>
+    </div>
+    <div id="cluster-list" class="cluster-list" aria-live="polite"></div>
+  </section>
+
+  <p id="timeline-status" class="copy-status" aria-live="polite"></p>
+  <script src="../scripts/timeline.ts"></script>
+</BaseLayout>
