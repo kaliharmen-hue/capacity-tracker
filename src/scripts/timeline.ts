@@ -9,13 +9,13 @@ import {
   monthDates,
   monthKey,
   normalizeTimelineEntry,
+  restoreManualEpisode,
   shiftMonth,
   symptomDefinitions,
   type CapacityCluster,
   type ClusterDecision,
   type NormalizedTimelineDay,
-  type RawDailyEntry,
-  type SymptomKey
+  type RawDailyEntry
 } from "./timeline-model";
 
 const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
@@ -83,8 +83,23 @@ function stateShort(day: NormalizedTimelineDay): string {
 }
 
 function allClusters(): CapacityCluster[] {
-  const decisionMap = new Map(decisions.map((decision) => [decision.id, decision]));
-  return detectCapacityClusters(days).map((cluster) => applyClusterDecision(cluster, decisionMap.get(cluster.id)));
+  const unused = new Set(decisions.map((decision) => decision.id));
+  const detected = detectCapacityClusters(days).map((cluster) => {
+    let decision = decisions.find((candidate) => candidate.id === cluster.id);
+    if (!decision && cluster.kind === "episode") {
+      decision = decisions
+        .filter((candidate) => unused.has(candidate.id) && candidate.endDate >= cluster.startDate && candidate.startDate <= cluster.endDate)
+        .sort((left, right) => {
+          const leftOverlap = Math.min(Date.parse(left.endDate), Date.parse(cluster.endDate)) - Math.max(Date.parse(left.startDate), Date.parse(cluster.startDate));
+          const rightOverlap = Math.min(Date.parse(right.endDate), Date.parse(cluster.endDate)) - Math.max(Date.parse(right.startDate), Date.parse(cluster.startDate));
+          return rightOverlap - leftOverlap;
+        })[0];
+    }
+    if (decision) unused.delete(decision.id);
+    return applyClusterDecision(cluster, decision, days);
+  });
+  const restored = decisions.filter((decision) => unused.has(decision.id)).map((decision) => restoreManualEpisode(decision, days));
+  return [...detected, ...restored].sort((left, right) => left.startDate.localeCompare(right.startDate));
 }
 
 function clusterForDate(date: string, clusters = allClusters()): CapacityCluster | undefined {
@@ -151,9 +166,10 @@ function renderCalendar(): void {
           return `<div class="capacity-day empty" aria-label="${formatDate(date)}: no entry"><span class="day-number">${Number(date.slice(-2))}</span><small>No entry</small></div>`;
         }
         const cluster = clusterForDate(date, clusters);
+        const hormonal = cluster?.kind === "episode" && (cluster.hormonalDecision === "possible" || (!cluster.hormonalDecision && cluster.hormonalPattern.isPossible));
         const label = `${formatDate(date)}: ${day.capacityState ?? "not enough data"}. Energy ${formatValue(day.energy)}. Executive clarity ${formatValue(day.clarity)}.`;
         return `
-          <button type="button" class="capacity-day ${stateClass(day)} ${cluster ? "in-cluster" : ""} ${hormoneFocus ? "hormone-focus" : ""}" data-date="${date}" aria-label="${escapeHtml(label)}">
+          <button type="button" class="capacity-day ${stateClass(day)} ${cluster ? `in-cluster ${cluster.kind}` : ""} ${hormonal ? "hormonal-cluster" : ""} ${hormoneFocus ? "hormone-focus" : ""}" data-date="${date}" aria-label="${escapeHtml(label)}">
             <span class="day-number">${Number(date.slice(-2))}</span>
             <strong>${stateShort(day)}</strong>
             <span class="day-scores"><b>E${day.energy ?? "–"}</b><b>X${day.clarity ?? "–"}</b></span>
@@ -241,7 +257,8 @@ function renderTimeline(): void {
   ];
   const cell = (date: string, content: string, extra = "") => {
     const cluster = clusterForDate(date, clusters);
-    return `<td class="${cluster ? "cluster-cell" : ""} ${extra}" ${cluster ? `data-cluster-id="${cluster.id}"` : ""}>${escapeHtml(content) || "<span aria-label=\"Not recorded\">–</span>"}</td>`;
+    const hormonal = cluster?.kind === "episode" && (cluster.hormonalDecision === "possible" || (!cluster.hormonalDecision && cluster.hormonalPattern.isPossible));
+    return `<td class="${cluster ? `cluster-cell ${cluster.kind}` : ""} ${hormonal ? "hormonal-cluster" : ""} ${extra}" ${cluster ? `data-cluster-id="${cluster.id}"` : ""}>${escapeHtml(content) || "<span aria-label=\"Not recorded\">-</span>"}</td>`;
   };
   timelineRoot.innerHTML = `
     <div class="timeline-table-wrap">
@@ -256,20 +273,14 @@ function renderTimeline(): void {
     <p class="timeline-marker-key"><b>PM</b> PMDD medication · <b>H</b> familiar hormonal pattern · <b>Cog</b> brain fog/head swimming · <b>App</b> cravings/appetite</p>`;
 }
 
-function clusterSummary(cluster: CapacityCluster): { lowestEnergy: number | null; lowestClarity: number | null; recurring: SymptomKey[]; pmddDates: string[] } {
-  const clusterDays = days.filter((day) => day.date >= cluster.startDate && day.date <= cluster.endDate);
-  const numbers = (key: "energy" | "clarity") => clusterDays.map((day) => day[key]).filter((value): value is number => value !== null);
-  const counts = new Map<SymptomKey, number>();
-  clusterDays.forEach((day) => activeSymptomKeys(day).forEach((key) => counts.set(key, (counts.get(key) ?? 0) + 1)));
-  return {
-    lowestEnergy: numbers("energy").length ? Math.min(...numbers("energy")) : null,
-    lowestClarity: numbers("clarity").length ? Math.min(...numbers("clarity")) : null,
-    recurring: [...counts.entries()].filter(([, count]) => count >= 2).map(([key]) => key),
-    pmddDates: clusterDays.filter((day) => day.flags.pmddMedication).map((day) => day.date)
-  };
+function effectiveHormonalLabel(cluster: CapacityCluster): string {
+  if (cluster.hormonalDecision === "not-hormonal") return "No clear hormonal pattern detected (manual decision)";
+  if (cluster.hormonalDecision === "unsure") return "Hormonal pattern: unsure";
+  if (cluster.hormonalDecision === "possible") return "Possible Hormonal Cluster (kept manually)";
+  return cluster.hormonalPattern.isPossible ? "Possible Hormonal Cluster" : "No clear hormonal pattern detected";
 }
 
-function renderClusters(): void {
+function renderEpisodes(): void {
   if (!clusterRoot) return;
   const start = `${selectedMonth}-01`;
   const end = monthDates(selectedMonth).at(-1)!;
@@ -277,44 +288,68 @@ function renderClusters(): void {
   clusterRoot.innerHTML = clusters.length
     ? clusters
         .map((cluster) => {
-          const summary = clusterSummary(cluster);
-          const recurring = summary.recurring.map((key) => symptomMap.get(key)?.label ?? key);
+          const isEpisode = cluster.kind === "episode";
+          const possibleHormonal = isEpisode && (cluster.hormonalDecision === "possible" || (!cluster.hormonalDecision && cluster.hormonalPattern.isPossible));
+          const categoryRows = cluster.hormonalPattern.categories.map((category) => [category.label, `${category.days} day${category.days === 1 ? "" : "s"}`] as [string, string]);
+          const contextRows = cluster.contextFactors.map((factor) => [factor.label, `${factor.days} day${factor.days === 1 ? "" : "s"}`] as [string, string]);
+          const confidence = cluster.hormonalPattern.confidence === "moderate" ? "Moderate pattern confidence" : cluster.hormonalPattern.confidence === "low" ? "Low pattern confidence" : "Not enough repeated evidence";
           return `
-            <article class="cluster-card ${cluster.status}">
+            <article class="cluster-card ${cluster.kind} ${cluster.status} ${possibleHormonal ? "possible-hormonal" : ""}">
               <button class="cluster-summary" type="button" data-open-cluster="${cluster.id}" aria-expanded="false">
-                <span><small>${cluster.status === "provisional" ? "Possible capacity cluster" : cluster.status}</small><strong>${formatDate(cluster.startDate)} – ${formatDate(cluster.endDate)}</strong></span>
-                <span>${cluster.duration} days</span>
+                <span><small>${isEpisode ? "Capacity Episode" : "Capacity Dip"}${possibleHormonal ? " · Possible hormonal pattern" : ""}</small><strong>${formatDate(cluster.startDate)} - ${formatDate(cluster.endDate)}</strong></span>
+                <span>${cluster.duration} day${cluster.duration === 1 ? "" : "s"}</span>
               </button>
               <div class="cluster-detail" data-cluster-detail="${cluster.id}" hidden>
+                <p class="episode-description">${isEpisode ? "A sustained period of reduced capacity. Cause is not assumed." : "One or two impaired days that do not meet the duration threshold for a Capacity Episode."}</p>
                 ${detailList([
-                  ["Possible start", formatDate(cluster.startDate)],
-                  ["Possible end", formatDate(cluster.endDate)],
+                  ["Start", formatDate(cluster.startDate)],
+                  ["End", formatDate(cluster.endDate)],
                   ["Duration", `${cluster.duration} days`],
-                  ["Lowest energy", formatValue(summary.lowestEnergy, "/10")],
-                  ["Lowest executive clarity", formatValue(summary.lowestClarity, "/10")],
-                  ["Recurring indicators", recurring.join(", ")],
-                  ["PMDD-medication dates", summary.pmddDates.map((date) => formatDate(date)).join(", ")],
-                  ["Apparent return towards baseline", cluster.apparentReturnDate ? formatDate(cluster.apparentReturnDate) : "Not identified"]
+                  ["Significant-reduction days", String(cluster.significantDays)],
+                  ["Reduced days", String(cluster.reducedDays)],
+                  ["Lowest energy", formatValue(cluster.lowestEnergy, "/10")],
+                  ["Lowest executive clarity", formatValue(cluster.lowestClarity, "/10")]
                 ])}
-                <form class="cluster-decision-form" data-cluster-id="${cluster.id}">
-                  <label>Start date<input name="startDate" type="date" value="${cluster.startDate}" /></label>
-                  <label>End date<input name="endDate" type="date" value="${cluster.endDate}" /></label>
-                  <div class="cluster-actions">
-                    <button class="primary-button" type="submit" value="confirmed">Confirm / save dates</button>
-                    <button class="secondary-button" type="submit" value="rejected">Reject cluster</button>
-                  </div>
-                </form>
+                ${isEpisode ? `
+                  <section class="episode-pattern">
+                    <h4>Pattern classification</h4>
+                    <strong>${effectiveHormonalLabel(cluster)}</strong>
+                    <p>${possibleHormonal ? "A Capacity Episode containing a repeated pattern of hormonal and/or hormone-sensitive symptoms. This is a pattern flag, not a diagnosis." : "The episode does not currently meet the repeated multi-category evidence rule."}</p>
+                    ${possibleHormonal ? `<p>${confidence}</p>` : ""}
+                    ${categoryRows.length ? `<h5>Recorded evidence categories</h5>${detailList(categoryRows)}` : ""}
+                  </section>
+                  <section class="episode-context">
+                    <h4>Context / possible contributors</h4>
+                    ${contextRows.length ? detailList(contextRows) : "<p>No contextual contributors were clearly recorded.</p>"}
+                    <p class="legend-note">These factors are shown for interpretation and do not determine the hormonal pattern label.</p>
+                  </section>
+                  <form class="cluster-decision-form" data-cluster-id="${cluster.id}">
+                    <label>Start date<input name="startDate" type="date" value="${cluster.startDate}" /></label>
+                    <label>End date<input name="endDate" type="date" value="${cluster.endDate}" /></label>
+                    <div class="cluster-actions">
+                      <button class="primary-button" type="submit" value="confirmed">Confirm episode / save dates</button>
+                      <button class="secondary-button" type="submit" value="rejected">Reject episode</button>
+                    </div>
+                  </form>
+                  <div class="hormonal-decision" data-hormonal-cluster-id="${cluster.id}">
+                    <span>Hormonal pattern decision</span>
+                    <div class="cluster-actions">
+                      <button class="secondary-button" type="button" data-hormonal-decision="possible">Keep as possible hormonal</button>
+                      <button class="secondary-button" type="button" data-hormonal-decision="not-hormonal">Mark as not hormonal</button>
+                      <button class="secondary-button" type="button" data-hormonal-decision="unsure">Unsure</button>
+                    </div>
+                  </div>` : ""}
               </div>
             </article>`;
         })
         .join("")
-    : `<section class="plain-panel"><p>No possible capacity cluster is visible in this month. Blank days are not counted as baseline.</p></section>`;
+    : `<section class="plain-panel"><p>No Capacity Episodes or Capacity Dips are visible in this month. Three consecutive impaired recorded days are needed to start an episode.</p></section>`;
 }
 
 function renderMonth(): void {
   renderCalendar();
   renderTimeline();
-  renderClusters();
+  renderEpisodes();
   renderLegend();
   if (detailRoot) detailRoot.hidden = true;
 }
@@ -368,12 +403,14 @@ clusterRoot?.addEventListener("submit", async (event) => {
   const id = form.dataset.clusterId;
   if (!id || !submitter) return;
   const data = new FormData(form);
+  const existingDecision = decisions.find((item) => item.id === id);
   const decision: ClusterDecision = {
     id,
     status: submitter.value === "rejected" ? "rejected" : "confirmed",
     startDate: String(data.get("startDate") || ""),
     endDate: String(data.get("endDate") || ""),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    hormonalDecision: existingDecision?.hormonalDecision
   };
   if (!decision.startDate || !decision.endDate || decision.startDate > decision.endDate) {
     setStatus("The cluster start date must be on or before its end date.");
@@ -381,7 +418,27 @@ clusterRoot?.addEventListener("submit", async (event) => {
   }
   await saveClusterDecision(decision);
   decisions = await getClusterDecisions();
-  setStatus(decision.status === "confirmed" ? "Cluster decision saved. The daily logs were not changed." : "Cluster rejected. The daily logs were not changed.");
+  setStatus(decision.status === "confirmed" ? "Episode decision saved. The daily logs were not changed." : "Episode rejected. The daily logs were not changed.");
+  renderMonth();
+});
+clusterRoot?.addEventListener("click", async (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-hormonal-decision]");
+  const wrapper = button?.closest<HTMLElement>("[data-hormonal-cluster-id]");
+  if (!button?.dataset.hormonalDecision || !wrapper?.dataset.hormonalClusterId) return;
+  const cluster = allClusters().find((item) => item.id === wrapper.dataset.hormonalClusterId);
+  if (!cluster || cluster.kind !== "episode") return;
+  const existingDecision = decisions.find((item) => item.id === cluster.id);
+  const decision: ClusterDecision = {
+    id: cluster.id,
+    status: existingDecision?.status ?? cluster.status,
+    startDate: existingDecision?.startDate ?? cluster.startDate,
+    endDate: existingDecision?.endDate ?? cluster.endDate,
+    updatedAt: new Date().toISOString(),
+    hormonalDecision: button.dataset.hormonalDecision as ClusterDecision["hormonalDecision"]
+  };
+  await saveClusterDecision(decision);
+  decisions = await getClusterDecisions();
+  setStatus("Hormonal pattern decision saved separately. The daily logs were not changed.");
   renderMonth();
 });
 document.querySelector("#export-timeline")?.addEventListener("click", () => {

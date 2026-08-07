@@ -1007,7 +1007,16 @@ button.capacity-day:focus-visible {
 }
 
 .capacity-day.in-cluster {
-  box-shadow: inset 0 -4px 0 var(--rose);
+  box-shadow: inset 0 -4px 0 #687982;
+}
+
+.capacity-day.in-cluster.dip {
+  box-shadow: inset 0 -2px 0 #aab2b5;
+}
+
+.capacity-day.in-cluster.hormonal-cluster {
+  outline: 2px solid var(--rose);
+  outline-offset: -3px;
 }
 
 .capacity-day.empty {
@@ -1142,9 +1151,18 @@ button.capacity-day:focus-visible {
 }
 
 .timeline-table td.cluster-cell {
-  background: #fff4f6;
-  box-shadow: inset 0 -2px 0 #d8b0bb;
+  background: #f1f4f3;
+  box-shadow: inset 0 -2px 0 #687982;
   cursor: pointer;
+}
+
+.timeline-table td.cluster-cell.dip {
+  box-shadow: inset 0 -1px 0 #aab2b5;
+}
+
+.timeline-table td.cluster-cell.hormonal-cluster {
+  background: #fff4f6;
+  border-bottom-color: #d8b0bb;
 }
 
 .timeline-table td.hormone-focus {
@@ -1167,11 +1185,20 @@ button.capacity-day:focus-visible {
 }
 
 .cluster-card {
-  border: 1px solid #d8b0bb;
+  border: 1px solid #9aa7aa;
   border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--shadow);
   overflow: hidden;
+}
+
+.cluster-card.dip {
+  box-shadow: none;
+  opacity: 0.88;
+}
+
+.cluster-card.possible-hormonal {
+  border-left: 4px solid var(--rose);
 }
 
 .cluster-card.confirmed {
@@ -1236,6 +1263,41 @@ button.capacity-day:focus-visible {
 
 .cluster-actions {
   grid-column: 1 / -1;
+}
+
+.cluster-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.episode-description,
+.episode-pattern p,
+.episode-context p {
+  color: var(--muted);
+}
+
+.episode-pattern,
+.episode-context,
+.hormonal-decision {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.episode-pattern h4,
+.episode-pattern h5,
+.episode-context h4 {
+  margin: 0 0 8px;
+}
+
+.hormonal-decision {
+  display: grid;
+  gap: 9px;
+}
+
+.hormonal-decision > span {
+  font-weight: 800;
 }
 
 .export-grid {

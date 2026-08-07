@@ -4,7 +4,9 @@ import {
   applyClusterDecision,
   buildBaselineProfile,
   buildTimelineCsv,
+  classifyHormonalPattern,
   detectCapacityClusters,
+  extractContextFactors,
   latestMonthWithData,
   monthDates,
   normalizeTimelineEntry,
@@ -67,37 +69,92 @@ test("blank calendar dates remain distinct from recorded dates", () => {
   assert.equal(entries.has("2026-02-01"), false);
 });
 
-test("detects the representative July 2026 reduced-capacity cluster without hard-coding dates", () => {
+test("starts an episode only after three consecutive impaired recorded days", () => {
   const days = [
-    entry("2026-07-19", { energyScore: 6, clarityScore: 6, clarityNotes: "Muddy thinking" }),
-    entry("2026-07-20", { energyScore: 5, clarityScore: 5, hormonalSigns: ["Bloating"] }),
     entry("2026-07-21", { energyScore: 4, clarityScore: 3, clarityNotes: "Wading through treacle", hormonalSigns: ["Cravings"] }),
     entry("2026-07-22", { energyScore: 4, clarityScore: 3, clarityNotes: "Head swimming", pmddMedicationTaken: "Yes" }),
     entry("2026-07-23", { energyScore: 5, clarityScore: 4, hormonalSigns: ["Cravings", "Increased appetite"] }),
-    entry("2026-07-24", { energyScore: 4, clarityScore: 5, hormonalSigns: ["Bloating", "Increased sensitivity"] }),
-    entry("2026-07-25", { energyScore: 4, clarityScore: 4, amfexaEffect: "Too weak" }),
-    entry("2026-07-26", { energyScore: 5, clarityScore: 5, hormonalSigns: ["Bloating"] }),
+    entry("2026-07-24", { energyScore: 6, clarityScore: 6 }),
+    entry("2026-07-25", { energyScore: 5, clarityScore: 5 }),
+    entry("2026-07-26", { energyScore: 5, clarityScore: 5 }),
     entry("2026-07-27", { energyScore: 6, clarityScore: 6 }),
-    entry("2026-08-03", { energyScore: 8, clarityScore: 8, overallState: "Balanced" })
+    entry("2026-07-28", { energyScore: 8, clarityScore: 8, overallState: "Balanced" })
   ];
   const clusters = detectCapacityClusters(days);
   assert.equal(clusters.length, 1);
-  assert.equal(clusters[0].startDate, "2026-07-19");
+  assert.equal(clusters[0].kind, "episode");
+  assert.equal(clusters[0].startDate, "2026-07-21");
   assert.equal(clusters[0].endDate, "2026-07-26");
-  assert.equal(clusters[0].lowestClarity, 3);
-  assert.equal(clusters[0].apparentReturnDate, "2026-08-03");
+  assert.equal(clusters[0].significantDays, 2);
+  assert.equal(clusters[0].reducedDays, 3);
 });
 
-test("missing days break a consecutive cluster", () => {
+test("one or two impaired days are Capacity Dips and missing days break sequences", () => {
   const clusters = detectCapacityClusters([
     entry("2026-08-01", { energyScore: 4, clarityScore: 4 }),
     entry("2026-08-03", { energyScore: 4, clarityScore: 4 })
   ]);
-  assert.equal(clusters.length, 0);
+  assert.deepEqual(clusters.map((cluster) => cluster.kind), ["dip", "dip"]);
+});
+
+test("an episode allows one recovery day but ends before two consecutive recovery days", () => {
+  const clusters = detectCapacityClusters([
+    entry("2026-08-01", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-02", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-03", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-04", { energyScore: 6, clarityScore: 6 }),
+    entry("2026-08-05", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-06", { energyScore: 6, clarityScore: 6 }),
+    entry("2026-08-07", { energyScore: 8, clarityScore: 8, overallState: "Balanced" }),
+    entry("2026-08-08", { energyScore: 4, clarityScore: 4 })
+  ]);
+  assert.equal(clusters[0].kind, "episode");
+  assert.equal(clusters[0].startDate, "2026-08-01");
+  assert.equal(clusters[0].endDate, "2026-08-05");
+  assert.equal(clusters[1].kind, "dip");
+  assert.equal(clusters[1].startDate, "2026-08-08");
+});
+
+test("hormonal classification requires two categories across two recorded days", () => {
+  const episodeDays = [
+    entry("2026-08-01", { energyScore: 4, clarityScore: 4, hormonalSigns: ["Bloating", "Cravings"] }),
+    entry("2026-08-02", { energyScore: 4, clarityScore: 4, hormonalSigns: ["Bloating"] }),
+    entry("2026-08-03", { energyScore: 4, clarityScore: 4 })
+  ];
+  const pattern = classifyHormonalPattern(episodeDays);
+  assert.equal(pattern.isPossible, true);
+  assert.equal(pattern.confidence, "low");
+  assert.equal(pattern.evidenceDayCount, 2);
+  assert.deepEqual(pattern.categories.map((category) => category.key), ["appetite", "bloating"]);
+});
+
+test("three hormonal categories produce moderate confidence", () => {
+  const pattern = classifyHormonalPattern([
+    entry("2026-08-01", { energyScore: 4, clarityScore: 4, hormonalSigns: ["Bloating", "Cravings"] }),
+    entry("2026-08-02", { energyScore: 4, clarityScore: 4, hormonalSigns: ["Increased sensitivity"], clarityNotes: "Brain fog" })
+  ]);
+  assert.equal(pattern.isPossible, true);
+  assert.equal(pattern.confidence, "moderate");
+});
+
+test("poor sleep, activation and relationship stress remain context rather than hormonal evidence", () => {
+  const day = entry("2026-08-01", {
+    energyScore: 4,
+    clarityScore: 4,
+    sleepQuality: "Poor",
+    activationSigns: ["Feeling on edge"],
+    load: ["Relationship stress", "High cognitive demand"]
+  });
+  assert.equal(classifyHormonalPattern([day, day]).isPossible, false);
+  assert.deepEqual(extractContextFactors(day), ["Poor sleep", "High cognitive demand", "Relationship stress", "Activation"]);
 });
 
 test("manual cluster confirmation, rejection and adjusted dates do not alter source days", () => {
-  const days = [entry("2026-08-01", { energyScore: 4, clarityScore: 4 }), entry("2026-08-02", { energyScore: 4, clarityScore: 4 })];
+  const days = [
+    entry("2026-08-01", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-02", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-03", { energyScore: 4, clarityScore: 4 })
+  ];
   const cluster = detectCapacityClusters(days)[0];
   const decision: ClusterDecision = {
     id: cluster.id,
@@ -130,11 +187,15 @@ test("builds a median baseline only after five suitable days", () => {
   assert.equal(profile?.amfexaDose, 15);
 });
 
-test("CSV export preserves missing values and includes cluster IDs", () => {
-  const days = [entry("2026-08-01", { energyScore: 4, clarityScore: 4, hormonalSigns: ["Bloating"] }), entry("2026-08-02", { energyScore: 4, clarityScore: 4 })];
+test("CSV export preserves missing values and includes episode IDs", () => {
+  const days = [
+    entry("2026-08-01", { energyScore: 4, clarityScore: 4, hormonalSigns: ["Bloating"] }),
+    entry("2026-08-02", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-03", { energyScore: 4, clarityScore: 4 })
+  ];
   const csv = buildTimelineCsv(days, detectCapacityClusters(days));
   assert.match(csv, /capacity_state/);
   assert.match(csv, /Significant reduction|Reduced/);
-  assert.match(csv, /auto:2026-08-01:2026-08-02/);
+  assert.match(csv, /auto:episode:2026-08-01:2026-08-03/);
   assert.match(csv, /Bloating/);
 });

@@ -3,6 +3,28 @@ import type { DailyEntry } from "./schema";
 export type RawDailyEntry = Partial<DailyEntry> & Record<string, unknown>;
 export type CapacityState = "Baseline" | "Slightly reduced" | "Reduced" | "Significant reduction";
 export type ClusterStatus = "provisional" | "confirmed" | "rejected";
+export type EpisodeKind = "episode" | "dip";
+export type HormonalDecision = "possible" | "not-hormonal" | "unsure";
+export type HormonalConfidence = "none" | "low" | "moderate";
+export type HormonalEvidenceCategory = "appetite" | "bloating" | "cognitive" | "emotional" | "physical" | "behavioural" | "medicationResponse";
+
+export interface EvidenceCount {
+  key: HormonalEvidenceCategory;
+  label: string;
+  days: number;
+}
+
+export interface ContextCount {
+  label: string;
+  days: number;
+}
+
+export interface HormonalPatternResult {
+  isPossible: boolean;
+  confidence: HormonalConfidence;
+  evidenceDayCount: number;
+  categories: EvidenceCount[];
+}
 
 export type SymptomKey =
   | "brainFog"
@@ -35,6 +57,7 @@ export interface NormalizedTimelineDay {
   moodChanges: string[];
   activationSigns: string[];
   executiveFriction: string[];
+  executiveDemandLevel: string;
   load: string[];
   recovery: string[];
   amfexaDose: number | null;
@@ -58,6 +81,7 @@ export interface CapacityResult {
 
 export interface CapacityCluster {
   id: string;
+  kind: EpisodeKind;
   startDate: string;
   endDate: string;
   duration: number;
@@ -66,6 +90,11 @@ export interface CapacityCluster {
   recurringSymptoms: SymptomKey[];
   pmddMedicationDates: string[];
   apparentReturnDate: string | null;
+  significantDays: number;
+  reducedDays: number;
+  hormonalPattern: HormonalPatternResult;
+  hormonalDecision?: HormonalDecision;
+  contextFactors: ContextCount[];
   status: ClusterStatus;
   sourceStartDate: string;
   sourceEndDate: string;
@@ -73,11 +102,22 @@ export interface CapacityCluster {
 
 export interface ClusterDecision {
   id: string;
-  status: "confirmed" | "rejected";
+  status: ClusterStatus;
   startDate: string;
   endDate: string;
   updatedAt: string;
+  hormonalDecision?: HormonalDecision;
 }
+
+export const hormonalEvidenceDefinitions: Array<{ key: HormonalEvidenceCategory; label: string }> = [
+  { key: "appetite", label: "Appetite / cravings" },
+  { key: "bloating", label: "Bloating / breast changes" },
+  { key: "cognitive", label: "Cognitive symptoms" },
+  { key: "emotional", label: "Emotional sensitivity" },
+  { key: "physical", label: "Physical sensitivity / tension" },
+  { key: "behavioural", label: "Behavioural / reward changes" },
+  { key: "medicationResponse", label: "ADHD medication response change" }
+];
 
 export interface BaselineProfile {
   count: number;
@@ -183,6 +223,7 @@ export function normalizeTimelineEntry(raw: RawDailyEntry): NormalizedTimelineDa
   const overallState = asString(raw, ["overallState"]) || legacyNervousState[0] || emotionalState[0] || "";
   const activationSigns = asArray(raw, ["activationSigns", "physiologicalActivationSigns", "physiologicalActivation"]);
   const executiveFriction = asArray(raw, ["executiveFriction", "cognitiveFriction"]);
+  const executiveDemandLevel = asString(raw, ["executiveDemandLevel", "executiveDemand"]);
   const load = asArray(raw, ["load", "loadFactors", "sourcesOfLoad"]);
   const recovery = asArray(raw, ["recovery", "recoveryFactors", "restorativeFactors"]);
   const amfexaDose = asNumber(raw, ["amfexaDose", "adhdMedicationDose", "medicationDose"]);
@@ -265,6 +306,7 @@ export function normalizeTimelineEntry(raw: RawDailyEntry): NormalizedTimelineDa
     moodChanges,
     activationSigns,
     executiveFriction,
+    executiveDemandLevel,
     load,
     recovery,
     amfexaDose,
@@ -357,7 +399,83 @@ function minNumber(values: Array<number | null>): number | null {
   return numbers.length ? Math.min(...numbers) : null;
 }
 
-function buildCluster(days: NormalizedTimelineDay[], markedIndexes: number[], allDays: NormalizedTimelineDay[]): CapacityCluster {
+export function extractHormonalEvidence(day: NormalizedTimelineDay, typicalAmfexaDose: number | null = null): HormonalEvidenceCategory[] {
+  const categories = new Set<HormonalEvidenceCategory>();
+  const signs = day.hormonalSigns.map((sign) => sign.toLowerCase());
+  const mood = day.moodChanges.map((state) => state.toLowerCase());
+  const notes = day.notes.join(" ").toLowerCase();
+  const hasSign = (...patterns: string[]) => signs.some((sign) => patterns.some((pattern) => sign.includes(pattern)));
+
+  if (day.flags.cravings || day.flags.increasedAppetite || /unusual hunger|hungrier|more hungry/.test(notes)) categories.add("appetite");
+  if (day.flags.bloating || hasSign("breast", "fluid retention")) categories.add("bloating");
+  if (
+    day.flags.brainFog ||
+    day.flags.headSwimming ||
+    /slowed processing|finding words|word recall|retriev(e|ing) information|muddy thinking|treacle/.test(notes)
+  ) categories.add("cognitive");
+  if (
+    day.flags.sensitivity ||
+    day.flags.lowMood ||
+    hasSign("tearful", "irritability", "increased sensitivity") ||
+    mood.some((state) => ["low", "flat", "sensitive"].some((label) => state.includes(label))) ||
+    /emotionally unlike (my )?baseline/.test(notes)
+  ) categories.add("emotional");
+  if (
+    day.flags.bodyTension ||
+    hasSign("unusual body aches", "head pressure", "body tension", "tightness", "bodily sensitivity") ||
+    /unusual (body )?aches|head pressure|body tension|bodily sensitivity/.test(notes)
+  ) categories.add("physical");
+  if (day.flags.impulsiveSpending || day.flags.libidoChanges || /reward[- ]seeking/.test(notes)) categories.add("behavioural");
+  if (
+    day.flags.reducedMedicationEffect ||
+    (typicalAmfexaDose !== null && day.amfexaDose !== null && day.amfexaDose >= typicalAmfexaDose + 2.5)
+  ) categories.add("medicationResponse");
+  return [...categories];
+}
+
+export function classifyHormonalPattern(episodeDays: NormalizedTimelineDay[], typicalAmfexaDose: number | null = null): HormonalPatternResult {
+  const counts = new Map<HormonalEvidenceCategory, number>();
+  let evidenceDayCount = 0;
+  for (const day of episodeDays) {
+    const categories = extractHormonalEvidence(day, typicalAmfexaDose);
+    if (categories.length) evidenceDayCount += 1;
+    categories.forEach((category) => counts.set(category, (counts.get(category) ?? 0) + 1));
+  }
+  const categories = hormonalEvidenceDefinitions
+    .filter(({ key }) => counts.has(key))
+    .map(({ key, label }) => ({ key, label, days: counts.get(key) ?? 0 }));
+  const isPossible = categories.length >= 2 && evidenceDayCount >= 2;
+  return {
+    isPossible,
+    confidence: isPossible ? (categories.length >= 3 ? "moderate" : "low") : "none",
+    evidenceDayCount,
+    categories
+  };
+}
+
+export function extractContextFactors(day: NormalizedTimelineDay, typicalAmfexaDose: number | null = null): string[] {
+  const factors = new Set<string>();
+  const load = [...day.load, ...day.executiveFriction].join(" ").toLowerCase();
+  const notes = day.notes.join(" ").toLowerCase();
+  if (day.sleepQuality.toLowerCase() === "poor" || (day.sleepHours !== null && day.sleepHours < 6) || load.includes("poor sleep")) factors.add("Poor sleep");
+  if (/pain|physical discomfort|physical symptoms/.test(`${load} ${notes}`)) factors.add("Pain / physical symptoms");
+  if (["high", "very high"].includes(day.executiveDemandLevel.toLowerCase()) || /high cognitive demand|computer work|too many task switches/.test(load)) factors.add("High cognitive demand");
+  if (/relationship stress|conflict|emotional conversation|feeling unsupported|self-silencing|feeling trapped/.test(load)) factors.add("Relationship stress");
+  if (day.flags.activation) factors.add("Activation");
+  if (/\bill(ness)?\b|unwell|infection|virus|cold|flu/.test(notes)) factors.add("Illness / feeling unwell");
+  if (
+    day.amfexaEffect.toLowerCase() === "too strong" ||
+    day.medicationSideEffects.some((effect) => effect.toLowerCase() !== "none") ||
+    (typicalAmfexaDose !== null && day.amfexaDose !== null && day.amfexaDose !== typicalAmfexaDose)
+  ) factors.add("Medication changes / effects");
+  return [...factors];
+}
+
+function typicalBaselineDose(days: NormalizedTimelineDay[]): number | null {
+  return median(days.filter((day) => day.capacityState === "Baseline").map((day) => day.amfexaDose));
+}
+
+function buildCluster(days: NormalizedTimelineDay[], markedIndexes: number[], allDays: NormalizedTimelineDay[], kind: EpisodeKind): CapacityCluster {
   const clusterDays = markedIndexes.map((index) => days[index]);
   const startDate = clusterDays[0].date;
   const endDate = clusterDays.at(-1)?.date ?? startDate;
@@ -366,10 +484,14 @@ function buildCluster(days: NormalizedTimelineDay[], markedIndexes: number[], al
     for (const key of cognitiveHormonalKeys) if (day.flags[key]) counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   const recurringSymptoms = [...counts.entries()].filter(([, count]) => count >= 2).map(([key]) => key);
+  const baselineDose = typicalBaselineDose(allDays);
+  const contextCounts = new Map<string, number>();
+  clusterDays.forEach((day) => extractContextFactors(day, baselineDose).forEach((factor) => contextCounts.set(factor, (contextCounts.get(factor) ?? 0) + 1)));
   const recoveryWindow = allDays.filter((day) => day.date > endDate && daysBetween(endDate, day.date) <= 10);
-  const returnDay = recoveryWindow.find((day) => day.capacityState === "Baseline") ?? recoveryWindow.find((day) => day.capacityState === "Slightly reduced");
+  const returnDay = recoveryWindow.find((day) => day.capacityState === "Baseline" || day.capacityState === "Slightly reduced");
   return {
-    id: `auto:${startDate}:${endDate}`,
+    id: `auto:${kind}:${startDate}:${endDate}`,
+    kind,
     startDate,
     endDate,
     duration: daysBetween(startDate, endDate) + 1,
@@ -378,6 +500,10 @@ function buildCluster(days: NormalizedTimelineDay[], markedIndexes: number[], al
     recurringSymptoms,
     pmddMedicationDates: clusterDays.filter((day) => day.flags.pmddMedication).map((day) => day.date),
     apparentReturnDate: returnDay?.date ?? null,
+    significantDays: clusterDays.filter((day) => day.capacityState === "Significant reduction").length,
+    reducedDays: clusterDays.filter((day) => day.capacityState === "Reduced").length,
+    hormonalPattern: kind === "episode" ? classifyHormonalPattern(clusterDays, baselineDose) : { isPossible: false, confidence: "none", evidenceDayCount: 0, categories: [] },
+    contextFactors: [...contextCounts.entries()].map(([label, days]) => ({ label, days })).sort((a, b) => b.days - a.days || a.label.localeCompare(b.label)),
     status: "provisional",
     sourceStartDate: startDate,
     sourceEndDate: endDate
@@ -386,47 +512,110 @@ function buildCluster(days: NormalizedTimelineDay[], markedIndexes: number[], al
 
 export function detectCapacityClusters(days: NormalizedTimelineDay[]): CapacityCluster[] {
   const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
-  const marked = new Set<number>();
+  const episodeRanges: Array<[number, number]> = [];
+  const covered = new Set<number>();
+  const isImpaired = (index: number) => capacityRank(sorted[index].capacityState) >= 2;
 
-  for (let index = 0; index < sorted.length - 1; index += 1) {
-    const next = sorted[index + 1];
-    if (daysBetween(sorted[index].date, next.date) === 1 && capacityRank(sorted[index].capacityState) >= 2 && capacityRank(next.capacityState) >= 2) {
-      marked.add(index);
-      marked.add(index + 1);
+  let runStart = 0;
+  while (runStart < sorted.length) {
+    let runEnd = runStart;
+    while (runEnd + 1 < sorted.length && daysBetween(sorted[runEnd].date, sorted[runEnd + 1].date) === 1) runEnd += 1;
+    let impairedStreak = 0;
+    let recoveryStreak = 0;
+    let activeStart: number | null = null;
+    let lastImpaired = -1;
+    for (let index = runStart; index <= runEnd; index += 1) {
+      if (isImpaired(index)) {
+        impairedStreak += 1;
+        recoveryStreak = 0;
+        if (activeStart === null && impairedStreak === 3) activeStart = index - 2;
+        if (activeStart !== null) lastImpaired = index;
+      } else {
+        impairedStreak = 0;
+        if (activeStart !== null) {
+          recoveryStreak += 1;
+          if (recoveryStreak === 2) {
+            episodeRanges.push([activeStart, lastImpaired]);
+            activeStart = null;
+            lastImpaired = -1;
+            recoveryStreak = 0;
+          }
+        }
+      }
     }
+    if (activeStart !== null) episodeRanges.push([activeStart, recoveryStreak === 1 ? runEnd : lastImpaired]);
+    runStart = runEnd + 1;
   }
 
-  for (let index = 0; index < sorted.length - 2; index += 1) {
-    const window = sorted.slice(index, index + 3);
-    if (daysBetween(window[0].date, window[1].date) !== 1 || daysBetween(window[1].date, window[2].date) !== 1) continue;
-    const counts = new Map<SymptomKey, number>();
-    window.forEach((day) => cognitiveHormonalKeys.forEach((key) => day.flags[key] && counts.set(key, (counts.get(key) ?? 0) + 1)));
-    if (window.every((day) => cognitiveHormonalKeys.some((key) => day.flags[key])) && [...counts.values()].some((count) => count >= 2)) {
-      marked.add(index);
-      marked.add(index + 1);
-      marked.add(index + 2);
-    }
+  episodeRanges.forEach(([start, end]) => {
+    for (let index = start; index <= end; index += 1) covered.add(index);
+  });
+  const dipRanges: Array<[number, number]> = [];
+  for (let index = 0; index < sorted.length; index += 1) {
+    if (!isImpaired(index) || covered.has(index)) continue;
+    const start = index;
+    while (
+      index + 1 < sorted.length &&
+      isImpaired(index + 1) &&
+      !covered.has(index + 1) &&
+      daysBetween(sorted[index].date, sorted[index + 1].date) === 1
+    ) index += 1;
+    if (index - start + 1 <= 2) dipRanges.push([start, index]);
   }
 
-  const groups: number[][] = [];
-  for (const index of [...marked].sort((a, b) => a - b)) {
-    const group = groups.at(-1);
-    if (group && index === group.at(-1)! + 1 && daysBetween(sorted[group.at(-1)!].date, sorted[index].date) === 1) group.push(index);
-    else groups.push([index]);
-  }
-  return groups.map((group) => buildCluster(sorted, group, sorted));
+  const buildRange = ([start, end]: [number, number], kind: EpisodeKind) =>
+    buildCluster(sorted, Array.from({ length: end - start + 1 }, (_, offset) => start + offset), sorted, kind);
+  return [...episodeRanges.map((range) => buildRange(range, "episode")), ...dipRanges.map((range) => buildRange(range, "dip"))]
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
 }
 
-export function applyClusterDecision(cluster: CapacityCluster, decision?: ClusterDecision): CapacityCluster {
+export function restoreManualEpisode(decision: ClusterDecision, days: NormalizedTimelineDay[]): CapacityCluster {
+  const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
+  const selected = sorted.filter((day) => day.date >= decision.startDate && day.date <= decision.endDate);
+  if (selected.length) {
+    const restored = buildCluster(selected, selected.map((_, index) => index), sorted, "episode");
+    return { ...applyClusterDecision(restored, decision), id: decision.id };
+  }
+  return {
+    id: decision.id,
+    kind: "episode",
+    startDate: decision.startDate,
+    endDate: decision.endDate,
+    duration: Math.max(1, daysBetween(decision.startDate, decision.endDate) + 1),
+    lowestEnergy: null,
+    lowestClarity: null,
+    recurringSymptoms: [],
+    pmddMedicationDates: [],
+    apparentReturnDate: null,
+    significantDays: 0,
+    reducedDays: 0,
+    hormonalPattern: { isPossible: false, confidence: "none", evidenceDayCount: 0, categories: [] },
+    hormonalDecision: decision.hormonalDecision,
+    contextFactors: [],
+    status: decision.status,
+    sourceStartDate: decision.startDate,
+    sourceEndDate: decision.endDate
+  };
+}
+
+export function applyClusterDecision(cluster: CapacityCluster, decision?: ClusterDecision, allDays?: NormalizedTimelineDay[]): CapacityCluster {
   if (!decision) return cluster;
   const startDate = decision.startDate || cluster.startDate;
   const endDate = decision.endDate || cluster.endDate;
+  const selected = allDays?.filter((day) => day.date >= startDate && day.date <= endDate) ?? [];
+  const recalculated = selected.length
+    ? buildCluster(selected, selected.map((_, index) => index), allDays ?? selected, cluster.kind)
+    : cluster;
   return {
-    ...cluster,
+    ...recalculated,
+    id: cluster.id,
+    sourceStartDate: cluster.sourceStartDate,
+    sourceEndDate: cluster.sourceEndDate,
     startDate,
     endDate,
     duration: Math.max(1, daysBetween(startDate, endDate) + 1),
-    status: decision.status
+    status: decision.status,
+    hormonalDecision: decision.hormonalDecision
   };
 }
 
@@ -504,7 +693,10 @@ export function buildTimelineCsv(days: NormalizedTimelineDay[], clusters: Capaci
     "amfexa_dose_mg",
     "amfexa_effect",
     "pmdd_medication",
-    "possible_cluster_id",
+    "capacity_event_id",
+    "capacity_event_type",
+    "possible_hormonal_cluster",
+    "hormonal_pattern_confidence",
     "short_notes"
   ];
   const rows = days.map((day) => {
@@ -525,6 +717,9 @@ export function buildTimelineCsv(days: NormalizedTimelineDay[], clusters: Capaci
       day.amfexaEffect,
       day.pmddMedicationTaken,
       cluster?.id ?? "",
+      cluster?.kind ?? "",
+      cluster?.kind === "episode" && (cluster.hormonalDecision === "possible" || (!cluster.hormonalDecision && cluster.hormonalPattern.isPossible)) ? "Yes" : "",
+      cluster?.hormonalPattern.confidence === "none" ? "" : cluster?.hormonalPattern.confidence ?? "",
       day.notes.join(" | ").slice(0, 300)
     ];
   });
