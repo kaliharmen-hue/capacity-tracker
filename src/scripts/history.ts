@@ -1,4 +1,4 @@
-import { buildSummary, filterRecent, relationalStressLevel, relationalStressScore } from "./analytics";
+import { buildCrashDriverAnalysis, buildSummary, filterRecent, relationalStressLevel, relationalStressScore } from "./analytics";
 import { getAllEntries } from "./db";
 import type { DailyEntry } from "./schema";
 
@@ -65,39 +65,6 @@ function topCapacityDays(data: DailyEntry[], highest: boolean): DailyEntry[] {
     .slice(0, 2);
 }
 
-function activityRows(entry: DailyEntry): Array<{ type: string; meaning: number | ""; time: string; executiveDemand: number | ""; capacityEffect: string }> {
-  return [
-    {
-      type: entry.activity1Type,
-      meaning: entry.activity1MeaningScore,
-      time: entry.activity1Time,
-      executiveDemand: entry.activity1ExecutiveDemandScore,
-      capacityEffect: entry.activity1CapacityEffect
-    },
-    {
-      type: entry.activity2Type,
-      meaning: entry.activity2MeaningScore,
-      time: entry.activity2Time,
-      executiveDemand: entry.activity2ExecutiveDemandScore,
-      capacityEffect: entry.activity2CapacityEffect
-    },
-    {
-      type: entry.activity3Type,
-      meaning: entry.activity3MeaningScore,
-      time: entry.activity3Time,
-      executiveDemand: entry.activity3ExecutiveDemandScore,
-      capacityEffect: entry.activity3CapacityEffect
-    },
-    {
-      type: entry.activity4Type,
-      meaning: entry.activity4MeaningScore,
-      time: entry.activity4Time,
-      executiveDemand: entry.activity4ExecutiveDemandScore,
-      capacityEffect: entry.activity4CapacityEffect
-    }
-  ].filter((activity) => activity.type);
-}
-
 function mostCommon(values: string[]): string {
   const counts = new Map<string, number>();
   values.filter(Boolean).forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1));
@@ -109,17 +76,6 @@ function renderWeeklyInsights(data: DailyEntry[]): void {
   if (!weeklyInsightsRoot) return;
   const bestCapacity = topCapacityDays(data, true);
   const worstCapacity = topCapacityDays(data, false);
-  const activities = data.flatMap(activityRows);
-  const highestMeaning = activities
-    .filter((activity) => typeof activity.meaning === "number")
-    .sort((a, b) => Number(b.meaning) - Number(a.meaning))[0];
-  const highestActivityExecutiveDemand = activities
-    .filter((activity) => typeof activity.executiveDemand === "number")
-    .sort((a, b) => Number(b.executiveDemand) - Number(a.executiveDemand))[0];
-  const energisingActivities = activities.filter((activity) =>
-    ["Much more energised", "Slightly more energised"].includes(activity.capacityEffect)
-  );
-  const drainingActivities = activities.filter((activity) => ["Slightly drained", "Very drained"].includes(activity.capacityEffect));
   const computerCrashDays = data.filter(
     (entry) =>
       (entry.executiveDemandTypes.includes("Computer work") || entry.load.includes("Computer work")) &&
@@ -140,16 +96,17 @@ function renderWeeklyInsights(data: DailyEntry[]): void {
     .slice(0, -1)
     .filter((entry, index) => entry.sleepQuality === "Poor" && typeof data[index + 1]?.capacityRemainingScore === "number")
     .map((entry, index) => `${entry.date} -> ${data[index + 1].capacityRemainingScore}/10 next day`);
+  const crashAnalysis = buildCrashDriverAnalysis(data);
+  const crashDrivers = crashAnalysis.drivers.length
+    ? crashAnalysis.drivers.slice(0, 3).map((driver) => `${driver.label} (${Math.round(driver.crashRate * 100)}% vs ${Math.round(driver.comparisonRate * 100)}%)`).join(", ")
+    : "Not enough contrasting days yet.";
 
   const items = [
     `Best capacity days: ${bestCapacity.length ? bestCapacity.map((entry) => `${entry.date} (${entry.capacityRemainingScore}/10)`).join(", ") : "Not enough data yet"}`,
     `Worst capacity days: ${worstCapacity.length ? worstCapacity.map((entry) => `${entry.date} (${entry.capacityRemainingScore}/10)`).join(", ") : "Not enough data yet"}`,
-    `Biggest energy drains: ${mostCommon(data.map((entry) => entry.biggestEnergyDrain))}`,
-    `Most common executive friction: ${mostCommon(data.flatMap((entry) => entry.executiveFriction))}`,
-    `Activities with highest meaning/contentment: ${highestMeaning ? `${highestMeaning.type} (${highestMeaning.meaning}/10)` : "Not enough data yet"}`,
-    `Highest activity executive demand: ${highestActivityExecutiveDemand ? `${highestActivityExecutiveDemand.type} (${highestActivityExecutiveDemand.executiveDemand}/10)` : "Not enough data yet"}`,
-    `Activities that tended to energise me: ${mostCommon(energisingActivities.map((activity) => activity.type))}`,
-    `Activities that tended to drain me: ${mostCommon(drainingActivities.map((activity) => activity.type))}`,
+    `Most common sources of load: ${mostCommon(data.flatMap((entry) => entry.load))}`,
+    `Possible crash contributors: ${crashDrivers}`,
+    `Coffee comparison: ${crashAnalysis.coffeeDetail}`,
     `Computer work and crashes: ${computerCrashDays.length ? `${computerCrashDays.length} day${computerCrashDays.length === 1 ? "" : "s"} matched.` : "No clear link yet."}`,
     `Hormonal signs and executive capacity: ${hormonalExecutiveDays.length ? `${hormonalExecutiveDays.length} lower-clarity hormonal day${hormonalExecutiveDays.length === 1 ? "" : "s"}.` : "No clear link yet."}`,
     `Amfexa dose/effect patterns: ${weakMedicationDays.length ? `${weakMedicationDays.length} day${weakMedicationDays.length === 1 ? "" : "s"} felt too weak.` : "No clear pattern yet."}`,
@@ -170,18 +127,11 @@ function render(): void {
       stat("Average energy", summary.averageEnergy.toFixed(1)),
       stat("Average clarity", summary.averageClarity.toFixed(1)),
       stat("Average capability", summary.averageCapacityRemaining ? summary.averageCapacityRemaining.toFixed(1) : "Not enough yet"),
-      stat(
-        "Average activity executive demand",
-        summary.averageActivityExecutiveDemand ? summary.averageActivityExecutiveDemand.toFixed(1) : "Not enough yet"
-      ),
-      stat("Average activity meaning", summary.averageMeaningContentment ? summary.averageMeaningContentment.toFixed(1) : "Not enough yet"),
       stat("Average sleep", `${summary.averageSleep.toFixed(1)}h`),
       stat("Low-energy days", summary.lowEnergyDays),
       stat("High-energy days", summary.highEnergyDays),
       stat("Crash / up-down days", summary.crashDays),
-      stat("Exhausted end-of-day", summary.exhaustedEndDays),
       stat("High executive demand days", summary.highExecutiveDemandDays),
-      stat("Loud inner critic days", summary.highInnerCriticDays),
       stat("Poor sleep days", summary.poorSleepDays),
       stat("Relational stress days", summary.relationalStressDays),
       stat("Hormonal sign days", summary.hormonalDays),

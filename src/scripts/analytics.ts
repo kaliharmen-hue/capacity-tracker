@@ -52,10 +52,84 @@ function hasExecutiveDemand(entry: DailyEntry): boolean {
     entry.executiveDemandLevel === "High" ||
     entry.executiveDemandLevel === "Very high" ||
     entry.load.includes("High cognitive demand") ||
+    entry.load.includes("Too many decisions") ||
+    entry.load.includes("Too many task switches") ||
+    entry.load.includes("Constant interruptions") ||
     entry.executiveFriction.includes("Too many decisions") ||
     entry.executiveFriction.includes("Task switching") ||
     entry.executiveFriction.includes("Interruptions")
   );
+}
+
+export interface CrashDriver {
+  label: string;
+  crashRate: number;
+  comparisonRate: number;
+  difference: number;
+  crashDays: number;
+}
+
+export interface CrashDriverAnalysis {
+  crashDays: number;
+  comparisonDays: number;
+  drivers: CrashDriver[];
+  coffeeDetail: string;
+}
+
+function isCrashPattern(entry: DailyEntry): boolean {
+  return ["Afternoon crash", "Evening crash", "Up and down", "Exhausted / pushed too far"].includes(entry.energyPattern);
+}
+
+function timeInMinutes(value: string): number | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function median(values: number[]): number | null {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+export function buildCrashDriverAnalysis(entries: DailyEntry[]): CrashDriverAnalysis {
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  const answered = sorted.filter((entry) => Boolean(entry.energyPattern));
+  const crashes = answered.filter(isCrashPattern);
+  const comparison = answered.filter((entry) => !isCrashPattern(entry));
+  const wakingMedian = median(answered.map((entry) => timeInMinutes(entry.wakingTime)).filter((value): value is number => value !== null));
+  const previousByDate = new Map(sorted.map((entry) => [entry.date, entry]));
+  const previousDay = (entry: DailyEntry) => previousByDate.get(previousDate(entry.date));
+  const factors: Array<{ label: string; test: (entry: DailyEntry) => boolean }> = [
+    { label: "Poor or disrupted sleep", test: (entry) => entry.sleepQuality === "Poor" || entry.sleepFragmentation === "Yes" || entry.feltRestored === "No" },
+    { label: "Hormonal signs / familiar pattern", test: (entry) => entry.familiarHormonalPattern === "Slightly" || entry.familiarHormonalPattern === "Yes" || entry.hormonalSigns.some((sign) => sign !== "No noticeable signs") },
+    { label: "High cognitive demand", test: hasExecutiveDemand },
+    { label: "Relational load", test: (entry) => relationalStressScore(entry) >= 3 },
+    { label: "Activation", test: (entry) => (Boolean(entry.activationFirstNotice) && entry.activationFirstNotice !== "Not at all") || entry.activationSigns.some((sign) => sign !== "None") },
+    { label: "ADHD medication felt too weak", test: (entry) => entry.amfexaEffect === "Too weak" },
+    { label: "Pain, heat or physical discomfort", test: (entry) => entry.load.some((item) => ["Pain / physical discomfort", "Heat"].includes(item)) },
+    { label: "Heavy previous-day mental or physical load", test: (entry) => Boolean(previousDay(entry)?.load.some((item) => ["High cognitive demand", "Intense work day", "Heavy training"].includes(item))) },
+    { label: "Earlier waking than my usual", test: (entry) => { const waking = timeInMinutes(entry.wakingTime); return waking !== null && wakingMedian !== null && waking <= wakingMedian - 30; } }
+  ];
+  const drivers = crashes.length >= 3 && comparison.length >= 3
+    ? factors.map((factor) => {
+        const crashCount = crashes.filter(factor.test).length;
+        const comparisonCount = comparison.filter(factor.test).length;
+        const crashRate = crashCount / crashes.length;
+        const comparisonRate = comparisonCount / comparison.length;
+        return { label: factor.label, crashRate, comparisonRate, difference: crashRate - comparisonRate, crashDays: crashCount };
+      }).filter((driver) => driver.crashDays >= 2 && driver.difference >= 0.15)
+        .sort((left, right) => right.difference - left.difference || right.crashDays - left.crashDays)
+        .slice(0, 5)
+    : [];
+  const coffeeEligible = answered.filter((entry) => entry.date >= "2026-08-07" || entry.coffees > 0);
+  const coffeeCrash = coffeeEligible.filter(isCrashPattern).map((entry) => entry.coffees);
+  const coffeeComparison = coffeeEligible.filter((entry) => !isCrashPattern(entry)).map((entry) => entry.coffees);
+  const coffeeDetail = coffeeCrash.length >= 3 && coffeeComparison.length >= 3
+    ? `Crash-pattern days averaged ${average(coffeeCrash).toFixed(1)} coffees versus ${average(coffeeComparison).toFixed(1)} on other days.`
+    : "Not enough coffee and crash-pattern data yet.";
+  return { crashDays: crashes.length, comparisonDays: comparison.length, drivers, coffeeDetail };
 }
 
 function answeredNumber(value: number | ""): value is number {
@@ -147,30 +221,15 @@ export function nextDayEnergyAfterTraining(entries: DailyEntry[]): string {
 }
 
 export function buildSummary(entries: DailyEntry[]) {
-  const meaningScores = entries.flatMap((entry) =>
-    [entry.activity1MeaningScore, entry.activity2MeaningScore, entry.activity3MeaningScore, entry.activity4MeaningScore].filter(answeredNumber)
-  );
-  const activityExecutiveDemandScores = entries.flatMap((entry) =>
-    [
-      entry.activity1ExecutiveDemandScore,
-      entry.activity2ExecutiveDemandScore,
-      entry.activity3ExecutiveDemandScore,
-      entry.activity4ExecutiveDemandScore
-    ].filter(answeredNumber)
-  );
   return {
     averageEnergy: average(entries.map((entry) => entry.energyScore)),
     averageClarity: average(entries.map((entry) => entry.clarityScore)),
     averageCapacityRemaining: average(entries.map((entry) => entry.capacityRemainingScore).filter(answeredNumber)),
-    averageActivityExecutiveDemand: average(activityExecutiveDemandScores),
-    averageMeaningContentment: average(meaningScores),
     averageSleep: average(entries.map((entry) => entry.sleepHours)),
     lowEnergyDays: countWhere(entries, (entry) => entry.energyScore <= 4),
     highEnergyDays: countWhere(entries, (entry) => entry.energyScore >= 8),
     crashDays: countWhere(entries, (entry) => ["Afternoon crash", "Evening crash", "Up and down"].includes(entry.energyPattern)),
-    exhaustedEndDays: countWhere(entries, (entry) => entry.endOfDayEnergy === "Exhausted / did too much" || entry.endOfDayEnergy === "Running on fumes"),
     highExecutiveDemandDays: countWhere(entries, hasExecutiveDemand),
-    highInnerCriticDays: countWhere(entries, (entry) => answeredNumber(entry.innerCriticScore) && entry.innerCriticScore >= 7),
     poorSleepDays: countWhere(entries, (entry) => entry.sleepQuality === "Poor"),
     relationalStressDays: countWhere(entries, (entry) => relationalStressScore(entry) >= 3),
     hormonalDays: countWhere(
@@ -244,11 +303,6 @@ export function buildInsights(entries: DailyEntry[]): string[] {
     insights.push("High executive demand appeared alongside low capacity more than once. This may help explain capacity dips even when energy is not the whole story.");
   }
 
-  const frictionLowerClarity = sorted.filter((entry) => entry.executiveFriction.length > 0 && entry.clarityScore <= 5);
-  if (frictionLowerClarity.length >= 2) {
-    insights.push("Executive friction appeared alongside lower clarity more than once.");
-  }
-
   const wakingActivation = sorted.filter((entry) => entry.activationFirstNotice === "Immediately on waking");
   if (wakingActivation.length >= 2) {
     insights.push("Activation was noticed immediately on waking more than once. This may be a useful baseline signal to watch.");
@@ -261,15 +315,9 @@ export function buildInsights(entries: DailyEntry[]): string[] {
     insights.push("Defensive/reactive activation signs appeared alongside lower remaining capacity more than once.");
   }
 
-  const innerCriticLowCapacity = sorted.filter(
-    (entry) =>
-      answeredNumber(entry.innerCriticScore) &&
-      entry.innerCriticScore >= 7 &&
-      answeredNumber(entry.capacityRemainingScore) &&
-      entry.capacityRemainingScore <= 4
-  );
-  if (innerCriticLowCapacity.length >= 2) {
-    insights.push("A louder inner critic appeared alongside lower remaining capacity more than once.");
+  const crashAnalysis = buildCrashDriverAnalysis(sorted);
+  if (crashAnalysis.drivers.length) {
+    insights.push(`Possible crash contributors: ${crashAnalysis.drivers.slice(0, 3).map((driver) => `${driver.label} (${Math.round(driver.crashRate * 100)}% of crash-pattern days vs ${Math.round(driver.comparisonRate * 100)}% of other days)`).join("; ")}. These are associations, not confirmed causes.`);
   }
 
   const familiarHormonalCluster = sorted.filter(

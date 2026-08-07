@@ -19,6 +19,7 @@ export interface DailyEntry {
   emotionalState: string[];
   emotionalNotes: string;
   socialTolerance: string[];
+  socialCapacity: string;
   socialNotes: string;
   sleepHours: number;
   sleepQuality: Quality;
@@ -179,6 +180,8 @@ export type FieldDefinition =
       label: string;
       options: string[];
       helperText?: string;
+      showWhenValue?: { name: keyof DailyEntry; value: string };
+      showWhenAny?: { name: keyof DailyEntry; excluding?: string[] };
     }
   | {
       type: "time";
@@ -235,6 +238,7 @@ export const hormonalOptions = [
   "Skin changes/spots",
   "Breast tenderness",
   "Breast changes",
+  "Bleeding / spotting",
   "Sudden bowel movement change"
 ];
 export const digestiveOptions = [
@@ -243,7 +247,6 @@ export const digestiveOptions = [
   "Constipation feeling",
   "Fewer bowel movements than usual",
   "Increased gas",
-  "Gas",
   "Abdominal discomfort",
   "Sudden bowel movement change",
   "Diarrhoea",
@@ -288,6 +291,10 @@ export const loadOptions = [
   "High cognitive demand",
   "Constant interruptions",
   "Too many task switches",
+  "Waiting for other people",
+  "Too many decisions",
+  "Boring / repetitive work",
+  "Perfectionism",
   "Computer work",
   "Work pressure",
   "Conflict",
@@ -360,8 +367,7 @@ export const activationFirstNoticeOptions = [
   "Midday",
   "Afternoon",
   "Evening",
-  "Only during a specific event",
-  "Not at all"
+  "Only during a specific event"
 ];
 export const simplifiedActivationOptions = ["Heart pounding", "Shallow breathing", "Jumpy", "Feeling on edge", "Defensive / reactive", "None"];
 export const amfexaDoseOptions = ["0", "2.5", "5", "7.5", "10", "12.5", "15", "17.5", "20"];
@@ -397,11 +403,10 @@ export const sections: SectionDefinition[] = [
     fields: [
       { type: "number", name: "sleepHours", label: "How many hours did I sleep?", min: 0, step: 0.25 },
       { type: "select", name: "sleepQuality", label: "How was sleep quality?", options: ["", "Good", "Okay", "Poor"] },
-      { type: "time", name: "wakingTime", label: "If I woke early, what time was it?" },
+      { type: "time", name: "wakingTime", label: "What time did I wake?" },
       { type: "select", name: "feltRestored", label: "Did I feel restored?", options: ["", "Yes", "Somewhat", "No"] },
       { type: "select", name: "hotWaking", label: "Did I wake hot?", options: ["", "Yes", "No"] },
       { type: "select", name: "sleepFragmentation", label: "Was sleep fragmented?", options: ["", "Yes", "No"] },
-      { type: "select", name: "ruminationOnWaking", label: "Was there rumination on waking?", options: ["", "Yes", "No"] },
       { type: "textarea", name: "sleepNotes", label: "Sleep notes" }
     ]
   },
@@ -415,7 +420,6 @@ export const sections: SectionDefinition[] = [
         label: "How much usable energy did I have today?"
       },
       { type: "select", name: "energyPattern", label: "Energy pattern today", options: ["", ...energyPatternOptions] },
-      { type: "select", name: "endOfDayEnergy", label: "End-of-day energy", options: ["", ...endOfDayEnergyOptions] },
       { type: "textarea", name: "energyNotes", label: "Energy notes" }
     ]
   },
@@ -471,19 +475,6 @@ export const sections: SectionDefinition[] = [
     ]
   },
   {
-    key: "executiveFriction",
-    title: "Executive friction",
-    fields: [
-      {
-        type: "multi",
-        name: "executiveFriction",
-        label: "What got in the way of doing good work today?",
-        helperText: "Tick all that apply.",
-        options: executiveFrictionOptions
-      }
-    ]
-  },
-  {
     key: "medication",
     title: "ADHD medication",
     fields: [
@@ -517,7 +508,8 @@ export const sections: SectionDefinition[] = [
         type: "select",
         name: "medicationSideEffectSeverity",
         label: "Side effect severity",
-        options: ["", "Mild", "Moderate", "Significant"]
+        options: ["", "Mild", "Moderate", "Significant"],
+        showWhenAny: { name: "medicationSideEffects", excluding: ["None"] }
       },
       { type: "textarea", name: "medicationNotes", label: "PMDD medication notes" }
     ]
@@ -535,12 +527,14 @@ export const sections: SectionDefinition[] = [
         options: ["", ...activationFirstNoticeOptions]
       },
       { type: "multi", name: "activationSigns", label: "Activation signs", options: simplifiedActivationOptions },
+      { type: "number", name: "coffees", label: "How many coffees did I have today?", min: 0, max: 12, step: 1 },
       { type: "textarea", name: "activationNotes", label: "Activation notes" }
     ]
   },
   {
     key: "nervous",
-    title: "Overall state",
+    title: "Overall system state",
+    prompt: "This is about my nervous-system and whole-body state. My underlying mood is recorded separately above.",
     fields: [
       { type: "select", name: "overallState", label: "What was my overall state today?", options: ["", ...overallStateOptions] },
       { type: "textarea", name: "nervousSystemNotes", label: "Overall state notes" }
@@ -550,7 +544,7 @@ export const sections: SectionDefinition[] = [
     key: "social",
     title: "Social capacity",
     fields: [
-      { type: "multi", name: "socialTolerance", label: "How did connection or interaction feel?", options: socialOptions },
+      { type: "select", name: "socialCapacity", label: "How did connection or interaction feel overall?", options: ["", ...socialOptions] },
       { type: "textarea", name: "socialNotes", label: "Social notes" }
     ]
   },
@@ -577,7 +571,8 @@ export const sections: SectionDefinition[] = [
         type: "select",
         name: "bowelMovementDescription",
         label: "Stool type",
-        options: ["", "Hard/difficult", "Normal", "Loose", "More complete than usual", "Smaller/less complete than usual"]
+        options: ["", "Hard/difficult", "Normal", "Loose", "More complete than usual", "Smaller/less complete than usual"],
+        showWhenValue: { name: "bowelMovementToday", value: "Yes" }
       },
       { type: "multi", name: "digestiveSymptoms", label: "Digestive changes", options: digestiveOptions },
       { type: "textarea", name: "digestionNotes", label: "Digestion notes" }
@@ -587,11 +582,9 @@ export const sections: SectionDefinition[] = [
     key: "movement",
     title: "Movement",
     fields: [
-      { type: "select", name: "movedToday", label: "Did I train or move today?", options: ["", "Yes", "No"] },
       { type: "multi", name: "movementTypes", label: "What kind of movement happened?", options: movementOptions },
       { type: "select", name: "movementIntensity", label: "How intense was it?", options: ["", "Very light", "Light", "Moderate", "Hard"] },
       { type: "select", name: "movementEffect", label: "What was the effect afterwards?", options: ["", "Helped regulate me", "Neutral", "Drained me", "Hard to tell"] },
-      { type: "select", name: "cooldownDone", label: "Did I do a cooldown?", options: ["", "Yes", "No", "N/A"] },
       { type: "textarea", name: "movementNotes", label: "Movement notes" }
     ]
   },
@@ -617,127 +610,6 @@ export const sections: SectionDefinition[] = [
     ]
   },
   {
-    key: "activityFit",
-    title: "Activity fit / meaning",
-    prompt:
-      "This section helps identify which activities drain me, which are neutral, and which leave me feeling more like myself.",
-    fields: [
-      { type: "info", text: "Activity 1" },
-      { type: "select", name: "activity1Type", label: "Activity", options: ["", ...activityTypeOptions] },
-      { type: "select", name: "activity1Time", label: "Time", options: ["", ...activityTimeOptions] },
-      {
-        type: "slider",
-        name: "activity1ExecutiveDemandScore",
-        label: "Executive demand (0-10)",
-        min: 0,
-        max: 10,
-        step: 1,
-        helperText: activityExecutiveDemandHelper
-      },
-      {
-        type: "select",
-        name: "activity1CapacityEffect",
-        label: "After doing this activity I felt...",
-        options: ["", ...activityCapacityEffectOptions]
-      },
-      {
-        type: "slider",
-        name: "activity1MeaningScore",
-        label: "Meaning / contentment",
-        min: 0,
-        max: 10,
-        step: 1,
-        helperText: activityMeaningHelper
-      },
-      { type: "info", text: "Activity 2" },
-      { type: "select", name: "activity2Type", label: "Activity", options: ["", ...activityTypeOptions] },
-      { type: "select", name: "activity2Time", label: "Time", options: ["", ...activityTimeOptions] },
-      {
-        type: "slider",
-        name: "activity2ExecutiveDemandScore",
-        label: "Executive demand (0-10)",
-        min: 0,
-        max: 10,
-        step: 1,
-        helperText: activityExecutiveDemandHelper
-      },
-      {
-        type: "select",
-        name: "activity2CapacityEffect",
-        label: "After doing this activity I felt...",
-        options: ["", ...activityCapacityEffectOptions]
-      },
-      {
-        type: "slider",
-        name: "activity2MeaningScore",
-        label: "Meaning / contentment",
-        min: 0,
-        max: 10,
-        step: 1,
-        helperText: activityMeaningHelper
-      },
-      { type: "info", text: "Activity 3" },
-      { type: "select", name: "activity3Type", label: "Activity", options: ["", ...activityTypeOptions] },
-      { type: "select", name: "activity3Time", label: "Time", options: ["", ...activityTimeOptions] },
-      {
-        type: "slider",
-        name: "activity3ExecutiveDemandScore",
-        label: "Executive demand (0-10)",
-        min: 0,
-        max: 10,
-        step: 1,
-        helperText: activityExecutiveDemandHelper
-      },
-      {
-        type: "select",
-        name: "activity3CapacityEffect",
-        label: "After doing this activity I felt...",
-        options: ["", ...activityCapacityEffectOptions]
-      },
-      {
-        type: "slider",
-        name: "activity3MeaningScore",
-        label: "Meaning / contentment",
-        min: 0,
-        max: 10,
-        step: 1,
-        helperText: activityMeaningHelper
-      },
-      { type: "info", text: "Activity 4" },
-      { type: "select", name: "activity4Type", label: "Activity", options: ["", ...activityTypeOptions] },
-      { type: "select", name: "activity4Time", label: "Time", options: ["", ...activityTimeOptions] },
-      {
-        type: "slider",
-        name: "activity4ExecutiveDemandScore",
-        label: "Executive demand (0-10)",
-        min: 0,
-        max: 10,
-        step: 1,
-        helperText: activityExecutiveDemandHelper
-      },
-      {
-        type: "select",
-        name: "activity4CapacityEffect",
-        label: "After doing this activity I felt...",
-        options: ["", ...activityCapacityEffectOptions]
-      },
-      {
-        type: "slider",
-        name: "activity4MeaningScore",
-        label: "Meaning / contentment",
-        min: 0,
-        max: 10,
-        step: 1,
-        helperText: activityMeaningHelper
-      },
-      {
-        type: "textarea",
-        name: "flowContentmentActivity",
-        label: "Which activity gave me the greatest sense of flow or contentment today?"
-      }
-    ]
-  },
-  {
     key: "capacity",
     title: "Capacity check",
     prompt: "This is about sustainability: how much capacity was left at the end of the day, not whether I wanted to keep working.",
@@ -753,15 +625,6 @@ export const sections: SectionDefinition[] = [
     ]
   },
   {
-    key: "innerCritic",
-    title: "Inner critic",
-    prompt: "0 = quiet and 10 = relentless.",
-    fields: [
-      { type: "number", name: "innerCriticScore", label: "How loud was my inner critic today? (0-10)", min: 0, max: 10, step: 1 },
-      { type: "textarea", name: "innerCriticNotes", label: "What was it saying?", showWhen: { name: "innerCriticScore", min: 3 } }
-    ]
-  },
-  {
     key: "reflection",
     title: "End of day reflection",
     fields: [
@@ -772,8 +635,6 @@ export const sections: SectionDefinition[] = [
         helperText:
           "Think about the single biggest factor that shaped the day overall. This could be sleep, hormones, pain, work type, relationships, environment, medication, cognitive demand or something else. The aim is to identify the dominant influence rather than list everything that happened."
       },
-      { type: "textarea", name: "biggestEnergyDrain", label: "What was today's biggest energy drain?" },
-      { type: "textarea", name: "capacityImprovedBy", label: "What most improved my capacity?" }
     ]
   }
 ];
@@ -796,6 +657,7 @@ export function createEmptyEntry(date: string): DailyEntry {
     emotionalState: [],
     emotionalNotes: "",
     socialTolerance: [],
+    socialCapacity: "",
     socialNotes: "",
     sleepHours: 0,
     sleepQuality: "",

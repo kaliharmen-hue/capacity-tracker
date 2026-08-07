@@ -92,7 +92,7 @@ export const patternFeatureDefinitions: FeatureDefinition[] = [
     key: "social-tolerance",
     label: "Lower social tolerance / withdrawal",
     group: "Emotional / social tolerance",
-    matches: (day) => rawArray(day, "socialTolerance").some((value) => value.includes("low tolerance") || value.includes("withdraw"))
+    matches: (day) => [rawString(day, "socialCapacity"), ...rawArray(day, "socialTolerance")].some((value) => value.includes("low tolerance") || value.includes("withdraw"))
   }
 ];
 

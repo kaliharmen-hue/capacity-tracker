@@ -188,6 +188,10 @@ main {
   font-weight: 700;
 }
 
+.field-label[hidden] {
+  display: none;
+}
+
 .date-control input,
 .field-label input,
 .field-label select,
@@ -1383,6 +1387,26 @@ button.capacity-day:focus-visible {
   margin: 12px 0 0;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.crash-driver-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.crash-driver-list > div {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border-left: 3px solid var(--rose);
+  background: var(--surface);
+}
+
+.crash-driver-list span,
+.crash-driver-list small {
+  color: var(--muted);
 }
 
 .mood-capacity-grid {

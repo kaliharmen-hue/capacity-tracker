@@ -102,7 +102,12 @@ function renderField(field: FieldDefinition): string {
   if (field.type === "time") {
     return `<label class="field-label">${field.label}<input name="${field.name}" type="time" value="${String(fieldValue(field.name) ?? "")}" /></label>`;
   }
-  return `<label class="field-label">${field.label}${field.helperText ? `<span class="field-helper">${field.helperText}</span>` : ""}<select name="${field.name}">${field.options
+  const condition = field.showWhenValue
+    ? ` data-show-when-value="${String(field.showWhenValue.name)}" data-show-value="${field.showWhenValue.value}"`
+    : field.showWhenAny
+      ? ` data-show-when-any="${String(field.showWhenAny.name)}" data-show-excluding="${(field.showWhenAny.excluding ?? []).join("|")}"`
+      : "";
+  return `<label class="field-label"${condition}>${field.label}${field.helperText ? `<span class="field-helper">${field.helperText}</span>` : ""}<select name="${field.name}">${field.options
     .map((option) => `<option value="${option}" ${String(fieldValue(field.name) ?? "") === option ? "selected" : ""}>${option || "Not answered"}</option>`)
     .join("")}</select></label>`;
 }
@@ -141,6 +146,19 @@ function updateConditionalFields(): void {
     const control = fieldName ? sectionsRoot.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${fieldName}"]`) : undefined;
     const value = Number(control?.value || 0);
     element.hidden = !Number.isFinite(value) || value < min;
+  });
+  sectionsRoot.querySelectorAll<HTMLElement>("[data-show-when-value]").forEach((element) => {
+    const source = element.dataset.showWhenValue;
+    const control = source ? sectionsRoot.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${source}"]`) : null;
+    element.hidden = control?.value !== element.dataset.showValue;
+    if (element.hidden) element.querySelector<HTMLSelectElement>("select")!.value = "";
+  });
+  sectionsRoot.querySelectorAll<HTMLElement>("[data-show-when-any]").forEach((element) => {
+    const source = element.dataset.showWhenAny;
+    const excluded = new Set((element.dataset.showExcluding ?? "").split("|").filter(Boolean));
+    const checked = source ? [...sectionsRoot.querySelectorAll<HTMLInputElement>(`input[name="${source}"]:checked`)].some((input) => !excluded.has(input.value)) : false;
+    element.hidden = !checked;
+    if (element.hidden) element.querySelector<HTMLSelectElement>("select")!.value = "";
   });
 }
 

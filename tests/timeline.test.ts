@@ -16,9 +16,15 @@ import {
   type RawDailyEntry
 } from "../src/scripts/timeline-model.ts";
 import { assessMedicationResponse, associatedEpisode, buildMedicationCourses, buildMoodCapacityPattern, intervalRange, recurringPattern } from "../src/scripts/review-model.ts";
+import { buildCrashDriverAnalysis } from "../src/scripts/analytics.ts";
+import { createEmptyEntry, type DailyEntry } from "../src/scripts/schema.ts";
 
 function entry(date: string, values: RawDailyEntry = {}) {
   return normalizeTimelineEntry({ date, ...values });
+}
+
+function dailyEntry(date: string, values: Partial<DailyEntry> = {}): DailyEntry {
+  return { ...createEmptyEntry(date), ...values };
 }
 
 test("normalises current and historical field names without changing the source", () => {
@@ -296,4 +302,21 @@ test("keeps mood, interest and waking capacity distinct in the GP pattern", () =
   assert.equal(pattern.reducedWithCapacityChangeOnWaking, 1);
   assert.equal(pattern.reducedWithStableOverallState, 1);
   assert.equal(pattern.longestLowMoodRun, 2);
+});
+
+test("compares possible contributors on crash days against other days", () => {
+  const entries = [
+    dailyEntry("2026-08-08", { energyPattern: "Afternoon crash", hormonalSigns: ["Bloating"], coffees: 3 }),
+    dailyEntry("2026-08-09", { energyPattern: "Up and down", hormonalSigns: ["Cravings"], coffees: 3 }),
+    dailyEntry("2026-08-10", { energyPattern: "Evening crash", familiarHormonalPattern: "Yes", coffees: 2 }),
+    dailyEntry("2026-08-11", { energyPattern: "Steady all day", hormonalSigns: ["No noticeable signs"], coffees: 1 }),
+    dailyEntry("2026-08-12", { energyPattern: "Tired but functional", hormonalSigns: ["No noticeable signs"], coffees: 1 }),
+    dailyEntry("2026-08-13", { energyPattern: "Low in the morning", hormonalSigns: ["No noticeable signs"], coffees: 1 })
+  ];
+  const analysis = buildCrashDriverAnalysis(entries);
+  assert.equal(analysis.crashDays, 3);
+  assert.equal(analysis.comparisonDays, 3);
+  assert.equal(analysis.drivers[0]?.label, "Hormonal signs / familiar pattern");
+  assert.equal(analysis.drivers[0]?.crashRate, 1);
+  assert.match(analysis.coffeeDetail, /averaged 2\.7 coffees versus 1\.0/);
 });

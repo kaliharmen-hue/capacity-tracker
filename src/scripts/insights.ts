@@ -1,5 +1,6 @@
 import {
   buildInsights,
+  buildCrashDriverAnalysis,
   describeNextDayEnergyChange,
   filterRecent,
   relationalStressLevel,
@@ -113,8 +114,17 @@ function renderVisuals(): void {
   const nextDay = describeNextDayEnergyChange(entries);
   const lowEnergyDays = entries.filter((entry) => entry.energyScore <= 4);
   const highEnergyDays = entries.filter((entry) => entry.energyScore >= 7);
+  const crashAnalysis = buildCrashDriverAnalysis(entries);
+  const crashCard = `<article class="pattern-card full-span featured-pattern neutral">
+    <span class="pattern-kicker">Crash-pattern comparison</span>
+    <h3>What appears more often around energy crashes?</h3>
+    <p>${crashAnalysis.crashDays >= 3 && crashAnalysis.comparisonDays >= 3 ? `Compared ${crashAnalysis.crashDays} crash/up-down days with ${crashAnalysis.comparisonDays} other recorded-pattern days.` : "At least three crash-pattern days and three comparison days are needed."}</p>
+    <div class="crash-driver-list">${crashAnalysis.drivers.length ? crashAnalysis.drivers.map((driver) => `<div><strong>${driver.label}</strong><span>${Math.round(driver.crashRate * 100)}% of crash days</span><small>${Math.round(driver.comparisonRate * 100)}% of other days</small></div>`).join("") : `<span class="quiet-note">No contributor is clearly more common yet.</span>`}</div>
+    <p class="quiet-note">${crashAnalysis.coffeeDetail} Associations can suggest what to investigate, but do not prove cause.</p>
+  </article>`;
 
   visualRoot.innerHTML = `
+    ${crashCard}
     <article class="pattern-card featured-pattern ${nextDay.tone}">
       <span class="pattern-kicker">Relational load -> next day</span>
       <h3>${nextDay.label}</h3>
