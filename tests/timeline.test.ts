@@ -16,7 +16,7 @@ import {
   type RawDailyEntry
 } from "../src/scripts/timeline-model.ts";
 import { assessMedicationResponse, associatedEpisode, buildMedicationCourses, buildMoodCapacityPattern, intervalRange, recurringPattern } from "../src/scripts/review-model.ts";
-import { buildCrashDriverAnalysis } from "../src/scripts/analytics.ts";
+import { buildCrashDriverAnalysis, buildSleepTimingAnalysis } from "../src/scripts/analytics.ts";
 import { createEmptyEntry, type DailyEntry } from "../src/scripts/schema.ts";
 
 function entry(date: string, values: RawDailyEntry = {}) {
@@ -319,4 +319,22 @@ test("compares possible contributors on crash days against other days", () => {
   assert.equal(analysis.drivers[0]?.label, "Hormonal signs / familiar pattern");
   assert.equal(analysis.drivers[0]?.crashRate, 1);
   assert.match(analysis.coffeeDetail, /averaged 2\.7 coffees versus 1\.0/);
+});
+
+test("checks sleep timing against the person's own typical schedule", () => {
+  const entries = [
+    dailyEntry("2026-08-01", { sleepOnsetTime: "22:30", wakingTime: "05:30", lastCoffeeTime: "15:00" }),
+    dailyEntry("2026-08-02", { sleepOnsetTime: "22:40", wakingTime: "05:35", energyPattern: "Afternoon crash" }),
+    dailyEntry("2026-08-03", { sleepOnsetTime: "22:20", wakingTime: "05:25" }),
+    dailyEntry("2026-08-04", { sleepOnsetTime: "22:35", wakingTime: "05:40" }),
+    dailyEntry("2026-08-05", { sleepOnsetTime: "22:25", wakingTime: "05:30" }),
+    dailyEntry("2026-08-06", { sleepOnsetTime: "22:30", wakingTime: "05:20" }),
+    dailyEntry("2026-08-07", { sleepOnsetTime: "22:45", wakingTime: "05:35" })
+  ];
+  const analysis = buildSleepTimingAnalysis(entries);
+  assert.equal(analysis.recordedDays, 7);
+  assert.equal(analysis.typicalSleepTime, "22:30");
+  assert.equal(analysis.typicalWakeTime, "05:30");
+  assert.match(analysis.status, /No clear schedule-irregularity signal/);
+  assert.match(analysis.lateCoffeeDetail, /next-day crash pattern followed 1 time/);
 });

@@ -22,6 +22,7 @@ export interface DailyEntry {
   socialCapacity: string;
   socialNotes: string;
   sleepHours: number;
+  sleepOnsetTime: string;
   sleepQuality: Quality;
   wakingTime: string;
   feltRestored: Ternary;
@@ -59,6 +60,7 @@ export interface DailyEntry {
   laterActivation: string;
   activationSigns: string[];
   coffees: number;
+  lastCoffeeTime: string;
   amfexaTaken: Ternary;
   amfexaNotes: string;
   activationNotes: string;
@@ -313,6 +315,9 @@ export const loadOptions = [
   "Biodanza",
   "Intense work day",
   "Heavy training",
+  "Feeling unwell / illness",
+  "Long gap without food",
+  "Not enough fluids",
   "Other"
 ];
 export const recoveryOptions = [
@@ -402,6 +407,7 @@ export const sections: SectionDefinition[] = [
     title: "Sleep",
     fields: [
       { type: "number", name: "sleepHours", label: "How many hours did I sleep?", min: 0, step: 0.25 },
+      { type: "time", name: "sleepOnsetTime", label: "Approximately what time did I fall asleep?" },
       { type: "select", name: "sleepQuality", label: "How was sleep quality?", options: ["", "Good", "Okay", "Poor"] },
       { type: "time", name: "wakingTime", label: "What time did I wake?" },
       { type: "select", name: "feltRestored", label: "Did I feel restored?", options: ["", "Yes", "Somewhat", "No"] },
@@ -528,6 +534,7 @@ export const sections: SectionDefinition[] = [
       },
       { type: "multi", name: "activationSigns", label: "Activation signs", options: simplifiedActivationOptions },
       { type: "number", name: "coffees", label: "How many coffees did I have today?", min: 0, max: 12, step: 1 },
+      { type: "time", name: "lastCoffeeTime", label: "If I had coffee, when was the last one?" },
       { type: "textarea", name: "activationNotes", label: "Activation notes" }
     ]
   },
@@ -660,6 +667,7 @@ export function createEmptyEntry(date: string): DailyEntry {
     socialCapacity: "",
     socialNotes: "",
     sleepHours: 0,
+    sleepOnsetTime: "",
     sleepQuality: "",
     wakingTime: "",
     feltRestored: "",
@@ -697,6 +705,7 @@ export function createEmptyEntry(date: string): DailyEntry {
     laterActivation: "",
     activationSigns: [],
     coffees: 0,
+    lastCoffeeTime: "",
     amfexaTaken: "",
     amfexaNotes: "",
     activationNotes: "",

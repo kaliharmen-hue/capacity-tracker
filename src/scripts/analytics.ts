@@ -76,6 +76,16 @@ export interface CrashDriverAnalysis {
   coffeeDetail: string;
 }
 
+export interface SleepTimingAnalysis {
+  recordedDays: number;
+  typicalSleepTime: string;
+  typicalWakeTime: string;
+  sleepTimeVariationMinutes: number | null;
+  wakeTimeVariationMinutes: number | null;
+  status: string;
+  lateCoffeeDetail: string;
+}
+
 function isCrashPattern(entry: DailyEntry): boolean {
   return ["Afternoon crash", "Evening crash", "Up and down", "Exhausted / pushed too far"].includes(entry.energyPattern);
 }
@@ -86,11 +96,65 @@ function timeInMinutes(value: string): number | null {
   return Number(match[1]) * 60 + Number(match[2]);
 }
 
+function sleepTimeInMinutes(value: string): number | null {
+  const minutes = timeInMinutes(value);
+  return minutes !== null && minutes < 12 * 60 ? minutes + 24 * 60 : minutes;
+}
+
 function median(values: number[]): number | null {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+function medianDeviation(values: number[], centre: number | null): number | null {
+  return centre === null ? null : median(values.map((value) => Math.abs(value - centre)));
+}
+
+function formatMinutes(value: number | null): string {
+  if (value === null) return "Not enough data";
+  const withinDay = Math.round(value) % (24 * 60);
+  return `${String(Math.floor(withinDay / 60)).padStart(2, "0")}:${String(withinDay % 60).padStart(2, "0")}`;
+}
+
+export function buildSleepTimingAnalysis(entries: DailyEntry[]): SleepTimingAnalysis {
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  const sleepTimes = sorted.map((entry) => sleepTimeInMinutes(entry.sleepOnsetTime)).filter((value): value is number => value !== null);
+  const wakeTimes = sorted.map((entry) => timeInMinutes(entry.wakingTime)).filter((value): value is number => value !== null);
+  const sleepMedian = median(sleepTimes);
+  const wakeMedian = median(wakeTimes);
+  const sleepVariation = medianDeviation(sleepTimes, sleepMedian);
+  const wakeVariation = medianDeviation(wakeTimes, wakeMedian);
+  const recordedDays = Math.min(sleepTimes.length, wakeTimes.length);
+  const hasVariation = (sleepVariation !== null && sleepVariation >= 60) || (wakeVariation !== null && wakeVariation >= 60);
+  const status = recordedDays < 7
+    ? "Not enough sleep-timing data yet"
+    : hasVariation
+      ? "Sleep timing has varied by an hour or more from its typical pattern"
+      : "No clear schedule-irregularity signal in the recorded sleep timing";
+  let lateCoffeeDays = 0;
+  let followedByCrash = 0;
+  const byDate = new Map(sorted.map((entry) => [entry.date, entry]));
+  for (const entry of sorted) {
+    const coffee = timeInMinutes(entry.lastCoffeeTime);
+    if (coffee === null || coffee < 14 * 60) continue;
+    lateCoffeeDays += 1;
+    const next = byDate.get(new Date(new Date(`${entry.date}T00:00:00Z`).getTime() + 86_400_000).toISOString().slice(0, 10));
+    if (next && isCrashPattern(next)) followedByCrash += 1;
+  }
+  const lateCoffeeDetail = lateCoffeeDays
+    ? `Coffee after 14:00 was recorded on ${lateCoffeeDays} day${lateCoffeeDays === 1 ? "" : "s"}; a next-day crash pattern followed ${followedByCrash} time${followedByCrash === 1 ? "" : "s"}.`
+    : "No coffee after 14:00 has been recorded yet.";
+  return {
+    recordedDays,
+    typicalSleepTime: formatMinutes(sleepMedian),
+    typicalWakeTime: formatMinutes(wakeMedian),
+    sleepTimeVariationMinutes: sleepVariation,
+    wakeTimeVariationMinutes: wakeVariation,
+    status,
+    lateCoffeeDetail
+  };
 }
 
 export function buildCrashDriverAnalysis(entries: DailyEntry[]): CrashDriverAnalysis {
@@ -99,6 +163,7 @@ export function buildCrashDriverAnalysis(entries: DailyEntry[]): CrashDriverAnal
   const crashes = answered.filter(isCrashPattern);
   const comparison = answered.filter((entry) => !isCrashPattern(entry));
   const wakingMedian = median(answered.map((entry) => timeInMinutes(entry.wakingTime)).filter((value): value is number => value !== null));
+  const sleepMedian = median(answered.map((entry) => sleepTimeInMinutes(entry.sleepOnsetTime)).filter((value): value is number => value !== null));
   const previousByDate = new Map(sorted.map((entry) => [entry.date, entry]));
   const previousDay = (entry: DailyEntry) => previousByDate.get(previousDate(entry.date));
   const factors: Array<{ label: string; test: (entry: DailyEntry) => boolean }> = [
@@ -110,7 +175,11 @@ export function buildCrashDriverAnalysis(entries: DailyEntry[]): CrashDriverAnal
     { label: "ADHD medication felt too weak", test: (entry) => entry.amfexaEffect === "Too weak" },
     { label: "Pain, heat or physical discomfort", test: (entry) => entry.load.some((item) => ["Pain / physical discomfort", "Heat"].includes(item)) },
     { label: "Heavy previous-day mental or physical load", test: (entry) => Boolean(previousDay(entry)?.load.some((item) => ["High cognitive demand", "Intense work day", "Heavy training"].includes(item))) },
-    { label: "Earlier waking than my usual", test: (entry) => { const waking = timeInMinutes(entry.wakingTime); return waking !== null && wakingMedian !== null && waking <= wakingMedian - 30; } }
+    { label: "Earlier waking than my usual", test: (entry) => { const waking = timeInMinutes(entry.wakingTime); return waking !== null && wakingMedian !== null && waking <= wakingMedian - 30; } },
+    { label: "Sleep timing differed from my usual", test: (entry) => { const sleep = sleepTimeInMinutes(entry.sleepOnsetTime); const waking = timeInMinutes(entry.wakingTime); return (sleep !== null && sleepMedian !== null && Math.abs(sleep - sleepMedian) >= 60) || (waking !== null && wakingMedian !== null && Math.abs(waking - wakingMedian) >= 60); } },
+    { label: "Feeling unwell / illness", test: (entry) => entry.load.includes("Feeling unwell / illness") },
+    { label: "Long gap without food", test: (entry) => entry.load.includes("Long gap without food") },
+    { label: "Not enough fluids", test: (entry) => entry.load.includes("Not enough fluids") }
   ];
   const drivers = crashes.length >= 3 && comparison.length >= 3
     ? factors.map((factor) => {

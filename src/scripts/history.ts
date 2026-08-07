@@ -1,4 +1,4 @@
-import { buildCrashDriverAnalysis, buildSummary, filterRecent, relationalStressLevel, relationalStressScore } from "./analytics";
+import { buildCrashDriverAnalysis, buildSleepTimingAnalysis, buildSummary, filterRecent, relationalStressLevel, relationalStressScore } from "./analytics";
 import { getAllEntries } from "./db";
 import type { DailyEntry } from "./schema";
 
@@ -97,6 +97,7 @@ function renderWeeklyInsights(data: DailyEntry[]): void {
     .filter((entry, index) => entry.sleepQuality === "Poor" && typeof data[index + 1]?.capacityRemainingScore === "number")
     .map((entry, index) => `${entry.date} -> ${data[index + 1].capacityRemainingScore}/10 next day`);
   const crashAnalysis = buildCrashDriverAnalysis(data);
+  const sleepTiming = buildSleepTimingAnalysis(data);
   const crashDrivers = crashAnalysis.drivers.length
     ? crashAnalysis.drivers.slice(0, 3).map((driver) => `${driver.label} (${Math.round(driver.crashRate * 100)}% vs ${Math.round(driver.comparisonRate * 100)}%)`).join(", ")
     : "Not enough contrasting days yet.";
@@ -107,6 +108,7 @@ function renderWeeklyInsights(data: DailyEntry[]): void {
     `Most common sources of load: ${mostCommon(data.flatMap((entry) => entry.load))}`,
     `Possible crash contributors: ${crashDrivers}`,
     `Coffee comparison: ${crashAnalysis.coffeeDetail}`,
+    `Sleep timing: ${sleepTiming.status}. Typical sleep ${sleepTiming.typicalSleepTime}, wake ${sleepTiming.typicalWakeTime}.`,
     `Computer work and crashes: ${computerCrashDays.length ? `${computerCrashDays.length} day${computerCrashDays.length === 1 ? "" : "s"} matched.` : "No clear link yet."}`,
     `Hormonal signs and executive capacity: ${hormonalExecutiveDays.length ? `${hormonalExecutiveDays.length} lower-clarity hormonal day${hormonalExecutiveDays.length === 1 ? "" : "s"}.` : "No clear link yet."}`,
     `Amfexa dose/effect patterns: ${weakMedicationDays.length ? `${weakMedicationDays.length} day${weakMedicationDays.length === 1 ? "" : "s"} felt too weak.` : "No clear pattern yet."}`,

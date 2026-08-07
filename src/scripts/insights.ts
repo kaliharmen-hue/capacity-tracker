@@ -1,6 +1,7 @@
 import {
   buildInsights,
   buildCrashDriverAnalysis,
+  buildSleepTimingAnalysis,
   describeNextDayEnergyChange,
   filterRecent,
   relationalStressLevel,
@@ -115,6 +116,7 @@ function renderVisuals(): void {
   const lowEnergyDays = entries.filter((entry) => entry.energyScore <= 4);
   const highEnergyDays = entries.filter((entry) => entry.energyScore >= 7);
   const crashAnalysis = buildCrashDriverAnalysis(entries);
+  const sleepTiming = buildSleepTimingAnalysis(entries);
   const crashCard = `<article class="pattern-card full-span featured-pattern neutral">
     <span class="pattern-kicker">Crash-pattern comparison</span>
     <h3>What appears more often around energy crashes?</h3>
@@ -122,9 +124,17 @@ function renderVisuals(): void {
     <div class="crash-driver-list">${crashAnalysis.drivers.length ? crashAnalysis.drivers.map((driver) => `<div><strong>${driver.label}</strong><span>${Math.round(driver.crashRate * 100)}% of crash days</span><small>${Math.round(driver.comparisonRate * 100)}% of other days</small></div>`).join("") : `<span class="quiet-note">No contributor is clearly more common yet.</span>`}</div>
     <p class="quiet-note">${crashAnalysis.coffeeDetail} Associations can suggest what to investigate, but do not prove cause.</p>
   </article>`;
+  const sleepTimingCard = `<article class="pattern-card full-span">
+    <span class="pattern-kicker">Sleep timing check</span>
+    <h3>${sleepTiming.status}</h3>
+    <p>Typical recorded sleep time: <strong>${sleepTiming.typicalSleepTime}</strong> · Typical waking time: <strong>${sleepTiming.typicalWakeTime}</strong></p>
+    <div class="sleep-timing-facts"><span>Sleep-time variation<strong>${sleepTiming.sleepTimeVariationMinutes === null ? "-" : `${Math.round(sleepTiming.sleepTimeVariationMinutes)} min`}</strong></span><span>Wake-time variation<strong>${sleepTiming.wakeTimeVariationMinutes === null ? "-" : `${Math.round(sleepTiming.wakeTimeVariationMinutes)} min`}</strong></span></div>
+    <p class="quiet-note">${sleepTiming.lateCoffeeDetail} This checks for an obvious schedule pattern; it cannot rule out a circadian or sleep disorder.</p>
+  </article>`;
 
   visualRoot.innerHTML = `
     ${crashCard}
+    ${sleepTimingCard}
     <article class="pattern-card featured-pattern ${nextDay.tone}">
       <span class="pattern-kicker">Relational load -> next day</span>
       <h3>${nextDay.label}</h3>
