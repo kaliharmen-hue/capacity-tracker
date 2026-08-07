@@ -24,7 +24,7 @@ const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL :
     <div class="section-title">
       <div>
         <h3>Recurring hormonal pattern</h3>
-        <p>The most repeated features across episodes marked Yes or Possible.</p>
+        <p>The most repeated features across episodes marked Yes or Possible. Counts refer to episodes, not individual days.</p>
       </div>
     </div>
     <div id="pmdd-pattern" class="plain-panel" aria-live="polite"></div>
@@ -52,7 +52,8 @@ const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL :
 
   <section class="plain-panel pmdd-method-note">
     <h3>How this is worked out</h3>
-    <p>A possible hormonal episode is a Capacity Episode whose hormonal relevance is Yes or Possible. Medication courses begin with a recorded Yes and end with the first explicit No; missing days remain unknown. Neither page establishes a diagnosis.</p>
+    <p>A possible hormonal episode is a Capacity Episode whose hormonal relevance is Yes or Possible. Medication courses begin with a recorded Yes and end with the first explicit No; missing days remain unknown.</p>
+    <p>Medication response compares the three days before a medication start with the following five days using recorded capacity, energy and executive clarity. It also keeps my own judgement separately. Improvement after medication is useful evidence to discuss with my GP, but timing alone cannot prove that medication caused it.</p>
   </section>
 
   <script src="../scripts/pmdd.ts"></script>

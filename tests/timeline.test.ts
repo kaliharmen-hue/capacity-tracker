@@ -15,7 +15,7 @@ import {
   type ClusterDecision,
   type RawDailyEntry
 } from "../src/scripts/timeline-model.ts";
-import { associatedEpisode, buildMedicationCourses, intervalRange, recurringPattern } from "../src/scripts/review-model.ts";
+import { assessMedicationResponse, associatedEpisode, buildMedicationCourses, intervalRange, recurringPattern } from "../src/scripts/review-model.ts";
 
 function entry(date: string, values: RawDailyEntry = {}) {
   return normalizeTimelineEntry({ date, ...values });
@@ -255,4 +255,30 @@ test("recurring pattern groups equivalent recorded features by episode", () => {
   const appetite = recurringPattern(fakeEpisodes, days).find((feature) => feature.key === "appetite");
   assert.equal(appetite?.episodeCount, 2);
   assert.equal(intervalRange(fakeEpisodes), "1-1 days");
+});
+
+test("describes improvement after a medication start without claiming causation", () => {
+  const days = [
+    entry("2026-07-20", { energyScore: 4, clarityScore: 4, pmddMedicationTaken: "No" }),
+    entry("2026-07-21", { energyScore: 4, clarityScore: 4, pmddMedicationTaken: "No" }),
+    entry("2026-07-22", { energyScore: 4, clarityScore: 4, pmddMedicationTaken: "Yes" }),
+    entry("2026-07-23", { energyScore: 6, clarityScore: 6, pmddMedicationTaken: "Yes" }),
+    entry("2026-07-24", { energyScore: 7, clarityScore: 7, overallState: "Balanced", pmddMedicationTaken: "No" })
+  ];
+  const response = assessMedicationResponse(buildMedicationCourses(days)[0], days);
+  assert.equal(response.trajectory, "improvement-followed");
+  assert.equal(response.label, "Improvement followed medication");
+  assert.match(response.detail, /cannot show that medication caused/);
+  assert.equal(response.beforeDays, 2);
+  assert.equal(response.afterDays, 2);
+});
+
+test("keeps medication response inconclusive when comparison data is missing", () => {
+  const days = [
+    entry("2026-07-22", { pmddMedicationTaken: "Yes" }),
+    entry("2026-07-23", { pmddMedicationTaken: "No" })
+  ];
+  const response = assessMedicationResponse(buildMedicationCourses(days)[0], days);
+  assert.equal(response.trajectory, "insufficient");
+  assert.equal(response.label, "Not enough data");
 });

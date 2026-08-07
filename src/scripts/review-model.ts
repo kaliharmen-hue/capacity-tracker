@@ -7,7 +7,8 @@ import {
   type CapacityCluster,
   type ClusterDecision,
   type HormonalRelevance,
-  type NormalizedTimelineDay
+  type NormalizedTimelineDay,
+  capacityRank
 } from "./timeline-model.ts";
 
 export interface MedicationCourse {
@@ -23,6 +24,16 @@ export interface PatternFeature {
   label: string;
   group: string;
   episodeCount: number;
+}
+
+export type MedicationTrajectory = "improvement-followed" | "mixed" | "no-clear-improvement" | "insufficient";
+
+export interface MedicationResponseAssessment {
+  trajectory: MedicationTrajectory;
+  label: string;
+  detail: string;
+  beforeDays: number;
+  afterDays: number;
 }
 
 interface FeatureDefinition {
@@ -124,6 +135,40 @@ export function associatedEpisode(course: MedicationCourse, episodes: CapacityCl
   return episodes
     .filter((episode) => course.startDate <= episode.endDate && endDate >= episode.startDate)
     .sort((left, right) => Math.abs(daysBetween(left.startDate, course.startDate)) - Math.abs(daysBetween(right.startDate, course.startDate)))[0];
+}
+
+function average(values: Array<number | null>): number | null {
+  const available = values.filter((value): value is number => value !== null);
+  return available.length ? available.reduce((sum, value) => sum + value, 0) / available.length : null;
+}
+
+export function assessMedicationResponse(course: MedicationCourse, days: NormalizedTimelineDay[]): MedicationResponseAssessment {
+  const hasComparableMeasure = (day: NormalizedTimelineDay) => day.energy !== null || day.clarity !== null || capacityRank(day.capacityState) >= 0;
+  const before = days.filter((day) => day.date < course.startDate && daysBetween(day.date, course.startDate) <= 3 && hasComparableMeasure(day));
+  const after = days.filter((day) => day.date > course.startDate && daysBetween(course.startDate, day.date) <= 5 && hasComparableMeasure(day));
+  const comparisons: number[] = [];
+  const energyBefore = average(before.map((day) => day.energy));
+  const energyAfter = average(after.map((day) => day.energy));
+  const clarityBefore = average(before.map((day) => day.clarity));
+  const clarityAfter = average(after.map((day) => day.clarity));
+  const rankBefore = average(before.map((day) => capacityRank(day.capacityState)).filter((rank) => rank >= 0));
+  const rankAfter = average(after.map((day) => capacityRank(day.capacityState)).filter((rank) => rank >= 0));
+  if (energyBefore !== null && energyAfter !== null) comparisons.push(energyAfter - energyBefore);
+  if (clarityBefore !== null && clarityAfter !== null) comparisons.push(clarityAfter - clarityBefore);
+  if (rankBefore !== null && rankAfter !== null) comparisons.push(rankBefore - rankAfter);
+
+  if (before.length < 2 || after.length < 2 || !comparisons.length) {
+    return { trajectory: "insufficient", label: "Not enough data", detail: "There are not enough comparable recorded days before and after this medication start.", beforeDays: before.length, afterDays: after.length };
+  }
+  const improved = comparisons.some((change) => change >= 1);
+  const worsened = comparisons.some((change) => change <= -1);
+  if (improved && !worsened) {
+    return { trajectory: "improvement-followed", label: "Improvement followed medication", detail: "Recorded capacity, energy or executive clarity improved in the five days after starting compared with the preceding three days. Timing alone cannot show that medication caused the change.", beforeDays: before.length, afterDays: after.length };
+  }
+  if (improved && worsened) {
+    return { trajectory: "mixed", label: "Mixed change after medication", detail: "Some recorded measures improved while others worsened in the days after starting.", beforeDays: before.length, afterDays: after.length };
+  }
+  return { trajectory: "no-clear-improvement", label: "No clear improvement recorded", detail: worsened ? "The recorded measures did not improve overall in the five days after starting." : "Any change in the recorded measures was too small to identify a clear trajectory.", beforeDays: before.length, afterDays: after.length };
 }
 
 export function episodeDays(episode: CapacityCluster, days: NormalizedTimelineDay[]): NormalizedTimelineDay[] {

@@ -398,7 +398,8 @@ clusterRoot?.addEventListener("submit", async (event) => {
     startDate: String(data.get("startDate") || ""),
     endDate: String(data.get("endDate") || ""),
     updatedAt: new Date().toISOString(),
-    hormonalDecision: existingDecision?.hormonalDecision
+    hormonalDecision: existingDecision?.hormonalDecision,
+    medicationHelped: existingDecision?.medicationHelped
   };
   if (!decision.startDate || !decision.endDate || decision.startDate > decision.endDate) {
     setStatus("The cluster start date must be on or before its end date.");
@@ -422,7 +423,8 @@ clusterRoot?.addEventListener("click", async (event) => {
     startDate: existingDecision?.startDate ?? cluster.startDate,
     endDate: existingDecision?.endDate ?? cluster.endDate,
     updatedAt: new Date().toISOString(),
-    hormonalDecision: button.dataset.hormonalDecision as ClusterDecision["hormonalDecision"]
+    hormonalDecision: button.dataset.hormonalDecision as ClusterDecision["hormonalDecision"],
+    medicationHelped: existingDecision?.medicationHelped
   };
   await saveClusterDecision(decision);
   decisions = await getClusterDecisions();

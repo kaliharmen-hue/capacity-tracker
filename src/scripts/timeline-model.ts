@@ -7,6 +7,7 @@ export type EpisodeKind = "episode" | "dip";
 export type HormonalDecision = "yes" | "possible" | "no" | "not-reviewed" | "not-hormonal" | "unsure";
 export type HormonalRelevance = "Yes" | "Possible" | "No" | "Not reviewed";
 export type HormonalConfidence = "none" | "low" | "moderate";
+export type SubjectiveMedicationResponse = "yes" | "partly" | "no" | "unsure";
 export type HormonalEvidenceCategory = "appetite" | "bloating" | "cognitive" | "emotional" | "physical" | "behavioural" | "medicationResponse";
 
 export interface EvidenceCount {
@@ -109,6 +110,7 @@ export interface ClusterDecision {
   endDate: string;
   updatedAt: string;
   hormonalDecision?: HormonalDecision;
+  medicationHelped?: SubjectiveMedicationResponse;
 }
 
 export const hormonalEvidenceDefinitions: Array<{ key: HormonalEvidenceCategory; label: string }> = [

@@ -1327,7 +1327,8 @@ button.capacity-day:focus-visible {
 
 .custom-report-range[hidden],
 .episode-raw-detail[hidden],
-.episode-relevance-controls[hidden] {
+.episode-relevance-controls[hidden],
+.medication-response-controls[hidden] {
   display: none;
 }
 
@@ -1341,7 +1342,7 @@ button.capacity-day:focus-visible {
 
 .frequency-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(100px, 2fr) 42px;
+  grid-template-columns: minmax(150px, 1fr) minmax(100px, 2fr) 105px;
   gap: 12px;
   align-items: center;
 }
@@ -1370,6 +1371,18 @@ button.capacity-day:focus-visible {
   display: block;
   height: 100%;
   background: var(--rose);
+}
+
+.frequency-row > b {
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.frequency-note,
+.report-method-note {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
 .pmdd-episode-card {
@@ -1418,6 +1431,19 @@ button.capacity-day:focus-visible {
   gap: 14px;
 }
 
+.medication-response {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(150px, 1fr);
+  gap: 14px;
+  padding: 12px;
+  border-left: 3px solid var(--rose);
+  background: #f8f6f1;
+}
+
+.medication-response p {
+  margin: 4px 0;
+}
+
 .episode-recovery p {
   margin: 0;
 }
@@ -1436,6 +1462,18 @@ button.capacity-day:focus-visible {
   border-top: 1px solid var(--line);
 }
 
+.medication-response-controls {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.medication-response-controls p {
+  margin: 0;
+  color: var(--muted);
+}
+
 .episode-raw-detail ol {
   display: grid;
   gap: 8px;
@@ -1452,7 +1490,8 @@ button.capacity-day:focus-visible {
   gap: 8px;
 }
 
-.episode-relevance-controls button {
+.episode-relevance-controls button,
+.medication-response-controls button {
   min-height: 38px;
   padding: 7px 10px;
   border: 1px solid var(--line);
@@ -1643,7 +1682,7 @@ button.capacity-day:focus-visible {
 
 @media (max-width: 640px) {
   .frequency-row {
-    grid-template-columns: minmax(120px, 1.2fr) minmax(70px, 1fr) 34px;
+    grid-template-columns: minmax(105px, 1.2fr) minmax(60px, 1fr) 80px;
     gap: 7px;
   }
 
@@ -1652,6 +1691,7 @@ button.capacity-day:focus-visible {
   }
 
   .episode-recovery,
+  .medication-response,
   .report-calendars {
     grid-template-columns: 1fr;
   }
