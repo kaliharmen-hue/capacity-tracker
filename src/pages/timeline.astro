@@ -23,7 +23,21 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         <input id="hormone-focus" type="checkbox" />
         <span>Hormone Focus</span>
       </label>
-      <button id="export-timeline" class="secondary-button" type="button">Export month CSV</button>
+      <label class="report-range-control">
+        <span>Report range</span>
+        <select id="visual-report-range">
+          <option value="month">Current month</option>
+          <option value="3months">Previous 3 months</option>
+          <option value="6months">Previous 6 months</option>
+          <option value="custom">Custom date range</option>
+        </select>
+      </label>
+      <span id="custom-report-range" class="custom-report-range" hidden>
+        <label>From<input id="report-start-date" type="date" /></label>
+        <label>To<input id="report-end-date" type="date" /></label>
+      </span>
+      <button id="export-visual-report" class="primary-button" type="button">Export Visual Report</button>
+      <button id="export-timeline" class="secondary-button" type="button">Download month CSV</button>
     </div>
   </section>
 

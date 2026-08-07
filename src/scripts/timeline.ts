@@ -1,15 +1,13 @@
 import { getAllEntries, getClusterDecisions, saveClusterDecision } from "./db";
 import {
   activeSymptomKeys,
-  applyClusterDecision,
   buildBaselineProfile,
   buildTimelineCsv,
-  detectCapacityClusters,
   latestMonthWithData,
   monthDates,
   monthKey,
   normalizeTimelineEntry,
-  restoreManualEpisode,
+  resolveHormonalRelevance,
   shiftMonth,
   symptomDefinitions,
   type CapacityCluster,
@@ -17,6 +15,7 @@ import {
   type NormalizedTimelineDay,
   type RawDailyEntry
 } from "./timeline-model";
+import { buildCapacityEvents } from "./review-model";
 
 const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
 const monthTitle = document.querySelector<HTMLHeadingElement>("#selected-month");
@@ -28,6 +27,10 @@ const baselineRoot = document.querySelector<HTMLElement>("#baseline-profile");
 const legendRoot = document.querySelector<HTMLDivElement>("#indicator-legend");
 const statusRoot = document.querySelector<HTMLParagraphElement>("#timeline-status");
 const hormoneFocusControl = document.querySelector<HTMLInputElement>("#hormone-focus");
+const reportRangeControl = document.querySelector<HTMLSelectElement>("#visual-report-range");
+const customReportRange = document.querySelector<HTMLElement>("#custom-report-range");
+const reportStartDate = document.querySelector<HTMLInputElement>("#report-start-date");
+const reportEndDate = document.querySelector<HTMLInputElement>("#report-end-date");
 
 const rawEntries = await getAllEntries();
 const days = rawEntries
@@ -35,7 +38,9 @@ const days = rawEntries
   .filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day.date))
   .sort((a, b) => a.date.localeCompare(b.date));
 let decisions = await getClusterDecisions();
-let selectedMonth = latestMonthWithData(days, new Date().toISOString().slice(0, 10));
+const requestedMonth = new URLSearchParams(window.location.search).get("month");
+const requestedEpisode = new URLSearchParams(window.location.search).get("episode");
+let selectedMonth = requestedMonth && /^\d{4}-\d{2}$/.test(requestedMonth) ? requestedMonth : latestMonthWithData(days, new Date().toISOString().slice(0, 10));
 let hormoneFocus = false;
 
 const dayMap = new Map(days.map((day) => [day.date, day]));
@@ -83,23 +88,7 @@ function stateShort(day: NormalizedTimelineDay): string {
 }
 
 function allClusters(): CapacityCluster[] {
-  const unused = new Set(decisions.map((decision) => decision.id));
-  const detected = detectCapacityClusters(days).map((cluster) => {
-    let decision = decisions.find((candidate) => candidate.id === cluster.id);
-    if (!decision && cluster.kind === "episode") {
-      decision = decisions
-        .filter((candidate) => unused.has(candidate.id) && candidate.endDate >= cluster.startDate && candidate.startDate <= cluster.endDate)
-        .sort((left, right) => {
-          const leftOverlap = Math.min(Date.parse(left.endDate), Date.parse(cluster.endDate)) - Math.max(Date.parse(left.startDate), Date.parse(cluster.startDate));
-          const rightOverlap = Math.min(Date.parse(right.endDate), Date.parse(cluster.endDate)) - Math.max(Date.parse(right.startDate), Date.parse(cluster.startDate));
-          return rightOverlap - leftOverlap;
-        })[0];
-    }
-    if (decision) unused.delete(decision.id);
-    return applyClusterDecision(cluster, decision, days);
-  });
-  const restored = decisions.filter((decision) => unused.has(decision.id)).map((decision) => restoreManualEpisode(decision, days));
-  return [...detected, ...restored].sort((left, right) => left.startDate.localeCompare(right.startDate));
+  return buildCapacityEvents(days, decisions);
 }
 
 function clusterForDate(date: string, clusters = allClusters()): CapacityCluster | undefined {
@@ -166,7 +155,7 @@ function renderCalendar(): void {
           return `<div class="capacity-day empty" aria-label="${formatDate(date)}: no entry"><span class="day-number">${Number(date.slice(-2))}</span><small>No entry</small></div>`;
         }
         const cluster = clusterForDate(date, clusters);
-        const hormonal = cluster?.kind === "episode" && (cluster.hormonalDecision === "possible" || (!cluster.hormonalDecision && cluster.hormonalPattern.isPossible));
+        const hormonal = cluster?.kind === "episode" && ["Yes", "Possible"].includes(resolveHormonalRelevance(cluster));
         const label = `${formatDate(date)}: ${day.capacityState ?? "not enough data"}. Energy ${formatValue(day.energy)}. Executive clarity ${formatValue(day.clarity)}.`;
         return `
           <button type="button" class="capacity-day ${stateClass(day)} ${cluster ? `in-cluster ${cluster.kind}` : ""} ${hormonal ? "hormonal-cluster" : ""} ${hormoneFocus ? "hormone-focus" : ""}" data-date="${date}" aria-label="${escapeHtml(label)}">
@@ -257,7 +246,7 @@ function renderTimeline(): void {
   ];
   const cell = (date: string, content: string, extra = "") => {
     const cluster = clusterForDate(date, clusters);
-    const hormonal = cluster?.kind === "episode" && (cluster.hormonalDecision === "possible" || (!cluster.hormonalDecision && cluster.hormonalPattern.isPossible));
+    const hormonal = cluster?.kind === "episode" && ["Yes", "Possible"].includes(resolveHormonalRelevance(cluster));
     return `<td class="${cluster ? `cluster-cell ${cluster.kind}` : ""} ${hormonal ? "hormonal-cluster" : ""} ${extra}" ${cluster ? `data-cluster-id="${cluster.id}"` : ""}>${escapeHtml(content) || "<span aria-label=\"Not recorded\">-</span>"}</td>`;
   };
   timelineRoot.innerHTML = `
@@ -274,10 +263,7 @@ function renderTimeline(): void {
 }
 
 function effectiveHormonalLabel(cluster: CapacityCluster): string {
-  if (cluster.hormonalDecision === "not-hormonal") return "No clear hormonal pattern detected (manual decision)";
-  if (cluster.hormonalDecision === "unsure") return "Hormonal pattern: unsure";
-  if (cluster.hormonalDecision === "possible") return "Possible Hormonal Cluster (kept manually)";
-  return cluster.hormonalPattern.isPossible ? "Possible Hormonal Cluster" : "No clear hormonal pattern detected";
+  return `Hormonal relevance: ${resolveHormonalRelevance(cluster)}`;
 }
 
 function renderEpisodes(): void {
@@ -289,7 +275,8 @@ function renderEpisodes(): void {
     ? clusters
         .map((cluster) => {
           const isEpisode = cluster.kind === "episode";
-          const possibleHormonal = isEpisode && (cluster.hormonalDecision === "possible" || (!cluster.hormonalDecision && cluster.hormonalPattern.isPossible));
+          const relevance = resolveHormonalRelevance(cluster);
+          const possibleHormonal = isEpisode && ["Yes", "Possible"].includes(relevance);
           const categoryRows = cluster.hormonalPattern.categories.map((category) => [category.label, `${category.days} day${category.days === 1 ? "" : "s"}`] as [string, string]);
           const contextRows = cluster.contextFactors.map((factor) => [factor.label, `${factor.days} day${factor.days === 1 ? "" : "s"}`] as [string, string]);
           const confidence = cluster.hormonalPattern.confidence === "moderate" ? "Moderate pattern confidence" : cluster.hormonalPattern.confidence === "low" ? "Low pattern confidence" : "Not enough repeated evidence";
@@ -334,16 +321,17 @@ function renderEpisodes(): void {
                   <div class="hormonal-decision" data-hormonal-cluster-id="${cluster.id}">
                     <span>Hormonal pattern decision</span>
                     <div class="cluster-actions">
-                      <button class="secondary-button" type="button" data-hormonal-decision="possible">Keep as possible hormonal</button>
-                      <button class="secondary-button" type="button" data-hormonal-decision="not-hormonal">Mark as not hormonal</button>
-                      <button class="secondary-button" type="button" data-hormonal-decision="unsure">Unsure</button>
+                      <button class="secondary-button" type="button" data-hormonal-decision="yes">Yes</button>
+                      <button class="secondary-button" type="button" data-hormonal-decision="possible">Possible</button>
+                      <button class="secondary-button" type="button" data-hormonal-decision="no">No</button>
+                      <button class="secondary-button" type="button" data-hormonal-decision="not-reviewed">Not reviewed</button>
                     </div>
                   </div>` : ""}
               </div>
             </article>`;
         })
         .join("")
-    : `<section class="plain-panel"><p>No Capacity Episodes or Capacity Dips are visible in this month. Three consecutive impaired recorded days are needed to start an episode.</p></section>`;
+    : `<section class="plain-panel"><p>No Capacity Episodes or Capacity Dips are visible in this month. Three impaired days within a rolling four-day period are needed to start an episode.</p></section>`;
 }
 
 function renderMonth(): void {
@@ -453,6 +441,32 @@ document.querySelector("#export-timeline")?.addEventListener("click", () => {
   URL.revokeObjectURL(url);
   setStatus(`Exported ${monthDays.length} recorded day${monthDays.length === 1 ? "" : "s"} for ${selectedMonth}.`);
 });
+reportRangeControl?.addEventListener("change", () => {
+  if (customReportRange) customReportRange.hidden = reportRangeControl.value !== "custom";
+});
+document.querySelector("#export-visual-report")?.addEventListener("click", () => {
+  const range = reportRangeControl?.value ?? "month";
+  const params = new URLSearchParams({ range, month: selectedMonth });
+  if (range === "custom") {
+    const start = reportStartDate?.value ?? "";
+    const end = reportEndDate?.value ?? "";
+    if (!start || !end || start > end) {
+      setStatus("Choose a valid start and end date for the visual report.");
+      return;
+    }
+    params.set("start", start);
+    params.set("end", end);
+  }
+  window.location.href = `${base}timeline/report/?${params.toString()}`;
+});
+
+if (reportStartDate) reportStartDate.value = `${selectedMonth}-01`;
+if (reportEndDate) reportEndDate.value = monthDates(selectedMonth).at(-1)!;
 
 renderBaseline();
 renderMonth();
+if (requestedEpisode) {
+  const button = clusterRoot?.querySelector<HTMLButtonElement>(`[data-open-cluster="${CSS.escape(requestedEpisode)}"]`);
+  button?.click();
+  button?.scrollIntoView({ behavior: "smooth", block: "center" });
+}

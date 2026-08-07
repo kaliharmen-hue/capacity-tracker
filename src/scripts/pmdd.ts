@@ -1,250 +1,159 @@
-import { getAllEntries } from "./db";
-import type { DailyEntry } from "./schema";
+import { getAllEntries, getClusterDecisions, saveClusterDecision } from "./db";
+import {
+  associatedEpisode,
+  buildCapacityEvents,
+  buildMedicationCourses,
+  courseEndDate,
+  episodeDays,
+  featuresForEpisode,
+  hormonalRelevanceLabel,
+  intervalRange,
+  recurringPattern,
+  relevantHormonalEpisodes
+} from "./review-model";
+import { daysBetween, normalizeTimelineEntry, type CapacityCluster, type ClusterDecision, type RawDailyEntry } from "./timeline-model";
 
-interface MedicationPeriod {
-  startDate: string;
-  stopDate: string | null;
-  lastTakenDate: string;
-  medicationDays: DailyEntry[];
-}
-
-interface ClusterItem {
-  label: string;
-  courseCount: number;
-}
-
+const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
 const summaryRoot = document.querySelector<HTMLDivElement>("#pmdd-summary");
-const clusterRoot = document.querySelector<HTMLDivElement>("#pmdd-cluster");
+const patternRoot = document.querySelector<HTMLDivElement>("#pmdd-pattern");
+const episodesRoot = document.querySelector<HTMLDivElement>("#pmdd-episodes");
 const periodsRoot = document.querySelector<HTMLDivElement>("#pmdd-periods");
 const copyButton = document.querySelector<HTMLButtonElement>("#copy-pmdd-summary");
 const copyStatus = document.querySelector<HTMLParagraphElement>("#pmdd-copy-status");
 
-const entries = (await getAllEntries()).sort((a, b) => a.date.localeCompare(b.date));
+const rawEntries = await getAllEntries();
+const days = rawEntries.map((entry) => normalizeTimelineEntry(entry as unknown as RawDailyEntry)).sort((a, b) => a.date.localeCompare(b.date));
+let decisions = await getClusterDecisions();
 
 function parseDate(date: string): Date {
   return new Date(`${date}T00:00:00Z`);
 }
 
-function daysBetween(first: string, second: string): number {
-  return Math.round((parseDate(second).getTime() - parseDate(first).getTime()) / 86_400_000);
+function formatDate(date: string, includeYear = true): string {
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", ...(includeYear ? { year: "numeric" } : {}), timeZone: "UTC" }).format(parseDate(date));
 }
 
-function formatDate(date: string): string {
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(parseDate(date));
+function formatRange(start: string, end: string): string {
+  return `${formatDate(start, false)}-${formatDate(end)}`;
 }
 
 function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 
-function buildPeriods(data: DailyEntry[]): MedicationPeriod[] {
-  const periods: MedicationPeriod[] = [];
-  let active: MedicationPeriod | null = null;
+function stat(label: string, value: string | number, note = ""): string {
+  return `<article class="stat-card"><span>${label}</span><strong>${value}</strong>${note ? `<small>${note}</small>` : ""}</article>`;
+}
 
-  for (const entry of data) {
-    if (entry.pmddMedicationTaken === "Yes") {
-      if (!active) {
-        active = {
-          startDate: entry.date,
-          stopDate: null,
-          lastTakenDate: entry.date,
-          medicationDays: []
-        };
-        periods.push(active);
-      }
-      active.medicationDays.push(entry);
-      active.lastTakenDate = entry.date;
-    } else if (entry.pmddMedicationTaken === "No" && active) {
-      active.stopDate = entry.date;
-      active = null;
-    }
+function currentStatus(episodes: CapacityCluster[], courses: ReturnType<typeof buildMedicationCourses>): string {
+  if (courses.at(-1) && !courses.at(-1)!.stopDate) return "Currently taking PMDD medication";
+  const latestDate = days.at(-1)?.date;
+  if (latestDate && episodes.some((episode) => episode.endDate === latestDate)) return "Possible hormonal pattern developing";
+  return "No current hormonal episode identified";
+}
+
+function renderPattern(episodes: CapacityCluster[]): void {
+  if (!patternRoot) return;
+  const features = recurringPattern(episodes, days);
+  patternRoot.innerHTML = features.length
+    ? `<div class="frequency-bars">${features.map((feature) => {
+        const percent = Math.round((feature.episodeCount / episodes.length) * 100);
+        return `<div class="frequency-row"><div><strong>${escapeHtml(feature.label)}</strong><small>${escapeHtml(feature.group)}</small></div><div class="frequency-track" aria-label="${feature.episodeCount} of ${episodes.length} episodes"><span style="width:${percent}%"></span></div><b>${feature.episodeCount}/${episodes.length}</b></div>`;
+      }).join("")}</div>`
+    : `<p class="empty-state">Not enough reviewed hormonal episodes yet to identify a recurring pattern.</p>`;
+}
+
+function rawEpisodeDetail(episode: CapacityCluster): string {
+  return episodeDays(episode, days).map((day) => {
+    const signs = day.hormonalSigns.filter((sign) => sign !== "No noticeable signs");
+    const details = [signs.join(", "), ...day.notes].filter(Boolean).join(" | ");
+    return `<li><strong>${formatDate(day.date)}</strong><span>${escapeHtml(day.capacityState ?? "Capacity state unclear")}${details ? ` - ${escapeHtml(details)}` : ""}</span></li>`;
+  }).join("");
+}
+
+function renderEpisodes(episodes: CapacityCluster[], courses: ReturnType<typeof buildMedicationCourses>): void {
+  if (!episodesRoot) return;
+  episodesRoot.innerHTML = episodes.length
+    ? [...episodes].reverse().map((episode) => {
+        const features = featuresForEpisode(episode, days).slice(0, 5);
+        const linkedCourses = courses.filter((course) => associatedEpisode(course, episodes)?.id === episode.id);
+        const medication = linkedCourses.length ? linkedCourses.map((course) => formatRange(course.startDate, courseEndDate(course))).join(", ") : "No associated course";
+        return `<article class="pmdd-episode-card" id="episode-${encodeURIComponent(episode.id)}">
+          <div class="pmdd-period-heading"><div><span class="pattern-kicker">${hormonalRelevanceLabel(episode)} hormonal relevance</span><h3>${formatRange(episode.startDate, episode.endDate)}</h3></div><span class="pmdd-status current">${episode.duration} days</span></div>
+          <div class="episode-key-facts"><span><small>Lowest energy</small><strong>${episode.lowestEnergy ?? "-"}</strong></span><span><small>Lowest executive clarity</small><strong>${episode.lowestClarity ?? "-"}</strong></span></div>
+          <div><h4>Main pattern</h4>${features.length ? `<ul class="compact-list">${features.map((feature) => `<li>${escapeHtml(feature.label)}</li>`).join("")}</ul>` : "<p>No repeated feature group was clear.</p>"}</div>
+          <div class="episode-recovery"><p><strong>PMDD medication</strong><br>${escapeHtml(medication)}</p><p><strong>Recovery</strong><br>Improvement ${episode.improvementDate ? `from approximately ${formatDate(episode.improvementDate)}` : "not clearly identified"}<br>Return towards baseline ${episode.apparentReturnDate ? `approximately ${formatDate(episode.apparentReturnDate)}` : "not yet identified"}</p></div>
+          <div class="episode-card-actions"><button type="button" class="secondary-button" data-toggle-episode="${episode.id}">View episode detail</button><a class="secondary-button" href="${base}timeline/?month=${episode.startDate.slice(0, 7)}&episode=${encodeURIComponent(episode.id)}">Open in Capacity Timeline</a><button type="button" class="secondary-button" data-toggle-relevance="${episode.id}">Change hormonal relevance</button></div>
+          <div class="episode-raw-detail" data-episode-detail="${episode.id}" hidden><h4>Recorded day-by-day detail</h4><ol>${rawEpisodeDetail(episode)}</ol></div>
+          <div class="episode-relevance-controls" data-relevance-controls="${episode.id}" hidden><strong>Hormonal relevance</strong><div class="cluster-actions"><button type="button" data-set-relevance="yes">Yes</button><button type="button" data-set-relevance="possible">Possible</button><button type="button" data-set-relevance="no">No</button><button type="button" data-set-relevance="not-reviewed">Not reviewed</button></div></div>
+        </article>`;
+      }).join("")
+    : `<section class="plain-panel"><p>No Capacity Episodes are currently marked Yes or Possible for hormonal relevance. Episodes can be reviewed in the Capacity Timeline.</p><a class="secondary-button" href="${base}timeline/">Open Capacity Timeline</a></section>`;
+}
+
+function renderCourses(courses: ReturnType<typeof buildMedicationCourses>, episodes: CapacityCluster[]): void {
+  if (!periodsRoot) return;
+  periodsRoot.innerHTML = courses.length
+    ? [...courses].reverse().map((course, reverseIndex) => {
+        const number = courses.length - reverseIndex;
+        const episode = associatedEpisode(course, episodes);
+        const episodeDay = episode ? daysBetween(episode.startDate, course.startDate) + 1 : null;
+        return `<article class="pmdd-period-card"><div class="pmdd-period-heading"><div><span class="pattern-kicker">Course ${number}</span><h3>${formatRange(course.startDate, courseEndDate(course))}</h3></div><span class="pmdd-status ${course.stopDate ? "complete" : "current"}">${course.stopDate ? "Completed" : "Current"}</span></div>
+          <div class="pmdd-period-facts"><span><strong>${course.medicationDates.length}</strong> recorded medication day${course.medicationDates.length === 1 ? "" : "s"}</span></div>
+          <p><strong>Associated episode:</strong> ${episode ? formatRange(episode.startDate, episode.endDate) : "None identified"}</p>
+          ${episodeDay !== null ? `<p>Medication started approximately Day ${episodeDay}.</p><a class="secondary-button" href="#episode-${encodeURIComponent(episode!.id)}">View associated episode</a>` : ""}
+        </article>`;
+      }).join("")
+    : `<section class="plain-panel"><p>No PMDD medication courses are recorded yet.</p></section>`;
+}
+
+function render(): void {
+  const events = buildCapacityEvents(days, decisions);
+  const episodes = relevantHormonalEpisodes(events);
+  const courses = buildMedicationCourses(days);
+  const interval = intervalRange(episodes);
+  if (summaryRoot) summaryRoot.innerHTML = [stat("Possible hormonal episodes", episodes.length), stat("PMDD medication courses", courses.length), stat("Typical interval", interval ?? "Not enough yet", interval ? "provisional" : ""), stat("Current status", currentStatus(episodes, courses))].join("");
+  renderPattern(episodes);
+  renderEpisodes(episodes, courses);
+  renderCourses(courses, episodes);
+}
+
+function buildCopyText(): string {
+  const episodes = relevantHormonalEpisodes(buildCapacityEvents(days, decisions));
+  const courses = buildMedicationCourses(days);
+  const features = recurringPattern(episodes, days);
+  return ["PMDD / Hormonal Pattern Review", `Generated: ${formatDate(new Date().toISOString().slice(0, 10))}`, "", "PMDD remains a working hypothesis.", `Possible hormonal episodes: ${episodes.length}`, `PMDD medication courses: ${courses.length}`, `Provisional interval: ${intervalRange(episodes) ?? "not enough data"}`, "", "Recurring pattern", ...(features.length ? features.map((feature) => `- ${feature.label}: ${feature.episodeCount}/${episodes.length}`) : ["- Not enough reviewed episodes yet"]), "", "Personal longitudinal tracking data. This summary does not establish a diagnosis."].join("\n");
+}
+
+episodesRoot?.addEventListener("click", async (event) => {
+  const target = event.target as HTMLElement;
+  const detailButton = target.closest<HTMLButtonElement>("[data-toggle-episode]");
+  if (detailButton?.dataset.toggleEpisode) {
+    const detail = episodesRoot.querySelector<HTMLElement>(`[data-episode-detail="${CSS.escape(detailButton.dataset.toggleEpisode)}"]`);
+    if (detail) detail.hidden = !detail.hidden;
+    return;
   }
-
-  return periods;
-}
-
-function addItems(target: Set<string>, values: string[] | undefined, ignored: string[] = []): void {
-  for (const value of values ?? []) {
-    if (value && !ignored.includes(value)) target.add(value);
+  const relevanceButton = target.closest<HTMLButtonElement>("[data-toggle-relevance]");
+  if (relevanceButton?.dataset.toggleRelevance) {
+    const controls = episodesRoot.querySelector<HTMLElement>(`[data-relevance-controls="${CSS.escape(relevanceButton.dataset.toggleRelevance)}"]`);
+    if (controls) controls.hidden = !controls.hidden;
+    return;
   }
-}
-
-function symptomsForEntry(entry: DailyEntry): Set<string> {
-  const symptoms = new Set<string>();
-  addItems(symptoms, entry.hormonalSigns, ["No noticeable signs"]);
-  addItems(symptoms, entry.digestiveSymptoms, ["None"]);
-  addItems(symptoms, entry.activationSigns, ["None"]);
-  addItems(symptoms, entry.socialTolerance, ["Neutral", "Wanted connection"]);
-  addItems(symptoms, entry.emotionalState, ["Stable", "Calm", "Motivated"]);
-  addItems(symptoms, entry.nervousSystemState, ["Calm/regulated", "Motivated/engaged"]);
-
-  if (entry.energyScore <= 4) symptoms.add("Low usable energy");
-  if (entry.clarityScore <= 5) symptoms.add("Lower executive clarity");
-  if (entry.fatigueLevel && entry.fatigueLevel !== "No") symptoms.add(`${entry.fatigueLevel} fatigue`);
-  if (entry.sleepQuality === "Poor") symptoms.add("Poor sleep");
-  if (entry.hotWaking === "Yes") symptoms.add("Woke hot");
-  if (entry.sleepFragmentation === "Yes") symptoms.add("Fragmented sleep");
-  if (entry.ruminationOnWaking === "Yes") symptoms.add("Rumination on waking");
-  if (["Afternoon crash", "Evening crash", "Up and down", "Tired but functional", "Exhausted / pushed too far"].includes(entry.energyPattern)) {
-    symptoms.add(entry.energyPattern);
-  }
-  if (["Activated", "Wired", "Drained", "Shutdown"].includes(entry.overallState)) symptoms.add(entry.overallState);
-  if (entry.familiarHormonalPattern === "Yes" || entry.familiarHormonalPattern === "Slightly") {
-    symptoms.add(`Familiar hormonal pattern: ${entry.familiarHormonalPattern.toLowerCase()}`);
-  }
-  return symptoms;
-}
-
-function clusterForStart(startDate: string): Set<string> {
-  const cluster = new Set<string>();
-  for (const entry of entries) {
-    const distance = daysBetween(entry.date, startDate);
-    if (distance >= 0 && distance <= 3) {
-      for (const symptom of symptomsForEntry(entry)) cluster.add(symptom);
-    }
-  }
-  return cluster;
-}
-
-function typicalCluster(periods: MedicationPeriod[]): ClusterItem[] {
-  const counts = new Map<string, number>();
-  for (const period of periods) {
-    for (const symptom of clusterForStart(period.startDate)) {
-      counts.set(symptom, (counts.get(symptom) ?? 0) + 1);
-    }
-  }
-  return [...counts.entries()]
-    .map(([label, courseCount]) => ({ label, courseCount }))
-    .sort((a, b) => b.courseCount - a.courseCount || a.label.localeCompare(b.label));
-}
-
-function sideEffectsForPeriod(period: MedicationPeriod): string[] {
-  const effects = new Set<string>();
-  for (const entry of period.medicationDays) addItems(effects, entry.medicationSideEffects, ["None"]);
-  return [...effects];
-}
-
-function stat(label: string, value: string | number): string {
-  return `<article class="stat-card"><span>${label}</span><strong>${value}</strong></article>`;
-}
-
-function average(values: number[]): string {
-  if (!values.length) return "Not enough yet";
-  return `${(values.reduce((total, value) => total + value, 0) / values.length).toFixed(1)} days`;
-}
-
-function render(periods: MedicationPeriod[]): void {
-  const intervals = periods.slice(1).map((period, index) => daysBetween(periods[index].startDate, period.startDate));
-  const latest = periods.at(-1);
-
-  if (summaryRoot) {
-    summaryRoot.innerHTML = [
-      stat("Medication periods", periods.length),
-      stat("Latest start", latest ? formatDate(latest.startDate) : "Not recorded yet"),
-      stat("Average time between starts", average(intervals)),
-      stat("Current status", latest && !latest.stopDate ? "Taking medication" : "Not currently recorded as taking")
-    ].join("");
-  }
-
-  const cluster = typicalCluster(periods);
-  if (clusterRoot) {
-    clusterRoot.innerHTML = cluster.length
-      ? `<div class="pmdd-cluster-list">${cluster
-          .map(
-            (item) =>
-              `<span class="pmdd-symptom"><strong>${escapeHtml(item.label)}</strong><small>${item.courseCount} of ${periods.length} start${periods.length === 1 ? "" : "s"}</small></span>`
-          )
-          .join("")}</div>`
-      : `<p class="empty-state">There is not enough medication and symptom data yet. This will build as starts are recorded.</p>`;
-  }
-
-  if (periodsRoot) {
-    periodsRoot.innerHTML = periods.length
-      ? [...periods]
-          .reverse()
-          .map((period, reverseIndex) => {
-            const originalIndex = periods.length - 1 - reverseIndex;
-            const previous = periods[originalIndex - 1];
-            const interval = previous ? daysBetween(previous.startDate, period.startDate) : null;
-            const symptoms = [...clusterForStart(period.startDate)];
-            const sideEffects = sideEffectsForPeriod(period);
-            const notes = period.medicationDays.map((entry) => entry.medicationNotes).filter(Boolean);
-            return `
-              <article class="pmdd-period-card">
-                <div class="pmdd-period-heading">
-                  <div>
-                    <span class="pattern-kicker">Period ${originalIndex + 1}</span>
-                    <h3>${formatDate(period.startDate)}</h3>
-                  </div>
-                  <span class="pmdd-status ${period.stopDate ? "complete" : "current"}">${period.stopDate ? "Completed" : "Current"}</span>
-                </div>
-                <div class="pmdd-date-line" aria-label="Medication period dates">
-                  <div><small>Started</small><strong>${formatDate(period.startDate)}</strong></div>
-                  <span aria-hidden="true">→</span>
-                  <div><small>Stopped</small><strong>${period.stopDate ? formatDate(period.stopDate) : "Still taking"}</strong></div>
-                </div>
-                <div class="pmdd-period-facts">
-                  <span><strong>${period.medicationDays.length}</strong> recorded medication day${period.medicationDays.length === 1 ? "" : "s"}</span>
-                  <span><strong>${interval ?? "–"}</strong> ${interval === null ? "No earlier start" : "days since previous start"}</span>
-                </div>
-                <div>
-                  <h4>Signs around this start</h4>
-                  <div class="pmdd-inline-tags">${symptoms.length ? symptoms.map((symptom) => `<span>${escapeHtml(symptom)}</span>`).join("") : "<small>Nothing specific was recorded in this window.</small>"}</div>
-                </div>
-                <div>
-                  <h4>Side effects while taking it</h4>
-                  <div class="pmdd-inline-tags">${sideEffects.length ? sideEffects.map((effect) => `<span>${escapeHtml(effect)}</span>`).join("") : "<small>No side effects were recorded.</small>"}</div>
-                </div>
-                ${notes.length ? `<p class="pmdd-period-notes"><strong>Medication notes:</strong> ${escapeHtml(notes.join(" | "))}</p>` : ""}
-              </article>
-            `;
-          })
-          .join("")
-      : `<section class="plain-panel"><p class="empty-state">No PMDD medication starts are recorded yet. Select “Yes” in the Daily Log on a day medication is taken, and the first period will appear here.</p></section>`;
-  }
-}
-
-function buildCopyText(periods: MedicationPeriod[]): string {
-  const cluster = typicalCluster(periods);
-  const intervals = periods.slice(1).map((period, index) => daysBetween(periods[index].startDate, period.startDate));
-  const lines = [
-    "PMDD medication tracking summary",
-    `Generated: ${formatDate(new Date().toISOString().slice(0, 10))}`,
-    "",
-    `Medication periods recorded: ${periods.length}`,
-    `Average days between starts: ${intervals.length ? average(intervals) : "Not enough data yet"}`,
-    "",
-    "Medication periods"
-  ];
-
-  periods.forEach((period, index) => {
-    const previous = periods[index - 1];
-    lines.push(
-      `${index + 1}. Started ${formatDate(period.startDate)}; stopped ${period.stopDate ? formatDate(period.stopDate) : "ongoing"}; ${period.medicationDays.length} recorded medication days${previous ? `; ${daysBetween(previous.startDate, period.startDate)} days since previous start` : ""}.`,
-      `   Signs around start: ${[...clusterForStart(period.startDate)].join(", ") || "none specifically recorded"}.`,
-      `   Side effects recorded: ${sideEffectsForPeriod(period).join(", ") || "none"}.`
-    );
-  });
-
-  lines.push("", "Most repeated signs around starts");
-  lines.push(...(cluster.length ? cluster.map((item) => `- ${item.label}: ${item.courseCount} of ${periods.length} starts`) : ["- Not enough data yet"]));
-  lines.push("", "This is a personal tracking summary and does not establish a diagnosis.");
-  return lines.join("\n");
-}
-
-const periods = buildPeriods(entries);
-render(periods);
+  const setButton = target.closest<HTMLButtonElement>("[data-set-relevance]");
+  const controls = setButton?.closest<HTMLElement>("[data-relevance-controls]");
+  if (!setButton?.dataset.setRelevance || !controls?.dataset.relevanceControls) return;
+  const episode = buildCapacityEvents(days, decisions).find((item) => item.id === controls.dataset.relevanceControls);
+  if (!episode) return;
+  const existing = decisions.find((decision) => decision.id === episode.id);
+  const decision: ClusterDecision = { id: episode.id, status: existing?.status ?? episode.status, startDate: existing?.startDate ?? episode.startDate, endDate: existing?.endDate ?? episode.endDate, updatedAt: new Date().toISOString(), hormonalDecision: setButton.dataset.setRelevance as ClusterDecision["hormonalDecision"] };
+  await saveClusterDecision(decision);
+  decisions = await getClusterDecisions();
+  render();
+});
 
 copyButton?.addEventListener("click", async () => {
-  try {
-    await navigator.clipboard.writeText(buildCopyText(periods));
-    if (copyStatus) copyStatus.textContent = "PMDD summary copied.";
-  } catch {
-    if (copyStatus) copyStatus.textContent = "Copy did not complete. Please try again from the installed app or browser.";
-  }
+  try { await navigator.clipboard.writeText(buildCopyText()); if (copyStatus) copyStatus.textContent = "PMDD summary copied."; }
+  catch { if (copyStatus) copyStatus.textContent = "Copy did not complete. Please try again from the installed app or browser."; }
 });
+
+render();

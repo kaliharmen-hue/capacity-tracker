@@ -1,0 +1,22 @@
+---
+import "../../styles/global.css";
+const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#3f6f63" />
+    <title>Capacity Timeline Visual Report</title>
+  </head>
+  <body class="report-page">
+    <div class="report-actions no-print">
+      <a class="secondary-button" href={`${base}timeline/`}>Back to Capacity Timeline</a>
+      <button id="print-report" class="primary-button" type="button">Print / Save PDF</button>
+    </div>
+    <main id="timeline-report" class="print-report capacity-print-report" aria-live="polite"><p>Preparing report...</p></main>
+    <script src="../../scripts/timeline-report.ts"></script>
+  </body>
+</html>

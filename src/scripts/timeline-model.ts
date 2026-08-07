@@ -4,7 +4,8 @@ export type RawDailyEntry = Partial<DailyEntry> & Record<string, unknown>;
 export type CapacityState = "Baseline" | "Slightly reduced" | "Reduced" | "Significant reduction";
 export type ClusterStatus = "provisional" | "confirmed" | "rejected";
 export type EpisodeKind = "episode" | "dip";
-export type HormonalDecision = "possible" | "not-hormonal" | "unsure";
+export type HormonalDecision = "yes" | "possible" | "no" | "not-reviewed" | "not-hormonal" | "unsure";
+export type HormonalRelevance = "Yes" | "Possible" | "No" | "Not reviewed";
 export type HormonalConfidence = "none" | "low" | "moderate";
 export type HormonalEvidenceCategory = "appetite" | "bloating" | "cognitive" | "emotional" | "physical" | "behavioural" | "medicationResponse";
 
@@ -90,6 +91,7 @@ export interface CapacityCluster {
   recurringSymptoms: SymptomKey[];
   pmddMedicationDates: string[];
   apparentReturnDate: string | null;
+  improvementDate: string | null;
   significantDays: number;
   reducedDays: number;
   hormonalPattern: HormonalPatternResult;
@@ -118,6 +120,14 @@ export const hormonalEvidenceDefinitions: Array<{ key: HormonalEvidenceCategory;
   { key: "behavioural", label: "Behavioural / reward changes" },
   { key: "medicationResponse", label: "ADHD medication response change" }
 ];
+
+export function resolveHormonalRelevance(cluster: Pick<CapacityCluster, "hormonalDecision" | "hormonalPattern">): HormonalRelevance {
+  if (cluster.hormonalDecision === "yes") return "Yes";
+  if (cluster.hormonalDecision === "possible") return "Possible";
+  if (cluster.hormonalDecision === "no" || cluster.hormonalDecision === "not-hormonal") return "No";
+  if (cluster.hormonalDecision === "not-reviewed" || cluster.hormonalDecision === "unsure") return "Not reviewed";
+  return cluster.hormonalPattern.isPossible ? "Possible" : "Not reviewed";
+}
 
 export interface BaselineProfile {
   count: number;
@@ -488,7 +498,13 @@ function buildCluster(days: NormalizedTimelineDay[], markedIndexes: number[], al
   const contextCounts = new Map<string, number>();
   clusterDays.forEach((day) => extractContextFactors(day, baselineDose).forEach((factor) => contextCounts.set(factor, (contextCounts.get(factor) ?? 0) + 1)));
   const recoveryWindow = allDays.filter((day) => day.date > endDate && daysBetween(endDate, day.date) <= 10);
-  const returnDay = recoveryWindow.find((day) => day.capacityState === "Baseline" || day.capacityState === "Slightly reduced");
+  const returnDay = recoveryWindow.find((day) => day.capacityState === "Baseline");
+  const highestRank = Math.max(...clusterDays.map((day) => capacityRank(day.capacityState)));
+  const lastHighestIndex = clusterDays.map((day) => capacityRank(day.capacityState)).lastIndexOf(highestRank);
+  const improvementDay = clusterDays.slice(lastHighestIndex + 1).find((day) => {
+    const rank = capacityRank(day.capacityState);
+    return rank >= 0 && rank < highestRank;
+  });
   return {
     id: `auto:${kind}:${startDate}:${endDate}`,
     kind,
@@ -500,6 +516,7 @@ function buildCluster(days: NormalizedTimelineDay[], markedIndexes: number[], al
     recurringSymptoms,
     pmddMedicationDates: clusterDays.filter((day) => day.flags.pmddMedication).map((day) => day.date),
     apparentReturnDate: returnDay?.date ?? null,
+    improvementDate: improvementDay?.date ?? null,
     significantDays: clusterDays.filter((day) => day.capacityState === "Significant reduction").length,
     reducedDays: clusterDays.filter((day) => day.capacityState === "Reduced").length,
     hormonalPattern: kind === "episode" ? classifyHormonalPattern(clusterDays, baselineDose) : { isPossible: false, confidence: "none", evidenceDayCount: 0, categories: [] },
@@ -515,56 +532,61 @@ export function detectCapacityClusters(days: NormalizedTimelineDay[]): CapacityC
   const episodeRanges: Array<[number, number]> = [];
   const covered = new Set<number>();
   const isImpaired = (index: number) => capacityRank(sorted[index].capacityState) >= 2;
+  const isBaseline = (index: number) => sorted[index].capacityState === "Baseline";
 
-  let runStart = 0;
-  while (runStart < sorted.length) {
-    let runEnd = runStart;
-    while (runEnd + 1 < sorted.length && daysBetween(sorted[runEnd].date, sorted[runEnd + 1].date) === 1) runEnd += 1;
-    let impairedStreak = 0;
-    let recoveryStreak = 0;
-    let activeStart: number | null = null;
-    let lastImpaired = -1;
-    for (let index = runStart; index <= runEnd; index += 1) {
-      if (isImpaired(index)) {
-        impairedStreak += 1;
-        recoveryStreak = 0;
-        if (activeStart === null && impairedStreak === 3) activeStart = index - 2;
-        if (activeStart !== null) lastImpaired = index;
-      } else {
-        impairedStreak = 0;
-        if (activeStart !== null) {
-          recoveryStreak += 1;
-          if (recoveryStreak === 2) {
-            episodeRanges.push([activeStart, lastImpaired]);
-            activeStart = null;
-            lastImpaired = -1;
-            recoveryStreak = 0;
-          }
-        }
+  let activeStart: number | null = null;
+  let firstBaselineIndex: number | null = null;
+
+  for (let index = 0; index < sorted.length; index += 1) {
+    if (activeStart === null) {
+      if (!isImpaired(index)) continue;
+      const window = sorted
+        .map((day, candidateIndex) => ({ day, candidateIndex }))
+        .filter(({ day, candidateIndex }) => candidateIndex <= index && daysBetween(day.date, sorted[index].date) >= 0 && daysBetween(day.date, sorted[index].date) <= 3)
+        .filter(({ candidateIndex }) => isImpaired(candidateIndex));
+      if (window.length >= 3) {
+        activeStart = window[0].candidateIndex;
+        firstBaselineIndex = null;
       }
+      continue;
     }
-    if (activeStart !== null) episodeRanges.push([activeStart, recoveryStreak === 1 ? runEnd : lastImpaired]);
-    runStart = runEnd + 1;
+
+    const previousIsConsecutive = index > 0 && daysBetween(sorted[index - 1].date, sorted[index].date) === 1;
+    if (isBaseline(index)) {
+      if (firstBaselineIndex !== null && previousIsConsecutive && isBaseline(index - 1)) {
+        episodeRanges.push([activeStart, firstBaselineIndex - 1]);
+        activeStart = null;
+        firstBaselineIndex = null;
+      } else {
+        firstBaselineIndex = index;
+      }
+    } else {
+      firstBaselineIndex = null;
+    }
   }
 
-  episodeRanges.forEach(([start, end]) => {
-    for (let index = start; index <= end; index += 1) covered.add(index);
+  if (activeStart !== null) episodeRanges.push([activeStart, sorted.length - 1]);
+
+  episodeRanges.forEach(([rangeStart, rangeEnd]) => {
+    for (let index = rangeStart; index <= rangeEnd; index += 1) covered.add(index);
   });
+
   const dipRanges: Array<[number, number]> = [];
   for (let index = 0; index < sorted.length; index += 1) {
     if (!isImpaired(index) || covered.has(index)) continue;
-    const start = index;
+    const dipStart = index;
     while (
       index + 1 < sorted.length &&
       isImpaired(index + 1) &&
       !covered.has(index + 1) &&
       daysBetween(sorted[index].date, sorted[index + 1].date) === 1
     ) index += 1;
-    if (index - start + 1 <= 2) dipRanges.push([start, index]);
+    if (index - dipStart + 1 <= 2) dipRanges.push([dipStart, index]);
   }
 
-  const buildRange = ([start, end]: [number, number], kind: EpisodeKind) =>
-    buildCluster(sorted, Array.from({ length: end - start + 1 }, (_, offset) => start + offset), sorted, kind);
+  const buildRange = ([rangeStart, rangeEnd]: [number, number], kind: EpisodeKind) =>
+    buildCluster(sorted, Array.from({ length: rangeEnd - rangeStart + 1 }, (_, offset) => rangeStart + offset), sorted, kind);
+
   return [...episodeRanges.map((range) => buildRange(range, "episode")), ...dipRanges.map((range) => buildRange(range, "dip"))]
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
 }
@@ -587,6 +609,7 @@ export function restoreManualEpisode(decision: ClusterDecision, days: Normalized
     recurringSymptoms: [],
     pmddMedicationDates: [],
     apparentReturnDate: null,
+    improvementDate: null,
     significantDays: 0,
     reducedDays: 0,
     hormonalPattern: { isPossible: false, confidence: "none", evidenceDayCount: 0, categories: [] },

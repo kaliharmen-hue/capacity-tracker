@@ -1,0 +1,160 @@
+import {
+  applyClusterDecision,
+  daysBetween,
+  detectCapacityClusters,
+  resolveHormonalRelevance,
+  restoreManualEpisode,
+  type CapacityCluster,
+  type ClusterDecision,
+  type HormonalRelevance,
+  type NormalizedTimelineDay
+} from "./timeline-model.ts";
+
+export interface MedicationCourse {
+  id: string;
+  startDate: string;
+  stopDate: string | null;
+  lastTakenDate: string;
+  medicationDates: string[];
+}
+
+export interface PatternFeature {
+  key: string;
+  label: string;
+  group: string;
+  episodeCount: number;
+}
+
+interface FeatureDefinition {
+  key: string;
+  label: string;
+  group: string;
+  matches: (day: NormalizedTimelineDay) => boolean;
+}
+
+function rawString(day: NormalizedTimelineDay, key: string): string {
+  const value = day.raw[key];
+  return value === undefined || value === null ? "" : String(value).toLowerCase();
+}
+
+function rawArray(day: NormalizedTimelineDay, key: string): string[] {
+  const value = day.raw[key];
+  return Array.isArray(value) ? value.map(String).map((item) => item.toLowerCase()) : [];
+}
+
+function signsInclude(day: NormalizedTimelineDay, ...patterns: string[]): boolean {
+  return day.hormonalSigns.some((sign) => patterns.some((pattern) => sign.toLowerCase().includes(pattern)));
+}
+
+export const patternFeatureDefinitions: FeatureDefinition[] = [
+  { key: "bloating", label: "Bloating", group: "Physical / hormonal", matches: (day) => day.flags.bloating },
+  { key: "low-energy", label: "Low usable energy", group: "Energy / capacity", matches: (day) => day.energy !== null && day.energy <= 4 },
+  { key: "lower-clarity", label: "Lower executive clarity", group: "Cognitive", matches: (day) => day.clarity !== null && day.clarity <= 5 },
+  {
+    key: "poor-sleep",
+    label: "Poor / disrupted sleep",
+    group: "Sleep",
+    matches: (day) => day.sleepQuality.toLowerCase() === "poor" || rawString(day, "sleepFragmentation") === "yes" || rawString(day, "hotWaking") === "yes"
+  },
+  { key: "weaker-medication", label: "Amfexa felt weaker", group: "ADHD medication response", matches: (day) => day.flags.reducedMedicationEffect },
+  { key: "head-pressure", label: "Head pressure / tension", group: "Physical / hormonal", matches: (day) => signsInclude(day, "head pressure") },
+  { key: "sensitivity", label: "Increased sensitivity", group: "Emotional / social tolerance", matches: (day) => day.flags.sensitivity },
+  { key: "appetite", label: "Cravings / increased appetite", group: "Appetite / cravings", matches: (day) => day.flags.cravings || day.flags.increasedAppetite },
+  { key: "cognitive-slowing", label: "Cognitive slowing / head swimming", group: "Cognitive", matches: (day) => day.flags.brainFog || day.flags.headSwimming },
+  { key: "low-mood", label: "Low / flat mood", group: "Emotional / social tolerance", matches: (day) => day.flags.lowMood },
+  { key: "body-tension", label: "Body tension / unusual aches", group: "Physical / hormonal", matches: (day) => day.flags.bodyTension || signsInclude(day, "unusual body aches") },
+  { key: "breast-changes", label: "Breast changes / tenderness", group: "Physical / hormonal", matches: (day) => signsInclude(day, "breast") },
+  {
+    key: "social-tolerance",
+    label: "Lower social tolerance / withdrawal",
+    group: "Emotional / social tolerance",
+    matches: (day) => rawArray(day, "socialTolerance").some((value) => value.includes("low tolerance") || value.includes("withdraw"))
+  }
+];
+
+export function buildCapacityEvents(days: NormalizedTimelineDay[], decisions: ClusterDecision[]): CapacityCluster[] {
+  const unused = new Set(decisions.map((decision) => decision.id));
+  const detected = detectCapacityClusters(days).map((cluster) => {
+    let decision = decisions.find((candidate) => candidate.id === cluster.id);
+    if (!decision && cluster.kind === "episode") {
+      decision = decisions
+        .filter((candidate) => unused.has(candidate.id) && candidate.endDate >= cluster.startDate && candidate.startDate <= cluster.endDate)
+        .sort((left, right) => {
+          const leftOverlap = Math.min(Date.parse(left.endDate), Date.parse(cluster.endDate)) - Math.max(Date.parse(left.startDate), Date.parse(cluster.startDate));
+          const rightOverlap = Math.min(Date.parse(right.endDate), Date.parse(cluster.endDate)) - Math.max(Date.parse(right.startDate), Date.parse(cluster.startDate));
+          return rightOverlap - leftOverlap;
+        })[0];
+    }
+    if (decision) unused.delete(decision.id);
+    return applyClusterDecision(cluster, decision, days);
+  });
+  const restored = decisions.filter((decision) => unused.has(decision.id)).map((decision) => restoreManualEpisode(decision, days));
+  return [...detected, ...restored].sort((left, right) => left.startDate.localeCompare(right.startDate));
+}
+
+export function relevantHormonalEpisodes(events: CapacityCluster[]): CapacityCluster[] {
+  return events.filter((event) => event.kind === "episode" && event.status !== "rejected" && ["Yes", "Possible"].includes(resolveHormonalRelevance(event)));
+}
+
+export function buildMedicationCourses(days: NormalizedTimelineDay[]): MedicationCourse[] {
+  const courses: MedicationCourse[] = [];
+  let active: MedicationCourse | null = null;
+  for (const day of [...days].sort((a, b) => a.date.localeCompare(b.date))) {
+    if (day.pmddMedicationTaken.toLowerCase() === "yes") {
+      if (!active) {
+        active = { id: `course:${day.date}`, startDate: day.date, stopDate: null, lastTakenDate: day.date, medicationDates: [] };
+        courses.push(active);
+      }
+      active.medicationDates.push(day.date);
+      active.lastTakenDate = day.date;
+    } else if (day.pmddMedicationTaken.toLowerCase() === "no" && active) {
+      active.stopDate = day.date;
+      active = null;
+    }
+  }
+  return courses;
+}
+
+export function courseEndDate(course: MedicationCourse): string {
+  return course.stopDate ?? course.lastTakenDate;
+}
+
+export function associatedEpisode(course: MedicationCourse, episodes: CapacityCluster[]): CapacityCluster | undefined {
+  const endDate = courseEndDate(course);
+  return episodes
+    .filter((episode) => course.startDate <= episode.endDate && endDate >= episode.startDate)
+    .sort((left, right) => Math.abs(daysBetween(left.startDate, course.startDate)) - Math.abs(daysBetween(right.startDate, course.startDate)))[0];
+}
+
+export function episodeDays(episode: CapacityCluster, days: NormalizedTimelineDay[]): NormalizedTimelineDay[] {
+  return days.filter((day) => day.date >= episode.startDate && day.date <= episode.endDate);
+}
+
+export function featuresForEpisode(episode: CapacityCluster, days: NormalizedTimelineDay[]): PatternFeature[] {
+  const within = episodeDays(episode, days);
+  return patternFeatureDefinitions
+    .filter((definition) => within.some(definition.matches))
+    .map(({ key, label, group }) => ({ key, label, group, episodeCount: 1 }));
+}
+
+export function recurringPattern(episodes: CapacityCluster[], days: NormalizedTimelineDay[], limit = 8): PatternFeature[] {
+  const counts = new Map<string, number>();
+  for (const episode of episodes) {
+    featuresForEpisode(episode, days).forEach((feature) => counts.set(feature.key, (counts.get(feature.key) ?? 0) + 1));
+  }
+  return patternFeatureDefinitions
+    .map(({ key, label, group }) => ({ key, label, group, episodeCount: counts.get(key) ?? 0 }))
+    .filter((feature) => feature.episodeCount > 0)
+    .sort((left, right) => right.episodeCount - left.episodeCount || left.label.localeCompare(right.label))
+    .slice(0, limit);
+}
+
+export function intervalRange(episodes: CapacityCluster[]): string | null {
+  if (episodes.length < 2) return null;
+  const intervals = episodes.slice(1).map((episode, index) => daysBetween(episodes[index].startDate, episode.startDate));
+  return `${Math.min(...intervals)}-${Math.max(...intervals)} days`;
+}
+
+export function hormonalRelevanceLabel(episode: CapacityCluster): HormonalRelevance {
+  return resolveHormonalRelevance(episode);
+}

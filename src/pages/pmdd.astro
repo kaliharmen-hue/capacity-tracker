@@ -1,38 +1,50 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
 ---
 
 <BaseLayout title="PMDD Review" active="pmdd">
   <section class="page-heading">
     <div>
       <p class="eyebrow">PMDD Review</p>
-      <h2>When do the clusters appear?</h2>
+      <h2>Hormonal pattern review</h2>
     </div>
-    <p class="soft-copy">A record of my intermittent PMDD medication periods and the signs that gathered around each start. This is a tracking summary, not a diagnosis.</p>
+    <p class="soft-copy">This review looks for recurring patterns in symptoms that may be hormonally related and records the intermittent PMDD medication trials. PMDD remains a working hypothesis. The Capacity Timeline shows the wider pattern of fluctuating capacity regardless of cause.</p>
   </section>
 
   <section id="pmdd-summary" class="summary-grid" aria-live="polite"></section>
 
   <section class="pmdd-actions">
-    <button type="button" id="copy-pmdd-summary" class="primary-button">Copy summary for my GP</button>
+    <a href={`${base}pmdd/report/`} class="primary-button">Export GP Report</a>
+    <button type="button" id="copy-pmdd-summary" class="secondary-button">Copy text summary</button>
     <p id="pmdd-copy-status" class="copy-status" aria-live="polite"></p>
   </section>
 
   <section>
     <div class="section-title">
       <div>
-        <h3>Typical cluster around a start</h3>
-        <p>Signs recorded on the start date and the three days beforehand.</p>
+        <h3>Recurring hormonal pattern</h3>
+        <p>The most repeated features across episodes marked Yes or Possible.</p>
       </div>
     </div>
-    <div id="pmdd-cluster" class="plain-panel" aria-live="polite"></div>
+    <div id="pmdd-pattern" class="plain-panel" aria-live="polite"></div>
   </section>
 
   <section>
     <div class="section-title">
       <div>
-        <h3>Medication periods</h3>
-        <p>A stop is only recorded when I explicitly log “No”; an unrecorded day will not create a false stop.</p>
+        <h3>Possible hormonal episodes</h3>
+        <p>These begin with the wider Capacity Timeline, then use the separately recorded hormonal relevance.</p>
+      </div>
+    </div>
+    <div id="pmdd-episodes" class="pmdd-episodes" aria-live="polite"></div>
+  </section>
+
+  <section>
+    <div class="section-title">
+      <div>
+        <h3>PMDD medication courses</h3>
+        <p>Medication courses are shown separately and linked to an episode where their dates overlap.</p>
       </div>
     </div>
     <div id="pmdd-periods" class="pmdd-periods" aria-live="polite"></div>
@@ -40,7 +52,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 
   <section class="plain-panel pmdd-method-note">
     <h3>How this is worked out</h3>
-    <p>Each switch from not taking the medication to “Yes” begins a period. The first recorded “No” afterwards is its stop date. Days between starts are measured from one start date to the next.</p>
+    <p>A possible hormonal episode is a Capacity Episode whose hormonal relevance is Yes or Possible. Medication courses begin with a recorded Yes and end with the first explicit No; missing days remain unknown. Neither page establishes a diagnosis.</p>
   </section>
 
   <script src="../scripts/pmdd.ts"></script>

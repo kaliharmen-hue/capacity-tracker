@@ -10,10 +10,12 @@ import {
   latestMonthWithData,
   monthDates,
   normalizeTimelineEntry,
+  resolveHormonalRelevance,
   shiftMonth,
   type ClusterDecision,
   type RawDailyEntry
 } from "../src/scripts/timeline-model.ts";
+import { associatedEpisode, buildMedicationCourses, intervalRange, recurringPattern } from "../src/scripts/review-model.ts";
 
 function entry(date: string, values: RawDailyEntry = {}) {
   return normalizeTimelineEntry({ date, ...values });
@@ -69,15 +71,15 @@ test("blank calendar dates remain distinct from recorded dates", () => {
   assert.equal(entries.has("2026-02-01"), false);
 });
 
-test("starts an episode only after three consecutive impaired recorded days", () => {
+test("starts an episode after three impaired days in a rolling four-day period", () => {
   const days = [
     entry("2026-07-21", { energyScore: 4, clarityScore: 3, clarityNotes: "Wading through treacle", hormonalSigns: ["Cravings"] }),
     entry("2026-07-22", { energyScore: 4, clarityScore: 3, clarityNotes: "Head swimming", pmddMedicationTaken: "Yes" }),
-    entry("2026-07-23", { energyScore: 5, clarityScore: 4, hormonalSigns: ["Cravings", "Increased appetite"] }),
-    entry("2026-07-24", { energyScore: 6, clarityScore: 6 }),
+    entry("2026-07-23", { energyScore: 6, clarityScore: 6 }),
+    entry("2026-07-24", { energyScore: 5, clarityScore: 4, hormonalSigns: ["Cravings", "Increased appetite"] }),
     entry("2026-07-25", { energyScore: 5, clarityScore: 5 }),
-    entry("2026-07-26", { energyScore: 5, clarityScore: 5 }),
-    entry("2026-07-27", { energyScore: 6, clarityScore: 6 }),
+    entry("2026-07-26", { energyScore: 6, clarityScore: 6 }),
+    entry("2026-07-27", { energyScore: 8, clarityScore: 8, overallState: "Balanced" }),
     entry("2026-07-28", { energyScore: 8, clarityScore: 8, overallState: "Balanced" })
   ];
   const clusters = detectCapacityClusters(days);
@@ -86,7 +88,7 @@ test("starts an episode only after three consecutive impaired recorded days", ()
   assert.equal(clusters[0].startDate, "2026-07-21");
   assert.equal(clusters[0].endDate, "2026-07-26");
   assert.equal(clusters[0].significantDays, 2);
-  assert.equal(clusters[0].reducedDays, 3);
+  assert.equal(clusters[0].reducedDays, 2);
 });
 
 test("one or two impaired days are Capacity Dips and missing days break sequences", () => {
@@ -97,14 +99,14 @@ test("one or two impaired days are Capacity Dips and missing days break sequence
   assert.deepEqual(clusters.map((cluster) => cluster.kind), ["dip", "dip"]);
 });
 
-test("an episode allows one recovery day but ends before two consecutive recovery days", () => {
+test("an episode ends only before two consecutive Baseline days", () => {
   const clusters = detectCapacityClusters([
     entry("2026-08-01", { energyScore: 4, clarityScore: 4 }),
     entry("2026-08-02", { energyScore: 4, clarityScore: 4 }),
     entry("2026-08-03", { energyScore: 4, clarityScore: 4 }),
     entry("2026-08-04", { energyScore: 6, clarityScore: 6 }),
     entry("2026-08-05", { energyScore: 4, clarityScore: 4 }),
-    entry("2026-08-06", { energyScore: 6, clarityScore: 6 }),
+    entry("2026-08-06", { energyScore: 8, clarityScore: 8, overallState: "Balanced" }),
     entry("2026-08-07", { energyScore: 8, clarityScore: 8, overallState: "Balanced" }),
     entry("2026-08-08", { energyScore: 4, clarityScore: 4 })
   ]);
@@ -113,6 +115,19 @@ test("an episode allows one recovery day but ends before two consecutive recover
   assert.equal(clusters[0].endDate, "2026-08-05");
   assert.equal(clusters[1].kind, "dip");
   assert.equal(clusters[1].startDate, "2026-08-08");
+});
+
+test("missing days and Slightly reduced days do not count as Baseline recovery", () => {
+  const clusters = detectCapacityClusters([
+    entry("2026-08-01", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-02", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-03", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-04", { energyScore: 8, clarityScore: 8, overallState: "Balanced" }),
+    entry("2026-08-06", { energyScore: 8, clarityScore: 8, overallState: "Balanced" }),
+    entry("2026-08-07", { energyScore: 6, clarityScore: 6 })
+  ]);
+  assert.equal(clusters[0].kind, "episode");
+  assert.equal(clusters[0].endDate, "2026-08-07");
 });
 
 test("hormonal classification requires two categories across two recorded days", () => {
@@ -198,4 +213,46 @@ test("CSV export preserves missing values and includes episode IDs", () => {
   assert.match(csv, /Significant reduction|Reduced/);
   assert.match(csv, /auto:episode:2026-08-01:2026-08-03/);
   assert.match(csv, /Bloating/);
+});
+
+test("resolves current and legacy hormonal relevance decisions", () => {
+  const episode = detectCapacityClusters([
+    entry("2026-08-01", { energyScore: 4, clarityScore: 4, hormonalSigns: ["Bloating"] }),
+    entry("2026-08-02", { energyScore: 4, clarityScore: 4, hormonalSigns: ["Cravings"] }),
+    entry("2026-08-03", { energyScore: 4, clarityScore: 4 })
+  ])[0];
+  assert.equal(resolveHormonalRelevance(episode), "Possible");
+  assert.equal(resolveHormonalRelevance({ ...episode, hormonalDecision: "yes" }), "Yes");
+  assert.equal(resolveHormonalRelevance({ ...episode, hormonalDecision: "not-hormonal" }), "No");
+  assert.equal(resolveHormonalRelevance({ ...episode, hormonalDecision: "unsure" }), "Not reviewed");
+});
+
+test("builds medication courses independently and associates them with overlapping episodes", () => {
+  const days = [
+    entry("2026-07-20", { energyScore: 4, clarityScore: 4, pmddMedicationTaken: "No" }),
+    entry("2026-07-21", { energyScore: 4, clarityScore: 4, pmddMedicationTaken: "No" }),
+    entry("2026-07-22", { energyScore: 4, clarityScore: 4, pmddMedicationTaken: "Yes" }),
+    entry("2026-07-23", { energyScore: 4, clarityScore: 4, pmddMedicationTaken: "Yes" }),
+    entry("2026-07-24", { energyScore: 6, clarityScore: 6, pmddMedicationTaken: "No" })
+  ];
+  const episode = detectCapacityClusters(days).find((item) => item.kind === "episode")!;
+  const courses = buildMedicationCourses(days);
+  assert.equal(courses.length, 1);
+  assert.equal(courses[0].startDate, "2026-07-22");
+  assert.equal(courses[0].medicationDates.length, 2);
+  assert.equal(associatedEpisode(courses[0], [episode])?.id, episode.id);
+});
+
+test("recurring pattern groups equivalent recorded features by episode", () => {
+  const days = [
+    entry("2026-07-01", { hormonalSigns: ["Cravings"], energyScore: 4, clarityScore: 4 }),
+    entry("2026-07-02", { hormonalSigns: ["Increased appetite"], energyScore: 4, clarityScore: 4 })
+  ];
+  const fakeEpisodes = [
+    { ...detectCapacityClusters([entry("2026-07-01", { energyScore: 4, clarityScore: 4 }), entry("2026-07-02", { energyScore: 4, clarityScore: 4 }), entry("2026-07-03", { energyScore: 4, clarityScore: 4 })])[0], endDate: "2026-07-01" },
+    { ...detectCapacityClusters([entry("2026-07-02", { energyScore: 4, clarityScore: 4 }), entry("2026-07-03", { energyScore: 4, clarityScore: 4 }), entry("2026-07-04", { energyScore: 4, clarityScore: 4 })])[0], startDate: "2026-07-02", endDate: "2026-07-02" }
+  ];
+  const appetite = recurringPattern(fakeEpisodes, days).find((feature) => feature.key === "appetite");
+  assert.equal(appetite?.episodeCount, 2);
+  assert.equal(intervalRange(fakeEpisodes), "1-1 days");
 });
