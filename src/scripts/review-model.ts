@@ -36,6 +36,19 @@ export interface MedicationResponseAssessment {
   afterDays: number;
 }
 
+export interface MoodCapacityPattern {
+  reducedDays: number;
+  moodDaysRecorded: number;
+  reducedWithMoodData: number;
+  reducedWithStableMood: number;
+  reducedWithInterestData: number;
+  reducedWithInterest: number;
+  reducedWithWakingData: number;
+  reducedWithCapacityChangeOnWaking: number;
+  reducedWithStableOverallState: number;
+  longestLowMoodRun: number;
+}
+
 interface FeatureDefinition {
   key: string;
   label: string;
@@ -169,6 +182,37 @@ export function assessMedicationResponse(course: MedicationCourse, days: Normali
     return { trajectory: "mixed", label: "Mixed change after medication", detail: "Some recorded measures improved while others worsened in the days after starting.", beforeDays: before.length, afterDays: after.length };
   }
   return { trajectory: "no-clear-improvement", label: "No clear improvement recorded", detail: worsened ? "The recorded measures did not improve overall in the five days after starting." : "Any change in the recorded measures was too small to identify a clear trajectory.", beforeDays: before.length, afterDays: after.length };
+}
+
+export function buildMoodCapacityPattern(days: NormalizedTimelineDay[]): MoodCapacityPattern {
+  const reduced = days.filter((day) => ["Reduced", "Significant reduction"].includes(day.capacityState ?? ""));
+  const reducedWithMood = reduced.filter((day) => Boolean(day.underlyingMood));
+  const reducedWithInterest = reduced.filter((day) => Boolean(day.interestAvailable));
+  const reducedWithWaking = reduced.filter((day) => day.wakingChanges.length > 0);
+  const wakingCapacityTerms = ["lower energy", "slower / foggier thinking", "physical / hormonal symptoms"];
+  const lowMoodDays = days
+    .filter((day) => ["low for most of the day", "flat or numb"].includes(day.underlyingMood.toLowerCase()))
+    .sort((left, right) => left.date.localeCompare(right.date));
+  let longestLowMoodRun = 0;
+  let currentRun = 0;
+  let previousDate = "";
+  for (const day of lowMoodDays) {
+    currentRun = previousDate && daysBetween(previousDate, day.date) === 1 ? currentRun + 1 : 1;
+    longestLowMoodRun = Math.max(longestLowMoodRun, currentRun);
+    previousDate = day.date;
+  }
+  return {
+    reducedDays: reduced.length,
+    moodDaysRecorded: days.filter((day) => Boolean(day.underlyingMood)).length,
+    reducedWithMoodData: reducedWithMood.length,
+    reducedWithStableMood: reducedWithMood.filter((day) => day.underlyingMood === "Mostly okay / stable").length,
+    reducedWithInterestData: reducedWithInterest.length,
+    reducedWithInterest: reducedWithInterest.filter((day) => ["yes", "somewhat"].includes(day.interestAvailable.toLowerCase())).length,
+    reducedWithWakingData: reducedWithWaking.length,
+    reducedWithCapacityChangeOnWaking: reducedWithWaking.filter((day) => day.wakingChanges.some((change) => wakingCapacityTerms.includes(change.toLowerCase()))).length,
+    reducedWithStableOverallState: reduced.filter((day) => ["calm", "balanced", "engaged"].includes(day.overallState.toLowerCase())).length,
+    longestLowMoodRun
+  };
 }
 
 export function episodeDays(episode: CapacityCluster, days: NormalizedTimelineDay[]): NormalizedTimelineDay[] {

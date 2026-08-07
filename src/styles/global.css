@@ -1385,6 +1385,28 @@ button.capacity-day:focus-visible {
   font-size: 0.82rem;
 }
 
+.mood-capacity-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mood-capacity-grid > div {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border-left: 3px solid var(--accent-soft);
+  background: #f8f6f1;
+}
+
+.mood-capacity-grid small {
+  color: var(--muted);
+}
+
+.mood-capacity-grid strong {
+  font-size: 1.05rem;
+}
+
 .pmdd-episode-card {
   display: grid;
   gap: 14px;
@@ -1692,6 +1714,7 @@ button.capacity-day:focus-visible {
 
   .episode-recovery,
   .medication-response,
+  .mood-capacity-grid,
   .report-calendars {
     grid-template-columns: 1fr;
   }

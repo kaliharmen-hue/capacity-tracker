@@ -54,6 +54,9 @@ export interface NormalizedTimelineDay {
   sleepQuality: string;
   overallState: string;
   endOfDayEnergy: string;
+  underlyingMood: string;
+  interestAvailable: string;
+  wakingChanges: string[];
   familiarHormonalPattern: string;
   hormonalSigns: string[];
   moodChanges: string[];
@@ -233,6 +236,9 @@ export function normalizeTimelineEntry(raw: RawDailyEntry): NormalizedTimelineDa
   const emotionalState = asArray(raw, ["emotionalState", "emotionalStates", "mood"]);
   const legacyNervousState = asArray(raw, ["nervousSystemState", "nervousState"]);
   const overallState = asString(raw, ["overallState"]) || legacyNervousState[0] || emotionalState[0] || "";
+  const underlyingMood = asString(raw, ["underlyingMood"]);
+  const interestAvailable = asString(raw, ["interestAvailable"]);
+  const wakingChanges = asArray(raw, ["wakingChanges"]);
   const activationSigns = asArray(raw, ["activationSigns", "physiologicalActivationSigns", "physiologicalActivation"]);
   const executiveFriction = asArray(raw, ["executiveFriction", "cognitiveFriction"]);
   const executiveDemandLevel = asString(raw, ["executiveDemandLevel", "executiveDemand"]);
@@ -313,6 +319,9 @@ export function normalizeTimelineEntry(raw: RawDailyEntry): NormalizedTimelineDa
     sleepQuality,
     overallState,
     endOfDayEnergy,
+    underlyingMood,
+    interestAvailable,
+    wakingChanges,
     familiarHormonalPattern,
     hormonalSigns,
     moodChanges,

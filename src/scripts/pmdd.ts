@@ -4,6 +4,7 @@ import {
   assessMedicationResponse,
   buildCapacityEvents,
   buildMedicationCourses,
+  buildMoodCapacityPattern,
   courseEndDate,
   episodeDays,
   featuresForEpisode,
@@ -17,6 +18,7 @@ import { daysBetween, normalizeTimelineEntry, type CapacityCluster, type Cluster
 const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
 const summaryRoot = document.querySelector<HTMLDivElement>("#pmdd-summary");
 const patternRoot = document.querySelector<HTMLDivElement>("#pmdd-pattern");
+const moodCapacityRoot = document.querySelector<HTMLDivElement>("#mood-capacity-pattern");
 const episodesRoot = document.querySelector<HTMLDivElement>("#pmdd-episodes");
 const periodsRoot = document.querySelector<HTMLDivElement>("#pmdd-periods");
 const copyButton = document.querySelector<HTMLButtonElement>("#copy-pmdd-summary");
@@ -62,6 +64,21 @@ function renderPattern(episodes: CapacityCluster[]): void {
         return `<div class="frequency-row"><div><strong>${escapeHtml(feature.label)}</strong><small>${escapeHtml(feature.group)}</small></div><div class="frequency-track" aria-label="${feature.episodeCount} of ${episodes.length} episodes"><span style="width:${percent}%"></span></div><b>${feature.episodeCount} of ${episodes.length} episodes</b></div>`;
       }).join("")}</div><p class="frequency-note">These counts show how many reviewed episodes contained each feature, not how many individual days. With only ${episodes.length} reviewed episode${episodes.length === 1 ? "" : "s"}, the pattern remains provisional.</p>`
     : `<p class="empty-state">Not enough reviewed hormonal episodes yet to identify a recurring pattern.</p>`;
+}
+
+function renderMoodCapacityPattern(): void {
+  if (!moodCapacityRoot) return;
+  const pattern = buildMoodCapacityPattern(days);
+  const ratio = (value: number, total: number) => total ? `${value} of ${total} days` : "Not recorded yet";
+  const lowMoodRun = pattern.moodDaysRecorded ? `${pattern.longestLowMoodRun} day${pattern.longestLowMoodRun === 1 ? "" : "s"}` : "Not recorded yet";
+  moodCapacityRoot.innerHTML = `<div class="mood-capacity-grid">
+    <div><small>Reduced capacity with mood mostly okay / stable</small><strong>${ratio(pattern.reducedWithStableMood, pattern.reducedWithMoodData)}</strong></div>
+    <div><small>Reduced capacity with interest or connection still available</small><strong>${ratio(pattern.reducedWithInterest, pattern.reducedWithInterestData)}</strong></div>
+    <div><small>Reduced capacity with energy, cognitive or physical change already present on waking</small><strong>${ratio(pattern.reducedWithCapacityChangeOnWaking, pattern.reducedWithWakingData)}</strong></div>
+    <div><small>Longest continuous run of directly recorded low / flat mood</small><strong>${lowMoodRun}</strong></div>
+  </div>
+  ${pattern.reducedWithStableOverallState ? `<p class="frequency-note">Historical context: ${pattern.reducedWithStableOverallState} of ${pattern.reducedDays} reduced-capacity days were recorded with an overall state of Calm, Balanced or Engaged. Overall state is not the same as a direct mood record, so this is shown separately.</p>` : ""}
+  <p class="frequency-note">These are observations about timing and separation of symptoms. They are intended to support a fuller clinical assessment, not to prove one diagnosis or rule another out.</p>`;
 }
 
 function rawEpisodeDetail(episode: CapacityCluster): string {
@@ -125,6 +142,7 @@ function render(): void {
   const interval = intervalRange(episodes);
   if (summaryRoot) summaryRoot.innerHTML = [stat("Possible hormonal episodes", episodes.length), stat("PMDD medication courses", courses.length), stat("Typical interval", interval ?? "Not enough yet", interval ? "provisional" : ""), stat("Current status", currentStatus(episodes, courses))].join("");
   renderPattern(episodes);
+  renderMoodCapacityPattern();
   renderEpisodes(episodes, courses);
   renderCourses(courses, episodes);
 }
@@ -133,7 +151,9 @@ function buildCopyText(): string {
   const episodes = relevantHormonalEpisodes(buildCapacityEvents(days, decisions));
   const courses = buildMedicationCourses(days);
   const features = recurringPattern(episodes, days);
-  return ["PMDD / Hormonal Pattern Review", `Generated: ${formatDate(new Date().toISOString().slice(0, 10))}`, "", "PMDD remains a working hypothesis.", `Possible hormonal episodes: ${episodes.length}`, `PMDD medication courses: ${courses.length}`, `Provisional interval: ${intervalRange(episodes) ?? "not enough data"}`, "", "Recurring pattern", ...(features.length ? features.map((feature) => `- ${feature.label}: ${feature.episodeCount} of ${episodes.length} episodes`) : ["- Not enough reviewed episodes yet"]), "", "Frequency counts refer to episodes, not individual days.", "", "Personal longitudinal tracking data. This summary does not establish a diagnosis."].join("\n");
+  const mood = buildMoodCapacityPattern(days);
+  const ratio = (value: number, total: number) => total ? `${value} of ${total} days` : "not recorded yet";
+  return ["PMDD / Hormonal Pattern Review", `Generated: ${formatDate(new Date().toISOString().slice(0, 10))}`, "", "PMDD remains a working hypothesis.", `Possible hormonal episodes: ${episodes.length}`, `PMDD medication courses: ${courses.length}`, `Provisional interval: ${intervalRange(episodes) ?? "not enough data"}`, "", "Mood and capacity pattern", `- Reduced capacity with mood mostly okay/stable: ${ratio(mood.reducedWithStableMood, mood.reducedWithMoodData)}`, `- Reduced capacity with interest or connection available: ${ratio(mood.reducedWithInterest, mood.reducedWithInterestData)}`, `- Reduced capacity with a capacity change already present on waking: ${ratio(mood.reducedWithCapacityChangeOnWaking, mood.reducedWithWakingData)}`, `- Longest directly recorded low/flat mood run: ${mood.moodDaysRecorded ? `${mood.longestLowMoodRun} days` : "not recorded yet"}`, "", "Recurring pattern", ...(features.length ? features.map((feature) => `- ${feature.label}: ${feature.episodeCount} of ${episodes.length} episodes`) : ["- Not enough reviewed episodes yet"]), "", "Frequency counts refer to episodes, not individual days.", "", "Personal longitudinal tracking data. This summary does not establish a diagnosis."].join("\n");
 }
 
 episodesRoot?.addEventListener("click", async (event) => {

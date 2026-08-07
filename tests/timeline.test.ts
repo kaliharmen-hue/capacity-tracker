@@ -15,7 +15,7 @@ import {
   type ClusterDecision,
   type RawDailyEntry
 } from "../src/scripts/timeline-model.ts";
-import { assessMedicationResponse, associatedEpisode, buildMedicationCourses, intervalRange, recurringPattern } from "../src/scripts/review-model.ts";
+import { assessMedicationResponse, associatedEpisode, buildMedicationCourses, buildMoodCapacityPattern, intervalRange, recurringPattern } from "../src/scripts/review-model.ts";
 
 function entry(date: string, values: RawDailyEntry = {}) {
   return normalizeTimelineEntry({ date, ...values });
@@ -281,4 +281,19 @@ test("keeps medication response inconclusive when comparison data is missing", (
   const response = assessMedicationResponse(buildMedicationCourses(days)[0], days);
   assert.equal(response.trajectory, "insufficient");
   assert.equal(response.label, "Not enough data");
+});
+
+test("keeps mood, interest and waking capacity distinct in the GP pattern", () => {
+  const pattern = buildMoodCapacityPattern([
+    entry("2026-08-01", { energyScore: 4, clarityScore: 4, underlyingMood: "Mostly okay / stable", interestAvailable: "Yes", wakingChanges: ["Lower energy"], overallState: "Balanced" }),
+    entry("2026-08-02", { energyScore: 4, clarityScore: 4, underlyingMood: "Low for most of the day", interestAvailable: "No", wakingChanges: ["Lower mood"] }),
+    entry("2026-08-03", { energyScore: 7, clarityScore: 7, underlyingMood: "Low for most of the day", overallState: "Balanced" }),
+    entry("2026-08-05", { energyScore: 7, clarityScore: 7, underlyingMood: "Flat or numb", overallState: "Balanced" })
+  ]);
+  assert.equal(pattern.reducedDays, 2);
+  assert.equal(pattern.reducedWithStableMood, 1);
+  assert.equal(pattern.reducedWithInterest, 1);
+  assert.equal(pattern.reducedWithCapacityChangeOnWaking, 1);
+  assert.equal(pattern.reducedWithStableOverallState, 1);
+  assert.equal(pattern.longestLowMoodRun, 2);
 });

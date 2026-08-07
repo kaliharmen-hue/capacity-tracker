@@ -1,5 +1,5 @@
 import { getAllEntries, getClusterDecisions } from "./db";
-import { associatedEpisode, assessMedicationResponse, buildCapacityEvents, buildMedicationCourses, courseEndDate, featuresForEpisode, intervalRange, recurringPattern, relevantHormonalEpisodes } from "./review-model";
+import { associatedEpisode, assessMedicationResponse, buildCapacityEvents, buildMedicationCourses, buildMoodCapacityPattern, courseEndDate, featuresForEpisode, intervalRange, recurringPattern, relevantHormonalEpisodes } from "./review-model";
 import { daysBetween, normalizeTimelineEntry, type RawDailyEntry } from "./timeline-model";
 
 const root = document.querySelector<HTMLElement>("#gp-report");
@@ -8,6 +8,7 @@ const days = entries.map((entry) => normalizeTimelineEntry(entry as unknown as R
 const decisions = await getClusterDecisions();
 const episodes = relevantHormonalEpisodes(buildCapacityEvents(days, decisions));
 const courses = buildMedicationCourses(days);
+const moodCapacity = buildMoodCapacityPattern(days);
 
 function formatDate(date: string, includeYear = true): string {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", ...(includeYear ? { year: "numeric" } : {}), timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
@@ -32,6 +33,17 @@ function bars(): string {
   return features.length ? `<div class="frequency-bars">${features.map((feature) => `<div class="frequency-row"><div><strong>${escapeHtml(feature.label)}</strong><small>${escapeHtml(feature.group)}</small></div><div class="frequency-track"><span style="width:${Math.round(feature.episodeCount / episodes.length * 100)}%"></span></div><b>${feature.episodeCount} of ${episodes.length} episodes</b></div>`).join("")}</div><p class="frequency-note">Counts show the number of reviewed episodes containing each feature, not individual symptom days. With only ${episodes.length} reviewed episode${episodes.length === 1 ? "" : "s"}, these patterns remain provisional.</p>` : "<p>Not enough reviewed episodes yet.</p>";
 }
 
+function moodCapacitySection(): string {
+  const ratio = (value: number, total: number) => total ? `${value} of ${total} days` : "Not recorded yet";
+  const lowMoodRun = moodCapacity.moodDaysRecorded ? `${moodCapacity.longestLowMoodRun} day${moodCapacity.longestLowMoodRun === 1 ? "" : "s"}` : "Not recorded yet";
+  return `<div class="mood-capacity-grid">
+    <div><small>Reduced capacity with mood mostly okay / stable</small><strong>${ratio(moodCapacity.reducedWithStableMood, moodCapacity.reducedWithMoodData)}</strong></div>
+    <div><small>Reduced capacity with interest or connection still available</small><strong>${ratio(moodCapacity.reducedWithInterest, moodCapacity.reducedWithInterestData)}</strong></div>
+    <div><small>Reduced capacity with energy, cognitive or physical change already present on waking</small><strong>${ratio(moodCapacity.reducedWithCapacityChangeOnWaking, moodCapacity.reducedWithWakingData)}</strong></div>
+    <div><small>Longest continuous run of directly recorded low / flat mood</small><strong>${lowMoodRun}</strong></div>
+  </div>${moodCapacity.reducedWithStableOverallState ? `<p class="report-method-note">Historical context: ${moodCapacity.reducedWithStableOverallState} of ${moodCapacity.reducedDays} reduced-capacity days had an overall state recorded as Calm, Balanced or Engaged. Overall state is not treated as a direct mood measure.</p>` : ""}<p class="report-method-note">This section describes whether mood, interest and capacity varied together or independently. It does not diagnose or exclude depression.</p>`;
+}
+
 function episodeSummary(episode: (typeof episodes)[number]): string {
   const features = featuresForEpisode(episode, days).slice(0, 5);
   const linked = courses.filter((course) => associatedEpisode(course, episodes)?.id === episode.id);
@@ -49,6 +61,6 @@ function timeline(): string {
   }).join("")}</div>`;
 }
 
-if (root) root.innerHTML = `<header class="report-header"><p class="eyebrow">Personal Operating System</p><h1>PMDD / Hormonal Pattern Review</h1><p>Generated ${formatDate(new Date().toISOString().slice(0, 10))}</p></header><section><h2>Working hypothesis</h2><p>Recurring hormonally related symptoms are being investigated alongside intermittent PMDD medication trials. PMDD remains a working hypothesis and is not yet established.</p></section><section><h2>Overview</h2><div class="report-overview"><span><small>Possible hormonal episodes</small><strong>${episodes.length}</strong></span><span><small>PMDD medication courses</small><strong>${courses.length}</strong></span><span><small>Provisional interval</small><strong>${intervalRange(episodes) ?? "Not enough data"}</strong></span><span><small>Current status</small><strong>${status()}</strong></span></div></section><section><h2>Recurring hormonal pattern</h2>${bars()}</section><section><h2>Episode timeline</h2>${timeline()}</section><section><h2>Episode summaries and medication response</h2><div class="report-card-list">${episodes.map(episodeSummary).join("") || "<p>No relevant episodes to summarise.</p>"}</div><p class="report-method-note">Medication response compares recorded capacity, energy and executive clarity during the three days before each start with the following five days. An improvement following medication is an observed sequence, not proof that medication caused it.</p></section><footer><p>The wider Capacity Timeline records all periods of reduced capacity, including those that may have other causes. This PMDD Review focuses on patterns considered potentially hormonally related.</p><p><strong>Personal longitudinal tracking data. This report does not establish a diagnosis.</strong></p></footer>`;
+if (root) root.innerHTML = `<header class="report-header"><p class="eyebrow">Personal Operating System</p><h1>PMDD / Hormonal Pattern Review</h1><p>Generated ${formatDate(new Date().toISOString().slice(0, 10))}</p></header><section><h2>Working hypothesis</h2><p>Recurring hormonally related symptoms are being investigated alongside intermittent PMDD medication trials. PMDD remains a working hypothesis and is not yet established.</p></section><section><h2>Overview</h2><div class="report-overview"><span><small>Possible hormonal episodes</small><strong>${episodes.length}</strong></span><span><small>PMDD medication courses</small><strong>${courses.length}</strong></span><span><small>Provisional interval</small><strong>${intervalRange(episodes) ?? "Not enough data"}</strong></span><span><small>Current status</small><strong>${status()}</strong></span></div></section><section><h2>Mood and capacity pattern</h2>${moodCapacitySection()}</section><section><h2>Recurring hormonal pattern</h2>${bars()}</section><section><h2>Episode timeline</h2>${timeline()}</section><section><h2>Episode summaries and medication response</h2><div class="report-card-list">${episodes.map(episodeSummary).join("") || "<p>No relevant episodes to summarise.</p>"}</div><p class="report-method-note">Medication response compares recorded capacity, energy and executive clarity during the three days before each start with the following five days. An improvement following medication is an observed sequence, not proof that medication caused it.</p></section><footer><p>The wider Capacity Timeline records all periods of reduced capacity, including those that may have other causes. This PMDD Review focuses on patterns considered potentially hormonally related.</p><p><strong>Personal longitudinal tracking data. This report does not establish a diagnosis.</strong></p></footer>`;
 
 document.querySelector("#print-report")?.addEventListener("click", () => window.print());

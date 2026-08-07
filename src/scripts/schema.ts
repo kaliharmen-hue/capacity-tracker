@@ -8,6 +8,9 @@ export interface DailyEntry {
   energyPattern: string;
   endOfDayEnergy: string;
   energyNotes: string;
+  underlyingMood: string;
+  interestAvailable: string;
+  wakingChanges: string[];
   clarityScore: number;
   clarityNotes: string;
   executiveDemandLevel: string;
@@ -340,6 +343,17 @@ export const endOfDayEnergyOptions = [
   "Felt fine",
   "Still had plenty left"
 ];
+export const underlyingMoodOptions = ["Mostly okay / stable", "Lower than usual", "Low for most of the day", "Flat or numb", "Hard to tell"];
+export const interestAvailableOptions = ["Yes", "Somewhat", "No", "Not sure"];
+export const wakingChangeOptions = [
+  "Nothing noticeable",
+  "Lower energy",
+  "Slower / foggier thinking",
+  "Physical / hormonal symptoms",
+  "Lower mood",
+  "Activated / on edge",
+  "Poor sleep effects"
+];
 export const activationFirstNoticeOptions = [
   "Immediately on waking",
   "Morning",
@@ -403,6 +417,31 @@ export const sections: SectionDefinition[] = [
       { type: "select", name: "energyPattern", label: "Energy pattern today", options: ["", ...energyPatternOptions] },
       { type: "select", name: "endOfDayEnergy", label: "End-of-day energy", options: ["", ...endOfDayEnergyOptions] },
       { type: "textarea", name: "energyNotes", label: "Energy notes" }
+    ]
+  },
+  {
+    key: "moodCapacity",
+    title: "Mood and waking pattern",
+    prompt: "This separates mood from energy, brain clarity and physical capacity. It is about what I actually noticed, not what I think the cause was.",
+    fields: [
+      {
+        type: "select",
+        name: "underlyingMood",
+        label: "Separate from tiredness or brain fog, how did my underlying mood feel?",
+        options: ["", ...underlyingMoodOptions]
+      },
+      {
+        type: "select",
+        name: "interestAvailable",
+        label: "Could I still feel interest, enjoyment or connection when something suited me?",
+        options: ["", ...interestAvailableOptions]
+      },
+      {
+        type: "multi",
+        name: "wakingChanges",
+        label: "What was already different when I first woke, before demands, coffee, food or medication?",
+        options: wakingChangeOptions
+      }
     ]
   },
   {
@@ -746,6 +785,9 @@ export function createEmptyEntry(date: string): DailyEntry {
     energyPattern: "",
     endOfDayEnergy: "",
     energyNotes: "",
+    underlyingMood: "",
+    interestAvailable: "",
+    wakingChanges: [],
     clarityScore: 5,
     clarityNotes: "",
     executiveDemandLevel: "",
