@@ -2,9 +2,19 @@ import Dexie, { type Table } from "dexie";
 import type { DailyEntry } from "./schema";
 import type { ClusterDecision } from "./timeline-model";
 
+export interface PostExertionalResponse {
+  exposureDate: string;
+  worseningTiming: "No" | "Immediately" | "Several hours later" | "The following day" | "Unsure" | "";
+  disproportionate: "No" | "Possibly" | "Yes" | "Unsure" | "";
+  recoveryDuration: "Less than a few hours" | "Same day" | "1 day" | "2-3 days" | "4+ days" | "Not recovered yet" | "";
+  notes: string;
+  updatedAt: string;
+}
+
 class CapacityDatabase extends Dexie {
   entries!: Table<DailyEntry, string>;
   clusterDecisions!: Table<ClusterDecision, string>;
+  postExertionalResponses!: Table<PostExertionalResponse, string>;
 
   constructor() {
     super("capacity-tracker");
@@ -14,6 +24,11 @@ class CapacityDatabase extends Dexie {
     this.version(2).stores({
       entries: "date, updatedAt",
       clusterDecisions: "id, status, startDate, endDate, updatedAt"
+    });
+    this.version(3).stores({
+      entries: "date, updatedAt",
+      clusterDecisions: "id, status, startDate, endDate, updatedAt",
+      postExertionalResponses: "exposureDate, updatedAt"
     });
   }
 }
@@ -48,4 +63,12 @@ export async function saveClusterDecision(decision: ClusterDecision): Promise<vo
 
 export async function importClusterDecisions(decisions: ClusterDecision[]): Promise<void> {
   await db.clusterDecisions.bulkPut(decisions);
+}
+
+export async function getPostExertionalResponses(): Promise<PostExertionalResponse[]> {
+  return db.postExertionalResponses.orderBy("exposureDate").toArray();
+}
+
+export async function savePostExertionalResponse(response: PostExertionalResponse): Promise<void> {
+  await db.postExertionalResponses.put({ ...response, updatedAt: new Date().toISOString() });
 }

@@ -26,6 +26,7 @@ export interface DailyEntry {
   sleepQuality: Quality;
   wakingTime: string;
   feltRestored: Ternary;
+  whoopRecoveryScore: number | "";
   hotWaking: Ternary;
   sleepFragmentation: Ternary;
   ruminationOnWaking: Ternary;
@@ -97,6 +98,7 @@ export interface DailyEntry {
   activity4MeaningScore: number | "";
   flowContentmentActivity: string;
   capacityRemainingScore: number | "";
+  capacityImpact: string;
   innerCriticScore: number | "";
   innerCriticNotes: string;
   reflectionInfluencedToday: string;
@@ -184,6 +186,7 @@ export type FieldDefinition =
       helperText?: string;
       showWhenValue?: { name: keyof DailyEntry; value: string };
       showWhenAny?: { name: keyof DailyEntry; excluding?: string[] };
+      showWhenReducedCapacity?: boolean;
     }
   | {
       type: "time";
@@ -411,6 +414,7 @@ export const sections: SectionDefinition[] = [
       { type: "select", name: "sleepQuality", label: "How was sleep quality?", options: ["", "Good", "Okay", "Poor"] },
       { type: "time", name: "wakingTime", label: "What time did I wake?" },
       { type: "select", name: "feltRestored", label: "Did I feel restored?", options: ["", "Yes", "Somewhat", "No"] },
+      { type: "number", name: "whoopRecoveryScore", label: "WHOOP Recovery score (optional)", min: 0, max: 100, step: 1, helperText: "The 0-100 Recovery score shown in my WHOOP app." },
       { type: "select", name: "hotWaking", label: "Did I wake hot?", options: ["", "Yes", "No"] },
       { type: "select", name: "sleepFragmentation", label: "Was sleep fragmented?", options: ["", "Yes", "No"] },
       { type: "textarea", name: "sleepNotes", label: "Sleep notes" }
@@ -628,6 +632,21 @@ export const sections: SectionDefinition[] = [
         min: 0,
         max: 10,
         step: 1
+      },
+      {
+        type: "select",
+        name: "capacityImpact",
+        label: "Did my capacity affect what I was able to do today?",
+        helperText: "This is about what the day actually required. A quiet day may not have tested my capacity.",
+        options: [
+          "",
+          "No, I managed what the day required",
+          "I managed it, but only by pushing or using much more effort",
+          "I had to reduce, postpone or cancel something",
+          "I could not manage important or essential activities",
+          "Hard to tell because very little was required today"
+        ],
+        showWhenReducedCapacity: true
       }
     ]
   },
@@ -671,6 +690,7 @@ export function createEmptyEntry(date: string): DailyEntry {
     sleepQuality: "",
     wakingTime: "",
     feltRestored: "",
+    whoopRecoveryScore: "",
     hotWaking: "",
     sleepFragmentation: "",
     ruminationOnWaking: "",
@@ -742,6 +762,7 @@ export function createEmptyEntry(date: string): DailyEntry {
     activity4MeaningScore: "",
     flowContentmentActivity: "",
     capacityRemainingScore: "",
+    capacityImpact: "",
     innerCriticScore: "",
     innerCriticNotes: "",
     reflectionInfluencedToday: "",

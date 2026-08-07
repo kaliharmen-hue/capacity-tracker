@@ -106,6 +106,8 @@ function renderField(field: FieldDefinition): string {
     ? ` data-show-when-value="${String(field.showWhenValue.name)}" data-show-value="${field.showWhenValue.value}"`
     : field.showWhenAny
       ? ` data-show-when-any="${String(field.showWhenAny.name)}" data-show-excluding="${(field.showWhenAny.excluding ?? []).join("|")}"`
+      : field.showWhenReducedCapacity
+        ? ` data-show-when-reduced-capacity="true"`
       : "";
   return `<label class="field-label"${condition}>${field.label}${field.helperText ? `<span class="field-helper">${field.helperText}</span>` : ""}<select name="${field.name}">${field.options
     .map((option) => `<option value="${option}" ${String(fieldValue(field.name) ?? "") === option ? "selected" : ""}>${option || "Not answered"}</option>`)
@@ -159,6 +161,18 @@ function updateConditionalFields(): void {
     const checked = source ? [...sectionsRoot.querySelectorAll<HTMLInputElement>(`input[name="${source}"]:checked`)].some((input) => !excluded.has(input.value)) : false;
     element.hidden = !checked;
     if (element.hidden) element.querySelector<HTMLSelectElement>("select")!.value = "";
+  });
+  sectionsRoot.querySelectorAll<HTMLElement>("[data-show-when-reduced-capacity]").forEach((element) => {
+    const energy = Number(sectionsRoot.querySelector<HTMLInputElement>('[name="energyScore"]')?.value || 0);
+    const clarity = Number(sectionsRoot.querySelector<HTMLInputElement>('[name="clarityScore"]')?.value || 0);
+    const remainingRaw = sectionsRoot.querySelector<HTMLInputElement>('[name="capacityRemainingScore"]')?.value ?? "";
+    const remaining = remainingRaw === "" ? null : Number(remainingRaw);
+    const isReduced = energy <= 4 || clarity <= 4 || (remaining !== null && remaining <= 4);
+    element.hidden = !isReduced;
+    if (element.hidden) {
+      const select = element.querySelector<HTMLSelectElement>("select");
+      if (select) select.value = "";
+    }
   });
 }
 

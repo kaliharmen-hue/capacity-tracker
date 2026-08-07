@@ -16,7 +16,8 @@ import {
   type RawDailyEntry
 } from "../src/scripts/timeline-model.ts";
 import { assessMedicationResponse, associatedEpisode, buildMedicationCourses, buildMoodCapacityPattern, intervalRange, recurringPattern } from "../src/scripts/review-model.ts";
-import { buildCrashDriverAnalysis, buildSleepTimingAnalysis } from "../src/scripts/analytics.ts";
+import { buildCrashDriverAnalysis, buildSleepTimingAnalysis, buildWhoopCapacityComparison } from "../src/scripts/analytics.ts";
+import { analyseDepressivePattern, analyseMeCfsPattern, analyseTemporalPattern, buildBaselineIntervals, buildPostExertionalCandidates, buildSymptomLightIntervals } from "../src/scripts/clinical-model.ts";
 import { createEmptyEntry, type DailyEntry } from "../src/scripts/schema.ts";
 
 function entry(date: string, values: RawDailyEntry = {}) {
@@ -337,4 +338,96 @@ test("checks sleep timing against the person's own typical schedule", () => {
   assert.equal(analysis.typicalWakeTime, "05:30");
   assert.match(analysis.status, /No clear schedule-irregularity signal/);
   assert.match(analysis.lateCoffeeDetail, /next-day crash pattern followed 1 time/);
+});
+
+test("baseline intervals require consecutive recorded Baseline days", () => {
+  const intervals = buildBaselineIntervals([
+    entry("2026-08-01", { energyScore: 8, clarityScore: 8, overallState: "Balanced" }),
+    entry("2026-08-02", { energyScore: 8, clarityScore: 8, overallState: "Balanced" }),
+    entry("2026-08-04", { energyScore: 8, clarityScore: 8, overallState: "Balanced" }),
+    entry("2026-08-05", { energyScore: 4, clarityScore: 4 })
+  ]);
+  assert.deepEqual(intervals, [{ startDate: "2026-08-01", endDate: "2026-08-02", days: 2 }]);
+});
+
+test("depression analysis uses direct mood and interest answers with exact denominators", () => {
+  const days = [
+    entry("2026-08-01", { energyScore: 4, clarityScore: 4, underlyingMood: "Mostly okay / stable", interestAvailable: "Yes" }),
+    entry("2026-08-02", { energyScore: 4, clarityScore: 4, underlyingMood: "Low for most of the day", interestAvailable: "Somewhat", capacityImpact: "I managed it, but only by pushing or using much more effort" }),
+    entry("2026-08-03", { energyScore: 4, clarityScore: 4, underlyingMood: "Flat or numb", interestAvailable: "No", capacityImpact: "I had to reduce, postpone or cancel something" }),
+    entry("2026-08-04", { energyScore: 8, clarityScore: 8, overallState: "Balanced", underlyingMood: "Mostly okay / stable", interestAvailable: "Yes" }),
+    entry("2026-08-05", { energyScore: 8, clarityScore: 8, overallState: "Balanced", underlyingMood: "Mostly okay / stable", interestAvailable: "Yes" })
+  ];
+  const result = analyseDepressivePattern(days);
+  assert.equal(result.directLowMoodDays, 2);
+  assert.equal(result.moodRecorded, 5);
+  assert.equal(result.reducedCapacityInterestRecorded, 3);
+  assert.equal(result.interestAvailableOnReducedDays, 1);
+  assert.equal(result.interestPartlyAvailableOnReducedDays, 1);
+  assert.equal(result.interestUnavailableOnReducedDays, 1);
+  assert.equal(result.longestCoreRun, 2);
+  assert.equal(result.substantialImpactDays, 1);
+  assert.equal(result.baselineIntervals.length, 1);
+});
+
+test("fatigue alone does not start an ME/CFS duration clock", () => {
+  const days = Array.from({ length: 50 }, (_, index) => {
+    const date = new Date(Date.UTC(2026, 5, index + 1)).toISOString().slice(0, 10);
+    return entry(date, { energyScore: 3, clarityScore: 7, feltRestored: "Yes" });
+  });
+  const result = analyseMeCfsPattern(days, []);
+  assert.equal(result.fatigueDays, 50);
+  assert.equal(result.pemResponsesRecorded, 0);
+  assert.equal(result.continuousPatternDays, 0);
+  assert.equal(result.status, "Insufficient evidence");
+});
+
+test("post-exertional candidates require demanding activity plus a draining or later reduced response", () => {
+  const days = [
+    entry("2026-08-01", { energyScore: 8, clarityScore: 8, overallState: "Balanced", movementTypes: ["Walking"], movementIntensity: "Light" }),
+    entry("2026-08-02", { energyScore: 8, clarityScore: 8, overallState: "Balanced", movementTypes: ["Full body"], movementIntensity: "Hard" }),
+    entry("2026-08-03", { energyScore: 4, clarityScore: 4 })
+  ];
+  const candidates = buildPostExertionalCandidates(days, []);
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].exposureDate, "2026-08-02");
+  assert.equal(candidates[0].laterReductionDate, "2026-08-03");
+});
+
+test("temporal analysis reports exact episodic evidence when recovery intervals follow episodes", () => {
+  const days = [
+    entry("2026-08-01", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-02", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-03", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-04", { energyScore: 8, clarityScore: 8, overallState: "Balanced" }),
+    entry("2026-08-05", { energyScore: 8, clarityScore: 8, overallState: "Balanced" }),
+    entry("2026-08-16", { energyScore: 8, clarityScore: 8, overallState: "Balanced" })
+  ];
+  const episodes = detectCapacityClusters(days).filter((cluster) => cluster.kind === "episode");
+  const result = analyseTemporalPattern(days, episodes);
+  assert.equal(result.state, "Predominantly episodic");
+  assert.equal(result.episodes, 1);
+  assert.equal(result.baselineIntervals.length, 1);
+});
+
+test("symptom-light intervals require explicit hormonal, mood and interest evidence", () => {
+  const intervals = buildSymptomLightIntervals([
+    entry("2026-08-01", { energyScore: 8, clarityScore: 8, overallState: "Balanced", underlyingMood: "Mostly okay / stable", interestAvailable: "Yes", hormonalSigns: ["No noticeable signs"] }),
+    entry("2026-08-02", { energyScore: 8, clarityScore: 8, overallState: "Balanced", underlyingMood: "Mostly okay / stable", interestAvailable: "Somewhat", familiarHormonalPattern: "No" }),
+    entry("2026-08-03", { energyScore: 8, clarityScore: 8, overallState: "Balanced", underlyingMood: "Mostly okay / stable", interestAvailable: "Yes" })
+  ]);
+  assert.deepEqual(intervals, [{ startDate: "2026-08-01", endDate: "2026-08-02", days: 2 }]);
+});
+
+test("WHOOP comparison reports exact agreement and mismatch counts", () => {
+  const entries = [
+    dailyEntry("2026-08-01", { whoopRecoveryScore: 80, energyScore: 8, clarityScore: 8 }),
+    dailyEntry("2026-08-02", { whoopRecoveryScore: 75, energyScore: 3, clarityScore: 4 }),
+    dailyEntry("2026-08-03", { whoopRecoveryScore: 20, energyScore: 8, clarityScore: 8 })
+  ];
+  const result = buildWhoopCapacityComparison(entries);
+  assert.equal(result.pairedDays, 3);
+  assert.equal(result.sameBandDays, 1);
+  assert.equal(result.highWhoopReducedCapacityDays, 1);
+  assert.equal(result.lowWhoopBaselineDays, 1);
 });

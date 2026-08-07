@@ -1450,6 +1450,158 @@ button.capacity-day:focus-visible {
   font-size: 1.05rem;
 }
 
+.clinical-heading {
+  border-bottom: 3px solid var(--accent-soft);
+  padding-bottom: 20px;
+}
+
+.clinical-heading h2 {
+  font-size: 2.4rem;
+}
+
+.clinical-pattern-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.clinical-pattern-card {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  box-shadow: var(--shadow);
+}
+
+.clinical-pattern-card header,
+.clinical-pattern-card section {
+  display: grid;
+  gap: 7px;
+}
+
+.clinical-pattern-card h3,
+.clinical-pattern-card h4,
+.clinical-pattern-card p {
+  margin: 0;
+}
+
+.clinical-pattern-card header > p:last-child,
+.clinical-pattern-card section > p,
+.clinical-pattern-card li {
+  color: var(--muted);
+}
+
+.clinical-evidence-list {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  background: var(--line);
+}
+
+.clinical-evidence-list > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(160px, 1.2fr);
+  gap: 12px;
+  padding: 10px;
+  background: var(--surface);
+}
+
+.clinical-evidence-list dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.clinical-evidence-list dd {
+  margin: 0;
+  font-weight: 800;
+}
+
+.post-exertional-list,
+.recorded-response-list {
+  display: grid;
+  gap: 12px;
+}
+
+.post-exertional-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--rose);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.post-exertional-card h4,
+.post-exertional-card p {
+  margin: 0;
+}
+
+.recorded-response-list {
+  margin-top: 12px;
+}
+
+.recorded-response-list article {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.3fr) minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  border-left: 3px solid var(--accent-soft);
+  background: var(--surface);
+}
+
+.recorded-response-list span {
+  color: var(--muted);
+}
+
+.clinical-disclaimer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eef4f0;
+}
+
+.clinical-disclaimer p {
+  margin: 0;
+}
+
+.clinical-disclaimer .copy-status {
+  grid-column: 1 / -1;
+}
+
+.whoop-comparison {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+  padding: 14px;
+  border-left: 4px solid #557c9a;
+  background: #f1f5f7;
+}
+
+.whoop-comparison h4,
+.whoop-comparison p {
+  margin: 0;
+}
+
+.whoop-comparison small {
+  color: var(--muted);
+}
+
+.clinical-threshold-note {
+  padding: 12px;
+  border-left: 4px solid var(--rose);
+  background: #fbf1f3;
+}
+
 .pmdd-episode-card {
   display: grid;
   gap: 14px;
@@ -1758,7 +1910,14 @@ button.capacity-day:focus-visible {
   .episode-recovery,
   .medication-response,
   .mood-capacity-grid,
+  .clinical-pattern-grid,
   .report-calendars {
+    grid-template-columns: 1fr;
+  }
+
+  .clinical-evidence-list > div,
+  .recorded-response-list article,
+  .clinical-disclaimer {
     grid-template-columns: 1fr;
   }
 
@@ -1859,6 +2018,10 @@ button.capacity-day:focus-visible {
   .page-heading {
     grid-template-columns: 1fr auto;
     align-items: end;
+  }
+
+  .page-heading.clinical-heading {
+    grid-template-columns: minmax(330px, 0.8fr) minmax(360px, 1.2fr);
   }
 
   .form-section {

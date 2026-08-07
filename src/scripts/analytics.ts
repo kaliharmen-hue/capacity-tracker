@@ -86,6 +86,43 @@ export interface SleepTimingAnalysis {
   lateCoffeeDetail: string;
 }
 
+export interface WhoopCapacityComparison {
+  pairedDays: number;
+  sameBandDays: number;
+  differentBandDays: number;
+  highWhoopReducedCapacityDays: number;
+  lowWhoopBaselineDays: number;
+  status: string;
+}
+
+export function buildWhoopCapacityComparison(entries: DailyEntry[]): WhoopCapacityComparison {
+  const paired = entries.filter((entry) => typeof entry.whoopRecoveryScore === "number" && Number.isFinite(entry.whoopRecoveryScore));
+  const whoopBand = (score: number) => score >= 67 ? 2 : score >= 34 ? 1 : 0;
+  const capacityBand = (entry: DailyEntry) => {
+    if (entry.energyScore >= 7 && entry.clarityScore >= 7) return 2;
+    if (entry.energyScore <= 4 || entry.clarityScore <= 4) return 0;
+    return 1;
+  };
+  const sameBandDays = paired.filter((entry) => whoopBand(Number(entry.whoopRecoveryScore)) === capacityBand(entry)).length;
+  const highWhoopReducedCapacityDays = paired.filter((entry) => whoopBand(Number(entry.whoopRecoveryScore)) === 2 && capacityBand(entry) === 0).length;
+  const lowWhoopBaselineDays = paired.filter((entry) => whoopBand(Number(entry.whoopRecoveryScore)) === 0 && capacityBand(entry) === 2).length;
+  const status = paired.length < 10
+    ? "At least 10 paired days are needed before comparing WHOOP Recovery with subjective capacity."
+    : sameBandDays / paired.length >= 0.7
+      ? `WHOOP Recovery and subjective capacity were in the same broad band on ${sameBandDays} of ${paired.length} paired days.`
+      : sameBandDays / paired.length <= 0.5
+        ? `WHOOP Recovery and subjective capacity were in different broad bands on ${paired.length - sameBandDays} of ${paired.length} paired days.`
+        : `WHOOP Recovery and subjective capacity showed a mixed relationship: the broad bands matched on ${sameBandDays} of ${paired.length} paired days.`;
+  return {
+    pairedDays: paired.length,
+    sameBandDays,
+    differentBandDays: paired.length - sameBandDays,
+    highWhoopReducedCapacityDays,
+    lowWhoopBaselineDays,
+    status
+  };
+}
+
 function isCrashPattern(entry: DailyEntry): boolean {
   return ["Afternoon crash", "Evening crash", "Up and down", "Exhausted / pushed too far"].includes(entry.energyPattern);
 }

@@ -3,7 +3,7 @@ import "../styles/global.css";
 
 interface Props {
   title: string;
-  active: "daily" | "timeline" | "weekly" | "monthly" | "pmdd" | "experiments" | "export";
+  active: "daily" | "timeline" | "weekly" | "monthly" | "pmdd" | "clinical" | "experiments" | "export";
 }
 
 const { title, active } = Astro.props;
@@ -17,6 +17,7 @@ const links = [
   { href: `${base}history/`, label: "Weekly Review", key: "weekly" },
   { href: `${base}insights/`, label: "Monthly Insights", key: "monthly" },
   { href: `${base}pmdd/`, label: "PMDD Review", key: "pmdd" },
+  { href: `${base}clinical/`, label: "Clinical Patterns", key: "clinical" },
   { href: `${base}experiments/`, label: "Experiments", key: "experiments" },
   { href: `${base}export/`, label: "Export", key: "export" }
 ];
@@ -60,7 +61,7 @@ const links = [
       if ("serviceWorker" in navigator) {
         const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
         window.addEventListener("load", () => {
-          navigator.serviceWorker.register(`${base}sw.js`).catch(() => undefined);
+          navigator.serviceWorker.register(`${base}sw.js?v=9`).then((registration) => registration.update()).catch(() => undefined);
         });
       }
     </script>

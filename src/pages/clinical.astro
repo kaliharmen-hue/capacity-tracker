@@ -1,0 +1,52 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Clinical Pattern Evidence" active="clinical">
+  <section class="page-heading clinical-heading">
+    <div>
+      <p class="eyebrow">Longitudinal evidence</p>
+      <h2>Clinical Pattern Evidence</h2>
+    </div>
+    <p class="soft-copy">This compares the recorded timing, persistence, function and recovery pattern with features clinicians consider. It does not diagnose or exclude any condition.</p>
+  </section>
+
+  <section id="clinical-overview" class="summary-grid" aria-live="polite"></section>
+
+  <section class="clinical-pattern-grid">
+    <article id="depression-pattern" class="clinical-pattern-card" aria-live="polite"></article>
+    <article id="mecfs-pattern" class="clinical-pattern-card" aria-live="polite"></article>
+  </section>
+
+  <section class="plain-panel">
+    <div class="section-title">
+      <div>
+        <p class="eyebrow">Delayed response check</p>
+        <h3>Post-exertional follow-ups</h3>
+        <p>These appear only when a demanding activity was followed by recorded reduced capacity, or when movement was recorded as draining. A prompt does not mean the response was PEM.</p>
+      </div>
+    </div>
+    <div id="post-exertional-followups" class="post-exertional-list" aria-live="polite"></div>
+  </section>
+
+  <section id="other-contributors" class="plain-panel" aria-live="polite"></section>
+
+  <section class="plain-panel clinical-comparison">
+    <div class="section-title">
+      <div>
+        <p class="eyebrow">Working hypotheses stay separate</p>
+        <h3>Hormonal comparison</h3>
+      </div>
+      <a class="secondary-button" href="../pmdd/">Open PMDD Review</a>
+    </div>
+    <div id="hormonal-comparison" aria-live="polite"></div>
+  </section>
+
+  <section class="clinical-disclaimer">
+    <p>These pattern summaries organise longitudinal observations against recognised clinical features. They are not diagnoses and cannot replace clinical assessment or investigations for alternative causes.</p>
+    <button id="copy-clinical-summary" class="primary-button" type="button">Copy exact summary</button>
+    <p id="clinical-copy-status" class="copy-status" aria-live="polite"></p>
+  </section>
+
+  <script src="../scripts/clinical.ts"></script>
+</BaseLayout>

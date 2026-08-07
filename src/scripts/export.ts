@@ -1,4 +1,4 @@
-import { getAllEntries, getClusterDecisions, importClusterDecisions, importEntries } from "./db";
+import { db, getAllEntries, getClusterDecisions, getPostExertionalResponses, importClusterDecisions, importEntries, type PostExertionalResponse } from "./db";
 import { createEmptyEntry, sections, todayIso, type DailyEntry } from "./schema";
 import type { ClusterDecision } from "./timeline-model";
 
@@ -14,9 +14,10 @@ const backupKey = "personal-operating-system-last-json-backup";
 let latestPreviewText = "";
 
 interface PersonalOperatingSystemBackup {
-  version: 2;
+  version: 2 | 3;
   entries: DailyEntry[];
   clusterDecisions: ClusterDecision[];
+  postExertionalResponses?: PostExertionalResponse[];
 }
 
 dateInput!.value = new URLSearchParams(window.location.search).get("date") || todayIso();
@@ -195,7 +196,8 @@ document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) =
 
     if (action === "json") {
       const clusterDecisions = await getClusterDecisions();
-      const backup: PersonalOperatingSystemBackup = { version: 2, entries, clusterDecisions };
+      const postExertionalResponses = await getPostExertionalResponses();
+      const backup: PersonalOperatingSystemBackup = { version: 3, entries, clusterDecisions, postExertionalResponses };
       const content = JSON.stringify(backup, null, 2);
       setPreview(entries.length ? content : showEmptyState("any date"));
       if (entries.length) {
@@ -214,9 +216,11 @@ importInput?.addEventListener("change", async () => {
   const parsed = JSON.parse(text) as DailyEntry[] | PersonalOperatingSystemBackup;
   const entries = Array.isArray(parsed) ? parsed : parsed.entries;
   const clusterDecisions = Array.isArray(parsed) ? [] : parsed.clusterDecisions ?? [];
+  const postExertionalResponses = Array.isArray(parsed) ? [] : parsed.postExertionalResponses ?? [];
   await importEntries(entries);
   if (clusterDecisions.length) await importClusterDecisions(clusterDecisions);
-  setPreview(`Imported ${entries.length} entries${clusterDecisions.length ? ` and ${clusterDecisions.length} cluster decisions` : ""}.`);
+  if (postExertionalResponses.length) await db.postExertionalResponses.bulkPut(postExertionalResponses);
+  setPreview(`Imported ${entries.length} entries${clusterDecisions.length ? `, ${clusterDecisions.length} cluster decisions` : ""}${postExertionalResponses.length ? ` and ${postExertionalResponses.length} post-exertional responses` : ""}.`);
 });
 
 sharePreviewButton?.addEventListener("click", () => {
