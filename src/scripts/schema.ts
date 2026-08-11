@@ -8,6 +8,7 @@ export interface DailyEntry {
   energyPattern: string;
   endOfDayEnergy: string;
   energyNotes: string;
+  wakingMood: string;
   underlyingMood: string;
   interestAvailable: string;
   wakingChanges: string[];
@@ -358,7 +359,8 @@ export const endOfDayEnergyOptions = [
   "Felt fine",
   "Still had plenty left"
 ];
-export const underlyingMoodOptions = ["Mostly okay / stable", "Lower than usual", "Low for most of the day", "Flat or numb", "Hard to tell"];
+export const wakingMoodOptions = ["Very positive", "Good", "Neutral / okay", "Lower than usual", "Low", "Flat or emotionally numb", "Hard to tell"];
+export const underlyingMoodOptions = ["Positive / good", "Mostly okay / stable", "Mixed / changeable", "Lower than usual", "Low for most of the day", "Flat or emotionally numb", "Hard to tell"];
 export const interestAvailableOptions = ["Yes", "Somewhat", "No", "Not sure"];
 export const wakingChangeOptions = [
   "Nothing noticeable",
@@ -435,13 +437,20 @@ export const sections: SectionDefinition[] = [
   },
   {
     key: "moodCapacity",
-    title: "Mood and waking pattern",
-    prompt: "This separates mood from energy, brain clarity and physical capacity. It is about what I actually noticed, not what I think the cause was.",
+    title: "Mood pattern",
+    prompt: "This is only about mood. Energy, brain clarity, activation and physical symptoms are recorded separately.",
     fields: [
       {
         type: "select",
+        name: "wakingMood",
+        label: "What was my mood when I first woke this morning?",
+        helperText: "Before coffee, food, medication or the day's demands.",
+        options: ["", ...wakingMoodOptions]
+      },
+      {
+        type: "select",
         name: "underlyingMood",
-        label: "Separate from tiredness or brain fog, how did my underlying mood feel?",
+        label: "How did my underlying mood feel across most of the day?",
         options: ["", ...underlyingMoodOptions]
       },
       {
@@ -449,12 +458,6 @@ export const sections: SectionDefinition[] = [
         name: "interestAvailable",
         label: "Could I still feel interest, enjoyment or connection when something suited me?",
         options: ["", ...interestAvailableOptions]
-      },
-      {
-        type: "multi",
-        name: "wakingChanges",
-        label: "What was already different when I first woke, before demands, coffee, food or medication?",
-        options: wakingChangeOptions
       }
     ]
   },
@@ -672,6 +675,7 @@ export function createEmptyEntry(date: string): DailyEntry {
     energyPattern: "",
     endOfDayEnergy: "",
     energyNotes: "",
+    wakingMood: "",
     underlyingMood: "",
     interestAvailable: "",
     wakingChanges: [],

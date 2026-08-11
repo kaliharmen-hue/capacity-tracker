@@ -1,4 +1,4 @@
-const CACHE_NAME = "personal-operating-system-v9";
+const CACHE_NAME = "personal-operating-system-v10";
 
 function appUrl(path) {
   return new URL(path, self.registration.scope).href;

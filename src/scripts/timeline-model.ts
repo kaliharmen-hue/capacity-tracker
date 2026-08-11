@@ -54,6 +54,7 @@ export interface NormalizedTimelineDay {
   sleepQuality: string;
   overallState: string;
   endOfDayEnergy: string;
+  wakingMood: string;
   underlyingMood: string;
   interestAvailable: string;
   wakingChanges: string[];
@@ -236,6 +237,7 @@ export function normalizeTimelineEntry(raw: RawDailyEntry): NormalizedTimelineDa
   const emotionalState = asArray(raw, ["emotionalState", "emotionalStates", "mood"]);
   const legacyNervousState = asArray(raw, ["nervousSystemState", "nervousState"]);
   const overallState = asString(raw, ["overallState"]) || legacyNervousState[0] || emotionalState[0] || "";
+  const wakingMood = asString(raw, ["wakingMood"]);
   const underlyingMood = asString(raw, ["underlyingMood"]);
   const interestAvailable = asString(raw, ["interestAvailable"]);
   const wakingChanges = asArray(raw, ["wakingChanges"]);
@@ -289,6 +291,7 @@ export function normalizeTimelineEntry(raw: RawDailyEntry): NormalizedTimelineDa
       includesAny(executiveFriction, ["brain fog"]),
     headSwimming: textIncludes(noteText, [/head (was |felt )?swim/, /swimmy/, /mildly intoxicated/, /intoxicated feeling/, /felt drunk/]),
     lowMood:
+      ["lower than usual", "low for most of the day", "flat or emotionally numb", "flat or numb"].includes(underlyingMood.toLowerCase()) ||
       includesAny(moodChanges, ["low", "flat", "shutdown", "heavy"]) ||
       textIncludes(noteText, [/low mood/, /flat mood/, /felt flat/, /emotionally flat/]),
     cravings: includesAny(allSigns, ["craving"]) || textIncludes(noteText, [/\bcraving/]),
@@ -319,6 +322,7 @@ export function normalizeTimelineEntry(raw: RawDailyEntry): NormalizedTimelineDa
     sleepQuality,
     overallState,
     endOfDayEnergy,
+    wakingMood,
     underlyingMood,
     interestAvailable,
     wakingChanges,

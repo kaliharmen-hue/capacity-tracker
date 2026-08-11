@@ -290,17 +290,18 @@ test("keeps medication response inconclusive when comparison data is missing", (
   assert.equal(response.label, "Not enough data");
 });
 
-test("keeps mood, interest and waking capacity distinct in the GP pattern", () => {
+test("keeps waking mood, day-long mood and interest distinct in the GP pattern", () => {
   const pattern = buildMoodCapacityPattern([
-    entry("2026-08-01", { energyScore: 4, clarityScore: 4, underlyingMood: "Mostly okay / stable", interestAvailable: "Yes", wakingChanges: ["Lower energy"], overallState: "Balanced" }),
-    entry("2026-08-02", { energyScore: 4, clarityScore: 4, underlyingMood: "Low for most of the day", interestAvailable: "No", wakingChanges: ["Lower mood"] }),
+    entry("2026-08-01", { energyScore: 4, clarityScore: 4, wakingMood: "Neutral / okay", underlyingMood: "Mostly okay / stable", interestAvailable: "Yes", overallState: "Balanced" }),
+    entry("2026-08-02", { energyScore: 4, clarityScore: 4, wakingMood: "Low", underlyingMood: "Low for most of the day", interestAvailable: "No" }),
     entry("2026-08-03", { energyScore: 7, clarityScore: 7, underlyingMood: "Low for most of the day", overallState: "Balanced" }),
     entry("2026-08-05", { energyScore: 7, clarityScore: 7, underlyingMood: "Flat or numb", overallState: "Balanced" })
   ]);
   assert.equal(pattern.reducedDays, 2);
   assert.equal(pattern.reducedWithStableMood, 1);
   assert.equal(pattern.reducedWithInterest, 1);
-  assert.equal(pattern.reducedWithCapacityChangeOnWaking, 1);
+  assert.equal(pattern.reducedWithWakingMoodData, 2);
+  assert.equal(pattern.reducedWithNeutralOrPositiveWakingMood, 1);
   assert.equal(pattern.reducedWithStableOverallState, 1);
   assert.equal(pattern.longestLowMoodRun, 2);
 });
@@ -352,7 +353,7 @@ test("baseline intervals require consecutive recorded Baseline days", () => {
 
 test("depression analysis uses direct mood and interest answers with exact denominators", () => {
   const days = [
-    entry("2026-08-01", { energyScore: 4, clarityScore: 4, underlyingMood: "Mostly okay / stable", interestAvailable: "Yes" }),
+    entry("2026-08-01", { energyScore: 4, clarityScore: 4, wakingMood: "Good", underlyingMood: "Mostly okay / stable", interestAvailable: "Yes" }),
     entry("2026-08-02", { energyScore: 4, clarityScore: 4, underlyingMood: "Low for most of the day", interestAvailable: "Somewhat", capacityImpact: "I managed it, but only by pushing or using much more effort" }),
     entry("2026-08-03", { energyScore: 4, clarityScore: 4, underlyingMood: "Flat or numb", interestAvailable: "No", capacityImpact: "I had to reduce, postpone or cancel something" }),
     entry("2026-08-04", { energyScore: 8, clarityScore: 8, overallState: "Balanced", underlyingMood: "Mostly okay / stable", interestAvailable: "Yes" }),
@@ -365,6 +366,8 @@ test("depression analysis uses direct mood and interest answers with exact denom
   assert.equal(result.interestAvailableOnReducedDays, 1);
   assert.equal(result.interestPartlyAvailableOnReducedDays, 1);
   assert.equal(result.interestUnavailableOnReducedDays, 1);
+  assert.equal(result.reducedCapacityWakingMoodRecorded, 1);
+  assert.equal(result.neutralOrPositiveWakingMoodOnReducedDays, 1);
   assert.equal(result.longestCoreRun, 2);
   assert.equal(result.substantialImpactDays, 1);
   assert.equal(result.baselineIntervals.length, 1);

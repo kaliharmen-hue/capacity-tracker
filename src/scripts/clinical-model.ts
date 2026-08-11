@@ -18,12 +18,15 @@ export interface DepressionPatternEvidence {
   trackedDays: number;
   moodRecorded: number;
   interestRecorded: number;
+  wakingMoodRecorded: number;
   directLowMoodDays: number;
   reducedInterestDays: number;
   longestCoreRun: number;
   strongestWindow: { startDate: string; endDate: string; coreDays: number; recordedDays: number } | null;
   reducedCapacityDays: number;
   reducedCapacityInterestRecorded: number;
+  reducedCapacityWakingMoodRecorded: number;
+  neutralOrPositiveWakingMoodOnReducedDays: number;
   interestAvailableOnReducedDays: number;
   interestPartlyAvailableOnReducedDays: number;
   interestUnavailableOnReducedDays: number;
@@ -98,7 +101,7 @@ function isReduced(day: NormalizedTimelineDay): boolean {
 }
 
 function isCoreMoodDay(day: NormalizedTimelineDay): boolean {
-  return ["Low for most of the day", "Flat or numb"].includes(day.underlyingMood) || day.interestAvailable === "No";
+  return ["Low for most of the day", "Flat or emotionally numb", "Flat or numb"].includes(day.underlyingMood) || day.interestAvailable === "No";
 }
 
 function longestConsecutiveRun(days: NormalizedTimelineDay[], test: (day: NormalizedTimelineDay) => boolean): number {
@@ -142,7 +145,7 @@ export function buildSymptomLightIntervals(days: NormalizedTimelineDay[]): Basel
   const hormoneFlags = ["headSwimming", "cravings", "increasedAppetite", "bloating", "sensitivity", "bodyTension", "skinChanges", "bleedingSpotting"] as const;
   const isExplicitlyLight = (day: NormalizedTimelineDay) => {
     const hormonalClear = day.hormonalSigns.includes("No noticeable signs") || day.familiarHormonalPattern === "No";
-    const moodClear = day.underlyingMood === "Mostly okay / stable" && ["Yes", "Somewhat"].includes(day.interestAvailable);
+    const moodClear = ["Positive / good", "Mostly okay / stable"].includes(day.underlyingMood) && ["Yes", "Somewhat"].includes(day.interestAvailable);
     return day.capacityState === "Baseline" && hormonalClear && moodClear && !hormoneFlags.some((flag) => day.flags[flag]);
   };
   const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
@@ -169,7 +172,7 @@ function strongestFourteenDayWindow(days: NormalizedTimelineDay[]) {
   for (const start of days) {
     const endDate = addDays(start.date, 13);
     const windowDays = days.filter((day) => day.date >= start.date && day.date <= endDate);
-    const recorded = windowDays.filter((day) => day.underlyingMood || ["Yes", "Somewhat", "No"].includes(day.interestAvailable));
+    const recorded = windowDays.filter((day) => (day.underlyingMood && day.underlyingMood !== "Hard to tell") || ["Yes", "Somewhat", "No"].includes(day.interestAvailable));
     const core = windowDays.filter(isCoreMoodDay);
     if (!strongest || core.length > strongest.coreDays || (core.length === strongest.coreDays && recorded.length > strongest.recordedDays)) {
       strongest = { startDate: start.date, endDate, coreDays: core.length, recordedDays: recorded.length };
@@ -182,10 +185,12 @@ export function analyseDepressivePattern(days: NormalizedTimelineDay[]): Depress
   const sorted = [...days].filter((day) => day.date).sort((a, b) => a.date.localeCompare(b.date));
   const moodRecorded = sorted.filter((day) => day.underlyingMood && day.underlyingMood !== "Hard to tell");
   const interestRecorded = sorted.filter((day) => ["Yes", "Somewhat", "No"].includes(day.interestAvailable));
-  const directLowMood = sorted.filter((day) => ["Low for most of the day", "Flat or numb"].includes(day.underlyingMood));
+  const wakingMoodRecorded = sorted.filter((day) => day.wakingMood && day.wakingMood !== "Hard to tell");
+  const directLowMood = sorted.filter((day) => ["Low for most of the day", "Flat or emotionally numb", "Flat or numb"].includes(day.underlyingMood));
   const reducedInterest = sorted.filter((day) => day.interestAvailable === "No");
   const reduced = sorted.filter(isReduced);
   const reducedInterestAnswered = reduced.filter((day) => ["Yes", "Somewhat", "No"].includes(day.interestAvailable));
+  const reducedWakingMoodAnswered = reduced.filter((day) => day.wakingMood && day.wakingMood !== "Hard to tell");
   const impacts = sorted.map((day) => rawString(day, "capacityImpact")).filter(Boolean);
   const strongestWindow = strongestFourteenDayWindow(sorted);
   const substantialImpactDays = impacts.filter((impact) => impactSubstantial.has(impact)).length;
@@ -203,6 +208,7 @@ export function analyseDepressivePattern(days: NormalizedTimelineDay[]): Depress
   const missingEvidence: string[] = [];
   if (moodRecorded.length < sorted.length) missingEvidence.push(`Underlying mood was not directly recorded or was marked hard to tell on ${sorted.length - moodRecorded.length} of ${sorted.length} tracked days.`);
   if (interestRecorded.length < sorted.length) missingEvidence.push(`Enjoyment or connection was not directly recorded on ${sorted.length - interestRecorded.length} of ${sorted.length} tracked days.`);
+  if (wakingMoodRecorded.length < sorted.length) missingEvidence.push(`Waking mood was not directly recorded on ${sorted.length - wakingMoodRecorded.length} of ${sorted.length} tracked days.`);
   if (impacts.length < reduced.length) missingEvidence.push(`Functional impact was not directly recorded on ${reduced.length - impacts.length} of ${reduced.length} reduced-capacity days.`);
 
   return {
@@ -210,12 +216,15 @@ export function analyseDepressivePattern(days: NormalizedTimelineDay[]): Depress
     trackedDays: sorted.length,
     moodRecorded: moodRecorded.length,
     interestRecorded: interestRecorded.length,
+    wakingMoodRecorded: wakingMoodRecorded.length,
     directLowMoodDays: directLowMood.length,
     reducedInterestDays: reducedInterest.length,
     longestCoreRun,
     strongestWindow,
     reducedCapacityDays: reduced.length,
     reducedCapacityInterestRecorded: reducedInterestAnswered.length,
+    reducedCapacityWakingMoodRecorded: reducedWakingMoodAnswered.length,
+    neutralOrPositiveWakingMoodOnReducedDays: reducedWakingMoodAnswered.filter((day) => ["Very positive", "Good", "Neutral / okay"].includes(day.wakingMood)).length,
     interestAvailableOnReducedDays: reducedInterestAnswered.filter((day) => day.interestAvailable === "Yes").length,
     interestPartlyAvailableOnReducedDays: reducedInterestAnswered.filter((day) => day.interestAvailable === "Somewhat").length,
     interestUnavailableOnReducedDays: reducedInterestAnswered.filter((day) => day.interestAvailable === "No").length,

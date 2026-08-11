@@ -43,8 +43,8 @@ export interface MoodCapacityPattern {
   reducedWithStableMood: number;
   reducedWithInterestData: number;
   reducedWithInterest: number;
-  reducedWithWakingData: number;
-  reducedWithCapacityChangeOnWaking: number;
+  reducedWithWakingMoodData: number;
+  reducedWithNeutralOrPositiveWakingMood: number;
   reducedWithStableOverallState: number;
   longestLowMoodRun: number;
 }
@@ -186,10 +186,9 @@ export function assessMedicationResponse(course: MedicationCourse, days: Normali
 
 export function buildMoodCapacityPattern(days: NormalizedTimelineDay[]): MoodCapacityPattern {
   const reduced = days.filter((day) => ["Reduced", "Significant reduction"].includes(day.capacityState ?? ""));
-  const reducedWithMood = reduced.filter((day) => Boolean(day.underlyingMood));
-  const reducedWithInterest = reduced.filter((day) => Boolean(day.interestAvailable));
-  const reducedWithWaking = reduced.filter((day) => day.wakingChanges.length > 0);
-  const wakingCapacityTerms = ["lower energy", "slower / foggier thinking", "physical / hormonal symptoms"];
+  const reducedWithMood = reduced.filter((day) => Boolean(day.underlyingMood) && day.underlyingMood !== "Hard to tell");
+  const reducedWithInterest = reduced.filter((day) => ["Yes", "Somewhat", "No"].includes(day.interestAvailable));
+  const reducedWithWakingMood = reduced.filter((day) => Boolean(day.wakingMood) && day.wakingMood !== "Hard to tell");
   const lowMoodDays = days
     .filter((day) => ["low for most of the day", "flat or numb"].includes(day.underlyingMood.toLowerCase()))
     .sort((left, right) => left.date.localeCompare(right.date));
@@ -203,13 +202,13 @@ export function buildMoodCapacityPattern(days: NormalizedTimelineDay[]): MoodCap
   }
   return {
     reducedDays: reduced.length,
-    moodDaysRecorded: days.filter((day) => Boolean(day.underlyingMood)).length,
+    moodDaysRecorded: days.filter((day) => Boolean(day.underlyingMood) && day.underlyingMood !== "Hard to tell").length,
     reducedWithMoodData: reducedWithMood.length,
-    reducedWithStableMood: reducedWithMood.filter((day) => day.underlyingMood === "Mostly okay / stable").length,
+    reducedWithStableMood: reducedWithMood.filter((day) => ["Positive / good", "Mostly okay / stable"].includes(day.underlyingMood)).length,
     reducedWithInterestData: reducedWithInterest.length,
     reducedWithInterest: reducedWithInterest.filter((day) => ["yes", "somewhat"].includes(day.interestAvailable.toLowerCase())).length,
-    reducedWithWakingData: reducedWithWaking.length,
-    reducedWithCapacityChangeOnWaking: reducedWithWaking.filter((day) => day.wakingChanges.some((change) => wakingCapacityTerms.includes(change.toLowerCase()))).length,
+    reducedWithWakingMoodData: reducedWithWakingMood.length,
+    reducedWithNeutralOrPositiveWakingMood: reducedWithWakingMood.filter((day) => ["Very positive", "Good", "Neutral / okay"].includes(day.wakingMood)).length,
     reducedWithStableOverallState: reduced.filter((day) => ["calm", "balanced", "engaged"].includes(day.overallState.toLowerCase())).length,
     longestLowMoodRun
   };

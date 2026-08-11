@@ -66,6 +66,7 @@ function renderPatterns(): void {
     <dl class="clinical-evidence-list">
       ${evidenceRow("Direct low or flat mood", `${depression.directLowMoodDays} of ${depression.moodRecorded} days with usable mood data`)}
       ${evidenceRow("Enjoyment or connection unavailable", `${depression.reducedInterestDays} of ${depression.interestRecorded} days with a direct answer`)}
+      ${evidenceRow("Neutral, good or positive mood on waking during reduced capacity", `${depression.neutralOrPositiveWakingMoodOnReducedDays} of ${depression.reducedCapacityWakingMoodRecorded} answered reduced-capacity days`)}
       ${evidenceRow("Longest continuous core-symptom run", `${depression.longestCoreRun} day${depression.longestCoreRun === 1 ? "" : "s"}`)}
       ${evidenceRow("Strongest 14-day window", depression.strongestWindow ? `${depression.strongestWindow.coreDays} core-symptom days among ${depression.strongestWindow.recordedDays} recorded days, ${formatDate(depression.strongestWindow.startDate)}-${formatDate(depression.strongestWindow.endDate)}` : "Not enough data")}
       ${evidenceRow("Substantial functional impact", `${depression.substantialImpactDays} of ${depression.capacityImpactRecorded} days with an impact answer`)}
@@ -170,6 +171,7 @@ function buildExactSummary(): string {
     `Depressive pattern: ${depression.status}.`,
     `Direct low or flat mood: ${depression.directLowMoodDays} of ${depression.moodRecorded} days with usable mood data.`,
     `Enjoyment or connection unavailable: ${depression.reducedInterestDays} of ${depression.interestRecorded} days with a direct answer.`,
+    `Neutral, good or positive waking mood during reduced capacity: ${depression.neutralOrPositiveWakingMoodOnReducedDays} of ${depression.reducedCapacityWakingMoodRecorded} answered reduced-capacity days.`,
     `Longest continuous core-symptom run: ${depression.longestCoreRun} days.`,
     `Reduced-capacity enjoyment/connection: available ${depression.interestAvailableOnReducedDays}, partly available ${depression.interestPartlyAvailableOnReducedDays}, unavailable ${depression.interestUnavailableOnReducedDays}, among ${depression.reducedCapacityInterestRecorded} answered reduced-capacity days.`,
     `Substantial functional impact: ${depression.substantialImpactDays} of ${depression.capacityImpactRecorded} days with an impact answer.`,
