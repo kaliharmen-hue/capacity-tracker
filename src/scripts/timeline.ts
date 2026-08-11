@@ -208,6 +208,7 @@ function showDayDetail(date: string): void {
       <section><h4>Context</h4>${detailList([
         ["Sleep", `${formatValue(day.sleepHours, "h")} · ${day.sleepQuality || "quality not recorded"}`],
         ["Executive friction", day.executiveFriction.join(", ")],
+        ["Overall added load", day.loadLevel],
         ["Load", day.load.join(", ")],
         ["Recovery", day.recovery.join(", ")],
         ["Most influential factor", day.reflectionInfluencedToday],

@@ -72,6 +72,7 @@ export interface DailyEntry {
   movementEffect: string;
   cooldownDone: Ternary;
   movementNotes: string;
+  loadLevel: string;
   load: string[];
   loadNotes: string;
   recovery: string[];
@@ -606,6 +607,19 @@ export const sections: SectionDefinition[] = [
     key: "load",
     title: "Load",
     fields: [
+      {
+        type: "select",
+        name: "loadLevel",
+        label: "Overall, how much added load did I feel today?",
+        helperText: "This is about whether anything made the day harder to carry, regardless of how much I did.",
+        options: [
+          "",
+          "None - I sailed through",
+          "A little - easy to carry",
+          "Moderate - noticeable but manageable",
+          "High - it made the day substantially harder"
+        ]
+      },
       { type: "multi", name: "load", label: "What added load today?", options: loadOptions },
       { type: "textarea", name: "loadNotes", label: "Load notes" }
     ]
@@ -739,6 +753,7 @@ export function createEmptyEntry(date: string): DailyEntry {
     movementEffect: "",
     cooldownDone: "",
     movementNotes: "",
+    loadLevel: "",
     load: [],
     loadNotes: "",
     recovery: [],

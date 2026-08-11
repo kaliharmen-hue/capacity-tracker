@@ -64,6 +64,7 @@ export interface NormalizedTimelineDay {
   activationSigns: string[];
   executiveFriction: string[];
   executiveDemandLevel: string;
+  loadLevel: string;
   load: string[];
   recovery: string[];
   amfexaDose: number | null;
@@ -244,6 +245,7 @@ export function normalizeTimelineEntry(raw: RawDailyEntry): NormalizedTimelineDa
   const activationSigns = asArray(raw, ["activationSigns", "physiologicalActivationSigns", "physiologicalActivation"]);
   const executiveFriction = asArray(raw, ["executiveFriction", "cognitiveFriction"]);
   const executiveDemandLevel = asString(raw, ["executiveDemandLevel", "executiveDemand"]);
+  const loadLevel = asString(raw, ["loadLevel", "overallLoadLevel"]);
   const load = asArray(raw, ["load", "loadFactors", "sourcesOfLoad"]);
   const recovery = asArray(raw, ["recovery", "recoveryFactors", "restorativeFactors"]);
   const amfexaDose = asNumber(raw, ["amfexaDose", "adhdMedicationDose", "medicationDose"]);
@@ -332,6 +334,7 @@ export function normalizeTimelineEntry(raw: RawDailyEntry): NormalizedTimelineDa
     activationSigns,
     executiveFriction,
     executiveDemandLevel,
+    loadLevel,
     load,
     recovery,
     amfexaDose,
