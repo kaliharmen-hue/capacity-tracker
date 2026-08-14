@@ -77,7 +77,7 @@ function renderMoodCapacityPattern(): void {
     <div><small>Reduced capacity with waking mood neutral, good or positive</small><strong>${ratio(pattern.reducedWithNeutralOrPositiveWakingMood, pattern.reducedWithWakingMoodData)}</strong></div>
     <div><small>Longest continuous run of directly recorded low / flat mood</small><strong>${lowMoodRun}</strong></div>
   </div>
-  ${pattern.reducedWithStableOverallState ? `<p class="frequency-note">Historical context: ${pattern.reducedWithStableOverallState} of ${pattern.reducedDays} reduced-capacity days were recorded with an overall state of Calm, Balanced or Engaged. Overall state is not the same as a direct mood record, so this is shown separately.</p>` : ""}
+  ${pattern.reducedWithStableOverallState ? `<p class="frequency-note">Historical context: ${pattern.reducedWithStableOverallState} of ${pattern.reducedDays} reduced-capacity days were recorded with an overall state of Calm, Balanced, Neutral / ordinary or Engaged. Overall state is not the same as a direct mood record, so this is shown separately.</p>` : ""}
   <p class="frequency-note">These are observations about timing and separation of symptoms. They are intended to support a fuller clinical assessment, not to prove one diagnosis or rule another out.</p>`;
 }
 

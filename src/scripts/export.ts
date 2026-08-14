@@ -1,4 +1,5 @@
 import { db, getAllEntries, getClusterDecisions, getPostExertionalResponses, importClusterDecisions, importEntries, type PostExertionalResponse } from "./db";
+import { loadExperiment, saveExperiment, type Experiment } from "./experiment-model";
 import { createEmptyEntry, sections, todayIso, type DailyEntry } from "./schema";
 import type { ClusterDecision } from "./timeline-model";
 
@@ -14,10 +15,11 @@ const backupKey = "personal-operating-system-last-json-backup";
 let latestPreviewText = "";
 
 interface PersonalOperatingSystemBackup {
-  version: 2 | 3;
+  version: 2 | 3 | 4;
   entries: DailyEntry[];
   clusterDecisions: ClusterDecision[];
   postExertionalResponses?: PostExertionalResponse[];
+  activeExperiment?: Experiment;
 }
 
 dateInput!.value = new URLSearchParams(window.location.search).get("date") || todayIso();
@@ -68,7 +70,9 @@ function download(filename: string, content: string, type = "text/plain"): void 
 function markdownForEntry(entry: DailyEntry): string {
   const lines = [`# Personal Operating System Daily Log - ${entry.date}`, ""];
   for (const section of sections) {
+    if (section.key === "experiment" && !entry.experimentName) continue;
     lines.push(`## ${section.title}`);
+    if (section.key === "experiment") lines.push(`- Experiment: ${entry.experimentName}`);
     for (const field of section.fields) {
       if (field.type === "info") {
         lines.push(`- ${field.text}`);
@@ -197,7 +201,8 @@ document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) =
     if (action === "json") {
       const clusterDecisions = await getClusterDecisions();
       const postExertionalResponses = await getPostExertionalResponses();
-      const backup: PersonalOperatingSystemBackup = { version: 3, entries, clusterDecisions, postExertionalResponses };
+      const activeExperiment = loadExperiment();
+      const backup: PersonalOperatingSystemBackup = { version: 4, entries, clusterDecisions, postExertionalResponses, activeExperiment };
       const content = JSON.stringify(backup, null, 2);
       setPreview(entries.length ? content : showEmptyState("any date"));
       if (entries.length) {
@@ -217,10 +222,12 @@ importInput?.addEventListener("change", async () => {
   const entries = Array.isArray(parsed) ? parsed : parsed.entries;
   const clusterDecisions = Array.isArray(parsed) ? [] : parsed.clusterDecisions ?? [];
   const postExertionalResponses = Array.isArray(parsed) ? [] : parsed.postExertionalResponses ?? [];
+  const activeExperiment = Array.isArray(parsed) ? undefined : parsed.activeExperiment;
   await importEntries(entries);
   if (clusterDecisions.length) await importClusterDecisions(clusterDecisions);
   if (postExertionalResponses.length) await db.postExertionalResponses.bulkPut(postExertionalResponses);
-  setPreview(`Imported ${entries.length} entries${clusterDecisions.length ? `, ${clusterDecisions.length} cluster decisions` : ""}${postExertionalResponses.length ? ` and ${postExertionalResponses.length} post-exertional responses` : ""}.`);
+  if (activeExperiment) saveExperiment(activeExperiment);
+  setPreview(`Imported ${entries.length} entries${clusterDecisions.length ? `, ${clusterDecisions.length} cluster decisions` : ""}${postExertionalResponses.length ? ` and ${postExertionalResponses.length} post-exertional responses` : ""}${activeExperiment ? " and the active experiment" : ""}.`);
 });
 
 sharePreviewButton?.addEventListener("click", () => {

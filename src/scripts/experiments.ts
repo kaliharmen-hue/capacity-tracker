@@ -1,18 +1,14 @@
 import { getAllEntries } from "./db";
+import {
+  addDays,
+  clearExperiment,
+  experimentEndDate,
+  experimentName,
+  loadExperiment,
+  saveExperiment,
+  type Experiment
+} from "./experiment-model";
 import type { DailyEntry } from "./schema";
-
-interface Experiment {
-  preset: string;
-  name: string;
-  startDate: string;
-  durationWeeks: number;
-  plan: string;
-  successMarker: string;
-  notes: string;
-  updatedAt: string;
-}
-
-const storageKey = "personal-operating-system-active-experiment";
 const form = document.querySelector<HTMLFormElement>("#experiment-form");
 const statusRoot = document.querySelector<HTMLDivElement>("#experiment-status");
 const readoutRoot = document.querySelector<HTMLDivElement>("#experiment-readout");
@@ -21,14 +17,12 @@ const copyButton = document.querySelector<HTMLButtonElement>("#copy-experiment")
 const copyStatus = document.querySelector<HTMLParagraphElement>("#experiment-copy-status");
 let latestExperimentText = "";
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character] ?? character);
 }
 
-function addDays(date: string, days: number): string {
-  const value = new Date(`${date}T00:00:00`);
-  value.setDate(value.getDate() + days);
-  return value.toISOString().slice(0, 10);
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function average(values: number[]): string {
@@ -37,26 +31,22 @@ function average(values: number[]): string {
   return (filtered.reduce((sum, value) => sum + value, 0) / filtered.length).toFixed(1);
 }
 
+function averageNumber(values: number[]): number | undefined {
+  const filtered = values.filter((value) => Number.isFinite(value));
+  return filtered.length ? filtered.reduce((sum, value) => sum + value, 0) / filtered.length : undefined;
+}
+
+function comparisonLine(label: string, before: number[], during: number[]): string {
+  const beforeAverage = averageNumber(before);
+  const duringAverage = averageNumber(during);
+  if (beforeAverage === undefined || duringAverage === undefined) return `${label}: not enough data yet`;
+  const difference = duringAverage - beforeAverage;
+  const direction = Math.abs(difference) < 0.05 ? "no measurable difference" : `${Math.abs(difference).toFixed(1)} ${difference > 0 ? "higher" : "lower"}`;
+  return `${label}: ${direction} (${beforeAverage.toFixed(1)} before, ${duringAverage.toFixed(1)} during)`;
+}
+
 function answeredCapacity(entry: DailyEntry): number | undefined {
   return typeof entry.capacityRemainingScore === "number" ? entry.capacityRemainingScore : undefined;
-}
-
-function getExperimentName(experiment: Experiment): string {
-  return experiment.preset === "Custom" ? experiment.name.trim() || "Custom experiment" : experiment.preset || experiment.name || "Untitled experiment";
-}
-
-function loadExperiment(): Experiment | undefined {
-  const raw = localStorage.getItem(storageKey);
-  if (!raw) return undefined;
-  try {
-    return JSON.parse(raw) as Experiment;
-  } catch {
-    return undefined;
-  }
-}
-
-function saveExperiment(experiment: Experiment): void {
-  localStorage.setItem(storageKey, JSON.stringify(experiment));
 }
 
 function fillForm(experiment?: Experiment): void {
@@ -91,7 +81,7 @@ function rangeEntries(entries: DailyEntry[], start: string, end: string): DailyE
 
 function experimentMarkdown(experiment: Experiment, before: DailyEntry[], during: DailyEntry[], endDate: string): string {
   return [
-    `# Personal Operating System Experiment - ${getExperimentName(experiment)}`,
+    `# Personal Operating System Experiment - ${experimentName(experiment)}`,
     "",
     `- Start date: ${experiment.startDate}`,
     `- End date: ${endDate}`,
@@ -139,21 +129,24 @@ async function render(): Promise<void> {
   }
 
   const durationDays = Math.max(1, Number(experiment.durationWeeks || 3) * 7);
-  const endDate = addDays(experiment.startDate, durationDays - 1);
+  const endDate = experimentEndDate(experiment);
   const beforeStart = addDays(experiment.startDate, -durationDays);
   const beforeEnd = addDays(experiment.startDate, -1);
   const entries = await getAllEntries();
   const during = rangeEntries(entries, experiment.startDate, endDate);
+  const name = experimentName(experiment);
+  const followed = during.filter((entry) => entry.experimentName === name && ["Yes", "Partly"].includes(entry.experimentAdherence));
+  const comparisonDays = followed.length ? followed : during;
   const before = rangeEntries(entries, beforeStart, beforeEnd);
   const today = todayIso();
   const daysRemaining = Math.max(0, Math.ceil((new Date(`${endDate}T00:00:00`).getTime() - new Date(`${today}T00:00:00`).getTime()) / 86400000));
   const complete = today > endDate;
-  latestExperimentText = experimentMarkdown(experiment, before, during, endDate);
+  latestExperimentText = experimentMarkdown(experiment, before, comparisonDays, endDate);
 
   if (statusRoot) {
     statusRoot.innerHTML = `
       <div class="notice-card ${complete ? "calm" : "warm"}">
-        <strong>${getExperimentName(experiment)}</strong>
+        <strong>${escapeHtml(name)}</strong>
         <p>${experiment.startDate} to ${endDate}. ${complete ? "The test window is complete." : `${daysRemaining + 1} day${daysRemaining === 0 ? "" : "s"} left including today.`}</p>
       </div>
     `;
@@ -163,16 +156,22 @@ async function render(): Promise<void> {
     readoutRoot.innerHTML = `
       <div class="summary-grid">
         ${stat("Logged days during", during.length)}
+        ${stat("Days followed", followed.length)}
         ${stat("Avg energy before", average(before.map((entry) => entry.energyScore)))}
-        ${stat("Avg energy during", average(during.map((entry) => entry.energyScore)))}
+        ${stat("Avg energy during", average(comparisonDays.map((entry) => entry.energyScore)))}
         ${stat("Avg clarity before", average(before.map((entry) => entry.clarityScore)))}
-        ${stat("Avg clarity during", average(during.map((entry) => entry.clarityScore)))}
+        ${stat("Avg clarity during", average(comparisonDays.map((entry) => entry.clarityScore)))}
         ${stat("Avg capacity before", average(before.map(answeredCapacity).filter((value): value is number => value !== undefined)))}
-        ${stat("Avg capacity during", average(during.map(answeredCapacity).filter((value): value is number => value !== undefined)))}
+        ${stat("Avg capacity during", average(comparisonDays.map(answeredCapacity).filter((value): value is number => value !== undefined)))}
+      </div>
+      <p class="frequency-note">Once followed days are recorded in the Daily Log, the during averages use those days. Until then they use all logged days in the experiment window. Differences are observed associations and do not establish that the experiment caused them.</p>
+      <div class="notice-card calm">
+        <strong>Observed comparison</strong>
+        <p>${comparisonLine("Energy", before.map((entry) => entry.energyScore), comparisonDays.map((entry) => entry.energyScore))}<br>${comparisonLine("Executive clarity", before.map((entry) => entry.clarityScore), comparisonDays.map((entry) => entry.clarityScore))}<br>${comparisonLine("Capacity remaining", before.map(answeredCapacity).filter((value): value is number => value !== undefined), comparisonDays.map(answeredCapacity).filter((value): value is number => value !== undefined))}</p>
       </div>
       <div class="notice-card calm">
         <strong>What would count as helping?</strong>
-        <p>${experiment.successMarker || "Add a success marker so the review has something human to compare against."}</p>
+        <p>${escapeHtml(experiment.successMarker || "Add a success marker so the review has something human to compare against.")}</p>
       </div>
     `;
   }
@@ -195,7 +194,7 @@ form?.addEventListener("submit", (event) => {
 });
 
 clearButton?.addEventListener("click", () => {
-  localStorage.removeItem(storageKey);
+  clearExperiment();
   void render();
 });
 

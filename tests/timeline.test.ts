@@ -15,10 +15,11 @@ import {
   type ClusterDecision,
   type RawDailyEntry
 } from "../src/scripts/timeline-model.ts";
-import { assessMedicationResponse, associatedEpisode, buildMedicationCourses, buildMoodCapacityPattern, intervalRange, recurringPattern } from "../src/scripts/review-model.ts";
+import { assessMedicationResponse, associatedEpisode, buildCapacityEvents, buildMedicationCourses, buildMoodCapacityPattern, intervalRange, recurringPattern } from "../src/scripts/review-model.ts";
 import { buildCrashDriverAnalysis, buildSleepTimingAnalysis, buildWhoopCapacityComparison } from "../src/scripts/analytics.ts";
 import { analyseDepressivePattern, analyseMeCfsPattern, analyseTemporalPattern, buildBaselineIntervals, buildPostExertionalCandidates, buildSymptomLightIntervals } from "../src/scripts/clinical-model.ts";
 import { createEmptyEntry, type DailyEntry } from "../src/scripts/schema.ts";
+import { addDays, experimentEndDate, experimentIsActiveOn, type Experiment } from "../src/scripts/experiment-model.ts";
 
 function entry(date: string, values: RawDailyEntry = {}) {
   return normalizeTimelineEntry({ date, ...values });
@@ -27,6 +28,23 @@ function entry(date: string, values: RawDailyEntry = {}) {
 function dailyEntry(date: string, values: Partial<DailyEntry> = {}): DailyEntry {
   return { ...createEmptyEntry(date), ...values };
 }
+
+test("keeps multi-week experiment dates stable across summer time", () => {
+  const experiment: Experiment = {
+    preset: "Oestrogen dose change",
+    name: "",
+    startDate: "2026-08-13",
+    durationWeeks: 8,
+    plan: "Increase from 2 pumps to 3",
+    successMarker: "",
+    notes: "",
+    updatedAt: ""
+  };
+  assert.equal(addDays("2026-08-13", 1), "2026-08-14");
+  assert.equal(experimentEndDate(experiment), "2026-10-07");
+  assert.equal(experimentIsActiveOn(experiment, "2026-10-07"), true);
+  assert.equal(experimentIsActiveOn(experiment, "2026-10-08"), false);
+});
 
 test("normalises current and historical field names without changing the source", () => {
   const historical: RawDailyEntry = {
@@ -69,6 +87,24 @@ test("recognises severe cognitive descriptions", () => {
   assert.equal(day.flags.headSwimming, true);
 });
 
+test("recognises directly selected cognitive and behavioural hormonal signs", () => {
+  const day = entry("2026-07-23", {
+    hormonalSigns: ["Brain fog", "Head swimming", "Increased libido", "Compulsive spending"]
+  });
+  assert.equal(day.flags.brainFog, true);
+  assert.equal(day.flags.headSwimming, true);
+  assert.equal(day.flags.libidoChanges, true);
+  assert.equal(day.flags.impulsiveSpending, true);
+});
+
+test("an explicit no-activation answer does not create an activation flag", () => {
+  const day = entry("2026-07-24", {
+    activationFirstNotice: "I did not experience activation today",
+    activationSigns: ["None"]
+  });
+  assert.equal(day.flags.activation, false);
+});
+
 test("blank calendar dates remain distinct from recorded dates", () => {
   const dates = monthDates("2026-02");
   assert.equal(dates.length, 28);
@@ -78,14 +114,12 @@ test("blank calendar dates remain distinct from recorded dates", () => {
   assert.equal(entries.has("2026-02-01"), false);
 });
 
-test("starts an episode after three impaired days in a rolling four-day period", () => {
+test("starts an episode after three consecutive Reduced or Significant reduction days", () => {
   const days = [
     entry("2026-07-21", { energyScore: 4, clarityScore: 3, clarityNotes: "Wading through treacle", hormonalSigns: ["Cravings"] }),
     entry("2026-07-22", { energyScore: 4, clarityScore: 3, clarityNotes: "Head swimming", pmddMedicationTaken: "Yes" }),
-    entry("2026-07-23", { energyScore: 6, clarityScore: 6 }),
-    entry("2026-07-24", { energyScore: 5, clarityScore: 4, hormonalSigns: ["Cravings", "Increased appetite"] }),
-    entry("2026-07-25", { energyScore: 5, clarityScore: 5 }),
-    entry("2026-07-26", { energyScore: 6, clarityScore: 6 }),
+    entry("2026-07-23", { energyScore: 5, clarityScore: 4, hormonalSigns: ["Cravings", "Increased appetite"] }),
+    entry("2026-07-24", { energyScore: 6, clarityScore: 6 }),
     entry("2026-07-27", { energyScore: 8, clarityScore: 8, overallState: "Balanced" }),
     entry("2026-07-28", { energyScore: 8, clarityScore: 8, overallState: "Balanced" })
   ];
@@ -93,9 +127,9 @@ test("starts an episode after three impaired days in a rolling four-day period",
   assert.equal(clusters.length, 1);
   assert.equal(clusters[0].kind, "episode");
   assert.equal(clusters[0].startDate, "2026-07-21");
-  assert.equal(clusters[0].endDate, "2026-07-26");
+  assert.equal(clusters[0].endDate, "2026-07-23");
   assert.equal(clusters[0].significantDays, 2);
-  assert.equal(clusters[0].reducedDays, 2);
+  assert.equal(clusters[0].reducedDays, 1);
 });
 
 test("one or two impaired days are Capacity Dips and missing days break sequences", () => {
@@ -106,7 +140,7 @@ test("one or two impaired days are Capacity Dips and missing days break sequence
   assert.deepEqual(clusters.map((cluster) => cluster.kind), ["dip", "dip"]);
 });
 
-test("an episode ends only before two consecutive Baseline days", () => {
+test("a Slightly reduced day ends an episode and is not included in its duration", () => {
   const clusters = detectCapacityClusters([
     entry("2026-08-01", { energyScore: 4, clarityScore: 4 }),
     entry("2026-08-02", { energyScore: 4, clarityScore: 4 }),
@@ -119,12 +153,14 @@ test("an episode ends only before two consecutive Baseline days", () => {
   ]);
   assert.equal(clusters[0].kind, "episode");
   assert.equal(clusters[0].startDate, "2026-08-01");
-  assert.equal(clusters[0].endDate, "2026-08-05");
+  assert.equal(clusters[0].endDate, "2026-08-03");
   assert.equal(clusters[1].kind, "dip");
-  assert.equal(clusters[1].startDate, "2026-08-08");
+  assert.equal(clusters[1].startDate, "2026-08-05");
+  assert.equal(clusters[2].kind, "dip");
+  assert.equal(clusters[2].startDate, "2026-08-08");
 });
 
-test("missing days and Slightly reduced days do not count as Baseline recovery", () => {
+test("missing and Slightly reduced days break consecutive impaired runs", () => {
   const clusters = detectCapacityClusters([
     entry("2026-08-01", { energyScore: 4, clarityScore: 4 }),
     entry("2026-08-02", { energyScore: 4, clarityScore: 4 }),
@@ -134,7 +170,32 @@ test("missing days and Slightly reduced days do not count as Baseline recovery",
     entry("2026-08-07", { energyScore: 6, clarityScore: 6 })
   ]);
   assert.equal(clusters[0].kind, "episode");
-  assert.equal(clusters[0].endDate, "2026-08-07");
+  assert.equal(clusters[0].endDate, "2026-08-03");
+});
+
+test("old broad episode decisions cannot restore a long episode across a Slightly reduced day", () => {
+  const days = [
+    entry("2026-08-01", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-02", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-03", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-04", { energyScore: 6, clarityScore: 6 }),
+    entry("2026-08-05", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-06", { energyScore: 4, clarityScore: 4 }),
+    entry("2026-08-07", { energyScore: 4, clarityScore: 4 })
+  ];
+  const events = buildCapacityEvents(days, [{
+    id: "auto:episode:2026-08-01:2026-08-07",
+    status: "confirmed",
+    startDate: "2026-08-01",
+    endDate: "2026-08-07",
+    hormonalDecision: "possible",
+    updatedAt: "2026-08-08T00:00:00Z"
+  }]);
+  assert.deepEqual(events.map((event) => [event.startDate, event.endDate]), [
+    ["2026-08-01", "2026-08-03"],
+    ["2026-08-05", "2026-08-07"]
+  ]);
+  assert.equal(events.some((event) => event.duration > 3), false);
 });
 
 test("hormonal classification requires two categories across two recorded days", () => {

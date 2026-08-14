@@ -288,7 +288,7 @@ function renderEpisodes(): void {
                 <span>${cluster.duration} day${cluster.duration === 1 ? "" : "s"}</span>
               </button>
               <div class="cluster-detail" data-cluster-detail="${cluster.id}" hidden>
-                <p class="episode-description">${isEpisode ? "A sustained period of reduced capacity. Cause is not assumed." : "One or two impaired days that do not meet the duration threshold for a Capacity Episode."}</p>
+                <p class="episode-description">${isEpisode ? "Three or more consecutive Reduced or Significant reduction days. Cause is not assumed." : "One or two consecutive impaired days that do not meet the duration threshold for a Capacity Episode."}</p>
                 ${detailList([
                   ["Start", formatDate(cluster.startDate)],
                   ["End", formatDate(cluster.endDate)],
@@ -332,7 +332,7 @@ function renderEpisodes(): void {
             </article>`;
         })
         .join("")
-    : `<section class="plain-panel"><p>No Capacity Episodes or Capacity Dips are visible in this month. Three impaired days within a rolling four-day period are needed to start an episode.</p></section>`;
+    : `<section class="plain-panel"><p>No Capacity Episodes or Capacity Dips are visible in this month. Three consecutive Reduced or Significant reduction days are needed to start an episode.</p></section>`;
 }
 
 function renderMonth(): void {

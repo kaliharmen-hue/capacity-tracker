@@ -156,12 +156,12 @@ export const symptomDefinitions: Array<{ key: SymptomKey; label: string; abbrevi
   { key: "sensitivity", label: "Increased sensitivity", abbreviation: "Se", hormoneFocus: true },
   { key: "bodyTension", label: "Body tension", abbreviation: "BT", hormoneFocus: true },
   { key: "skinChanges", label: "Skin changes or spots", abbreviation: "Sk", hormoneFocus: true },
-  { key: "impulsiveSpending", label: "Impulsive spending", abbreviation: "IS", hormoneFocus: true },
+  { key: "impulsiveSpending", label: "Compulsive spending", abbreviation: "CS", hormoneFocus: true },
   { key: "reducedMedicationEffect", label: "Reduced ADHD-medication effect", abbreviation: "Rx", hormoneFocus: false },
   { key: "pmddMedication", label: "PMDD medication taken", abbreviation: "PM", hormoneFocus: true },
   { key: "activation", label: "Activation", abbreviation: "Ac", hormoneFocus: false },
   { key: "bleedingSpotting", label: "Bleeding or spotting", abbreviation: "Bs", hormoneFocus: true },
-  { key: "libidoChanges", label: "Libido changes", abbreviation: "Li", hormoneFocus: true }
+  { key: "libidoChanges", label: "Increased libido", abbreviation: "Li", hormoneFocus: true }
 ];
 
 const symptomKeys = symptomDefinitions.map((definition) => definition.key);
@@ -176,7 +176,8 @@ const cognitiveHormonalKeys: SymptomKey[] = [
   "bodyTension",
   "skinChanges",
   "impulsiveSpending",
-  "bleedingSpotting"
+  "bleedingSpotting",
+  "libidoChanges"
 ];
 
 function firstValue(raw: RawDailyEntry, aliases: string[]): unknown {
@@ -281,17 +282,21 @@ export function normalizeTimelineEntry(raw: RawDailyEntry): NormalizedTimelineDa
   const noteText = notes.join(" ").toLowerCase();
   const allSigns = [...hormonalSigns, ...asArray(raw, ["digestiveSymptoms", "digestiveSigns"]), ...moodChanges];
 
+  const activationTiming = activationFirstNotice.toLowerCase();
   const activation =
     activationSigns.some((sign) => sign.toLowerCase() !== "none") ||
-    (activationFirstNotice !== "" && activationFirstNotice.toLowerCase() !== "not at all") ||
+    (activationFirstNotice !== "" && !["not at all", "i did not experience activation today"].includes(activationTiming)) ||
     (morningActivation !== null && morningActivation > 0) ||
     laterActivation.toLowerCase() === "higher";
 
   const flags: Record<SymptomKey, boolean> = {
     brainFog:
+      includesAny(hormonalSigns, ["brain fog"]) ||
       textIncludes(noteText, [/brain[- ]?fog/, /foggy/, /muddy (thinking|brain|head)/, /treacle/, /word recall/, /cognitive fog/]) ||
       includesAny(executiveFriction, ["brain fog"]),
-    headSwimming: textIncludes(noteText, [/head (was |felt )?swim/, /swimmy/, /mildly intoxicated/, /intoxicated feeling/, /felt drunk/]),
+    headSwimming:
+      includesAny(hormonalSigns, ["head swimming"]) ||
+      textIncludes(noteText, [/head (was |felt )?swim/, /swimmy/, /mildly intoxicated/, /intoxicated feeling/, /felt drunk/]),
     lowMood:
       ["lower than usual", "low for most of the day", "flat or emotionally numb", "flat or numb"].includes(underlyingMood.toLowerCase()) ||
       includesAny(moodChanges, ["low", "flat", "shutdown", "heavy"]) ||
@@ -304,7 +309,9 @@ export function normalizeTimelineEntry(raw: RawDailyEntry): NormalizedTimelineDa
     sensitivity: includesAny(allSigns, ["increased sensitivity", "sensitive"]) || textIncludes(noteText, [/increased sensitivity/, /body sensitivity/]),
     bodyTension: includesAny(allSigns, ["body tension", "tightness"]) || textIncludes(noteText, [/body tension/, /physically tense/]),
     skinChanges: includesAny(allSigns, ["skin changes", "spots"]) || textIncludes(noteText, [/skin change/, /breakout/, /\bspots\b/]),
-    impulsiveSpending: textIncludes(noteText, [/impulsive spend/, /impulse spend/, /overspend/, /spending impulsively/]),
+    impulsiveSpending:
+      includesAny(hormonalSigns, ["compulsive spending", "impulsive spending"]) ||
+      textIncludes(noteText, [/compulsive spend/, /impulsive spend/, /impulse spend/, /overspend/, /spending impulsively/]),
     reducedMedicationEffect:
       amfexaEffect.toLowerCase() === "too weak" || textIncludes(noteText, [/amfexa.{0,30}(weak|less effective)/, /medication.{0,30}(weak|less effective)/]),
     pmddMedication: pmddMedicationTaken.toLowerCase() === "yes",
@@ -312,7 +319,9 @@ export function normalizeTimelineEntry(raw: RawDailyEntry): NormalizedTimelineDa
     bleedingSpotting:
       asString(raw, ["possiblePeriodSign"]).toLowerCase() === "yes" ||
       textIncludes(noteText, [/\bspotting\b/, /\bbleeding\b/, /period sign/, /menstrual bleed/]),
-    libidoChanges: textIncludes(noteText, [/libido/, /sex drive/, /sexual desire/])
+    libidoChanges:
+      includesAny(hormonalSigns, ["increased libido", "libido changes"]) ||
+      textIncludes(noteText, [/libido/, /sex drive/, /sexual desire/])
   };
 
   const provisional: NormalizedTimelineDay = {
@@ -401,7 +410,7 @@ export function scoreCapacityState(day: Omit<NormalizedTimelineDay, "capacitySta
   if (state === "wired") reasons.push("Overall state was wired.");
   if (reasons.length) return { state: "Slightly reduced", reasons };
 
-  const positiveState = !state || ["baseline", "balanced", "calm", "calm/regulated", "engaged", "motivated/engaged"].some((label) => state.includes(label));
+  const positiveState = !state || ["baseline", "balanced", "calm", "calm/regulated", "neutral / ordinary", "engaged", "motivated/engaged"].some((label) => state.includes(label));
   const hormonalCluster = ["yes", "slightly"].includes(day.familiarHormonalPattern.toLowerCase());
   if (energy !== null && clarity !== null && energy >= 7 && clarity >= 7 && positiveState && !hormonalCluster && symptomCount === 0) {
     return { state: "Baseline", reasons: ["Energy and executive clarity were both at least 7/10 without a recorded cluster or impaired overall state."] };
@@ -548,58 +557,20 @@ function buildCluster(days: NormalizedTimelineDay[], markedIndexes: number[], al
 export function detectCapacityClusters(days: NormalizedTimelineDay[]): CapacityCluster[] {
   const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
   const episodeRanges: Array<[number, number]> = [];
-  const covered = new Set<number>();
-  const isImpaired = (index: number) => capacityRank(sorted[index].capacityState) >= 2;
-  const isBaseline = (index: number) => sorted[index].capacityState === "Baseline";
-
-  let activeStart: number | null = null;
-  let firstBaselineIndex: number | null = null;
-
-  for (let index = 0; index < sorted.length; index += 1) {
-    if (activeStart === null) {
-      if (!isImpaired(index)) continue;
-      const window = sorted
-        .map((day, candidateIndex) => ({ day, candidateIndex }))
-        .filter(({ day, candidateIndex }) => candidateIndex <= index && daysBetween(day.date, sorted[index].date) >= 0 && daysBetween(day.date, sorted[index].date) <= 3)
-        .filter(({ candidateIndex }) => isImpaired(candidateIndex));
-      if (window.length >= 3) {
-        activeStart = window[0].candidateIndex;
-        firstBaselineIndex = null;
-      }
-      continue;
-    }
-
-    const previousIsConsecutive = index > 0 && daysBetween(sorted[index - 1].date, sorted[index].date) === 1;
-    if (isBaseline(index)) {
-      if (firstBaselineIndex !== null && previousIsConsecutive && isBaseline(index - 1)) {
-        episodeRanges.push([activeStart, firstBaselineIndex - 1]);
-        activeStart = null;
-        firstBaselineIndex = null;
-      } else {
-        firstBaselineIndex = index;
-      }
-    } else {
-      firstBaselineIndex = null;
-    }
-  }
-
-  if (activeStart !== null) episodeRanges.push([activeStart, sorted.length - 1]);
-
-  episodeRanges.forEach(([rangeStart, rangeEnd]) => {
-    for (let index = rangeStart; index <= rangeEnd; index += 1) covered.add(index);
-  });
-
   const dipRanges: Array<[number, number]> = [];
+  const isImpaired = (index: number) => capacityRank(sorted[index].capacityState) >= 2;
+
   for (let index = 0; index < sorted.length; index += 1) {
-    if (!isImpaired(index) || covered.has(index)) continue;
-    const dipStart = index;
+    if (!isImpaired(index)) continue;
+    const runStart = index;
     while (
       index + 1 < sorted.length &&
       isImpaired(index + 1) &&
-      !covered.has(index + 1) &&
       daysBetween(sorted[index].date, sorted[index + 1].date) === 1
     ) index += 1;
-    if (index - dipStart + 1 <= 2) dipRanges.push([dipStart, index]);
+    const run: [number, number] = [runStart, index];
+    if (index - runStart + 1 >= 3) episodeRanges.push(run);
+    else dipRanges.push(run);
   }
 
   const buildRange = ([rangeStart, rangeEnd]: [number, number], kind: EpisodeKind) =>

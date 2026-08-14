@@ -88,6 +88,8 @@ export const patternFeatureDefinitions: FeatureDefinition[] = [
   { key: "low-mood", label: "Low / flat mood", group: "Emotional / social tolerance", matches: (day) => day.flags.lowMood },
   { key: "body-tension", label: "Body tension / unusual aches", group: "Physical / hormonal", matches: (day) => day.flags.bodyTension || signsInclude(day, "unusual body aches") },
   { key: "breast-changes", label: "Breast changes / tenderness", group: "Physical / hormonal", matches: (day) => signsInclude(day, "breast") },
+  { key: "increased-libido", label: "Increased libido", group: "Behavioural / drive", matches: (day) => day.flags.libidoChanges },
+  { key: "compulsive-spending", label: "Compulsive spending", group: "Behavioural / drive", matches: (day) => day.flags.impulsiveSpending },
   {
     key: "social-tolerance",
     label: "Lower social tolerance / withdrawal",
@@ -110,9 +112,14 @@ export function buildCapacityEvents(days: NormalizedTimelineDay[], decisions: Cl
         })[0];
     }
     if (decision) unused.delete(decision.id);
-    return applyClusterDecision(cluster, decision, days);
+    const compatibleDecision = decision && decision.id !== cluster.id
+      ? { ...decision, id: cluster.id, startDate: cluster.startDate, endDate: cluster.endDate }
+      : decision;
+    return applyClusterDecision(cluster, compatibleDecision, days);
   });
-  const restored = decisions.filter((decision) => unused.has(decision.id)).map((decision) => restoreManualEpisode(decision, days));
+  const restored = decisions
+    .filter((decision) => unused.has(decision.id) && !decision.id.startsWith("auto:"))
+    .map((decision) => restoreManualEpisode(decision, days));
   return [...detected, ...restored].sort((left, right) => left.startDate.localeCompare(right.startDate));
 }
 
@@ -209,7 +216,7 @@ export function buildMoodCapacityPattern(days: NormalizedTimelineDay[]): MoodCap
     reducedWithInterest: reducedWithInterest.filter((day) => ["yes", "somewhat"].includes(day.interestAvailable.toLowerCase())).length,
     reducedWithWakingMoodData: reducedWithWakingMood.length,
     reducedWithNeutralOrPositiveWakingMood: reducedWithWakingMood.filter((day) => ["Very positive", "Good", "Neutral / okay"].includes(day.wakingMood)).length,
-    reducedWithStableOverallState: reduced.filter((day) => ["calm", "balanced", "engaged"].includes(day.overallState.toLowerCase())).length,
+    reducedWithStableOverallState: reduced.filter((day) => ["calm", "balanced", "neutral / ordinary", "engaged"].includes(day.overallState.toLowerCase())).length,
     longestLowMoodRun
   };
 }

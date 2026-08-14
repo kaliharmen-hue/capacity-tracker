@@ -1,4 +1,5 @@
 import { getEntry, saveEntry } from "./db";
+import { experimentEndDate, experimentIsActiveOn, experimentName, loadExperiment, type Experiment } from "./experiment-model";
 import { createEmptyEntry, sections, todayIso, type DailyEntry, type FieldDefinition } from "./schema";
 
 const form = document.querySelector<HTMLFormElement>("#entry-form");
@@ -11,6 +12,20 @@ const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL :
 let currentEntry = createEmptyEntry(todayIso());
 let saveTimer: number | undefined;
 let isLoading = false;
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character] ?? character);
+}
+
+function activeExperimentFor(date: string): Experiment | undefined {
+  const experiment = loadExperiment();
+  return experiment && experimentIsActiveOn(experiment, date) ? experiment : undefined;
+}
+
+function visibleSections(date: string) {
+  const experiment = activeExperimentFor(date);
+  return sections.filter((section) => section.key !== "experiment" || experiment);
+}
 
 function fieldValue(name: keyof DailyEntry): DailyEntry[keyof DailyEntry] {
   return currentEntry[name];
@@ -118,15 +133,21 @@ function renderForm(): void {
   if (!sectionsRoot || !dateInput) return;
   isLoading = true;
   dateInput.value = currentEntry.date;
-  sectionsRoot.innerHTML = sections
+  const experiment = activeExperimentFor(currentEntry.date);
+  sectionsRoot.innerHTML = visibleSections(currentEntry.date)
     .map(
-      (section) => `
+      (section) => {
+        const prompt = section.key === "experiment" && experiment
+          ? `<strong>${escapeHtml(experimentName(experiment))}</strong><br>${escapeHtml(experiment.startDate)} to ${escapeHtml(experimentEndDate(experiment))}${experiment.plan ? `<br>${escapeHtml(experiment.plan)}` : ""}`
+          : section.prompt;
+        return `
         <section class="form-section">
           <h3>${section.title}</h3>
-          ${section.prompt ? `<p class="section-prompt">${section.prompt}</p>` : ""}
+          ${prompt ? `<p class="section-prompt">${prompt}</p>` : ""}
           ${section.fields.map(renderField).join("")}
         </section>
-      `
+      `;
+      }
     )
     .join("");
 
@@ -187,7 +208,8 @@ function collectEntry(): DailyEntry {
   const data = new FormData(form);
   const entry = { ...createEmptyEntry(dateInput.value || todayIso()), ...currentEntry, date: dateInput.value || todayIso() };
 
-  for (const section of sections) {
+  const experiment = activeExperimentFor(entry.date);
+  for (const section of visibleSections(entry.date)) {
     for (const field of section.fields) {
       if (field.type === "info") {
         continue;
@@ -204,6 +226,8 @@ function collectEntry(): DailyEntry {
       }
     }
   }
+
+  if (experiment) entry.experimentName = experimentName(experiment);
 
   return entry;
 }

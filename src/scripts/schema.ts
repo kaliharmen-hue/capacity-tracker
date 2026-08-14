@@ -45,6 +45,10 @@ export interface DailyEntry {
   medicationSideEffects: string[];
   medicationSideEffectSeverity: string;
   medicationNotes: string;
+  experimentName: string;
+  experimentAdherence: string;
+  experimentPerceivedEffect: string;
+  experimentNotes: string;
   amfexaDose: string;
   amfexaEffect: string;
   amfexaWearOffTime: string;
@@ -232,6 +236,8 @@ export const executiveFrictionOptions = [
 ];
 export const hormonalOptions = [
   "No noticeable signs",
+  "Brain fog",
+  "Head swimming",
   "Bloating",
   "Cravings",
   "Increased appetite",
@@ -246,7 +252,8 @@ export const hormonalOptions = [
   "Breast tenderness",
   "Breast changes",
   "Bleeding / spotting",
-  "Sudden bowel movement change"
+  "Increased libido",
+  "Compulsive spending"
 ];
 export const digestiveOptions = [
   "None",
@@ -278,7 +285,20 @@ export const medicationSideEffectOptions = [
   "Sexual side effects",
   "Other"
 ];
-export const overallStateOptions = ["Calm", "Balanced", "Engaged", "Activated", "Wired", "Drained", "Shutdown"];
+export const overallStateOptions = [
+  "Calm",
+  "Balanced",
+  "Neutral / ordinary",
+  "Engaged",
+  "Restless",
+  "Activated",
+  "Wired",
+  "Overstimulated",
+  "Drained",
+  "Disconnected",
+  "Shutdown",
+  "Mixed / changeable"
+];
 export const movementOptions = [
   "Walking",
   "Cardio",
@@ -373,6 +393,7 @@ export const wakingChangeOptions = [
   "Poor sleep effects"
 ];
 export const activationFirstNoticeOptions = [
+  "I did not experience activation today",
   "Immediately on waking",
   "Morning",
   "Midday",
@@ -526,6 +547,26 @@ export const sections: SectionDefinition[] = [
         showWhenAny: { name: "medicationSideEffects", excluding: ["None"] }
       },
       { type: "textarea", name: "medicationNotes", label: "PMDD medication notes" }
+    ]
+  },
+  {
+    key: "experiment",
+    title: "Current experiment",
+    prompt: "This check-in appears while an experiment is active.",
+    fields: [
+      {
+        type: "select",
+        name: "experimentAdherence",
+        label: "Did I follow the experiment today?",
+        options: ["", "Yes", "Partly", "No", "Not applicable today"]
+      },
+      {
+        type: "select",
+        name: "experimentPerceivedEffect",
+        label: "Did I notice any effect that may relate to the experiment today?",
+        options: ["", "Positive", "No noticeable effect", "Negative", "Mixed", "Too early / hard to tell"]
+      },
+      { type: "textarea", name: "experimentNotes", label: "Experiment notes" }
     ]
   },
   {
@@ -726,6 +767,10 @@ export function createEmptyEntry(date: string): DailyEntry {
     medicationSideEffects: [],
     medicationSideEffectSeverity: "",
     medicationNotes: "",
+    experimentName: "",
+    experimentAdherence: "",
+    experimentPerceivedEffect: "",
+    experimentNotes: "",
     amfexaDose: "15",
     amfexaEffect: "",
     amfexaWearOffTime: "",

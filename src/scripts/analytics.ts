@@ -208,7 +208,12 @@ export function buildCrashDriverAnalysis(entries: DailyEntry[]): CrashDriverAnal
     { label: "Hormonal signs / familiar pattern", test: (entry) => entry.familiarHormonalPattern === "Slightly" || entry.familiarHormonalPattern === "Yes" || entry.hormonalSigns.some((sign) => sign !== "No noticeable signs") },
     { label: "High cognitive demand", test: hasExecutiveDemand },
     { label: "Relational load", test: (entry) => relationalStressScore(entry) >= 3 },
-    { label: "Activation", test: (entry) => (Boolean(entry.activationFirstNotice) && entry.activationFirstNotice !== "Not at all") || entry.activationSigns.some((sign) => sign !== "None") },
+    {
+      label: "Activation",
+      test: (entry) =>
+        (Boolean(entry.activationFirstNotice) && !["Not at all", "I did not experience activation today"].includes(entry.activationFirstNotice)) ||
+        entry.activationSigns.some((sign) => sign !== "None")
+    },
     { label: "ADHD medication felt too weak", test: (entry) => entry.amfexaEffect === "Too weak" },
     { label: "Pain, heat or physical discomfort", test: (entry) => entry.load.some((item) => ["Pain / physical discomfort", "Heat"].includes(item)) },
     { label: "Heavy previous-day mental or physical load", test: (entry) => Boolean(previousDay(entry)?.load.some((item) => ["High cognitive demand", "Intense work day", "Heavy training"].includes(item))) },

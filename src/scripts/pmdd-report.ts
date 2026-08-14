@@ -41,7 +41,7 @@ function moodCapacitySection(): string {
     <div><small>Reduced capacity with interest or connection still available</small><strong>${ratio(moodCapacity.reducedWithInterest, moodCapacity.reducedWithInterestData)}</strong></div>
     <div><small>Reduced capacity with waking mood neutral, good or positive</small><strong>${ratio(moodCapacity.reducedWithNeutralOrPositiveWakingMood, moodCapacity.reducedWithWakingMoodData)}</strong></div>
     <div><small>Longest continuous run of directly recorded low / flat mood</small><strong>${lowMoodRun}</strong></div>
-  </div>${moodCapacity.reducedWithStableOverallState ? `<p class="report-method-note">Historical context: ${moodCapacity.reducedWithStableOverallState} of ${moodCapacity.reducedDays} reduced-capacity days had an overall state recorded as Calm, Balanced or Engaged. Overall state is not treated as a direct mood measure.</p>` : ""}<p class="report-method-note">This section describes whether mood, interest and capacity varied together or independently. It does not diagnose or exclude depression.</p>`;
+  </div>${moodCapacity.reducedWithStableOverallState ? `<p class="report-method-note">Historical context: ${moodCapacity.reducedWithStableOverallState} of ${moodCapacity.reducedDays} reduced-capacity days had an overall state recorded as Calm, Balanced, Neutral / ordinary or Engaged. Overall state is not treated as a direct mood measure.</p>` : ""}<p class="report-method-note">This section describes whether mood, interest and capacity varied together or independently. It does not diagnose or exclude depression.</p>`;
 }
 
 function episodeSummary(episode: (typeof episodes)[number]): string {
