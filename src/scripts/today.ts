@@ -227,6 +227,22 @@ function collectEntry(): DailyEntry {
     }
   }
 
+  const amfexaDoseFields = ["amfexaDose1", "amfexaDose2", "amfexaDose3"] as const;
+  const hasAmfexaTiming = amfexaDoseFields.some((name) => String(entry[name] ?? "") !== "") ||
+    ["amfexaTime1", "amfexaTime2", "amfexaTime3"].some((name) => String(entry[name as keyof DailyEntry] ?? "") !== "");
+  if (hasAmfexaTiming) {
+    const total = amfexaDoseFields.reduce((sum, name) => sum + (Number(entry[name]) || 0), 0);
+    entry.amfexaDose = String(total);
+  }
+
+  const caffeineAmountFields = ["caffeine1Tablespoons", "caffeine2Tablespoons", "caffeine3Tablespoons", "caffeine4Tablespoons"] as const;
+  const caffeineTimeFields = ["caffeine1Time", "caffeine2Time", "caffeine3Time", "caffeine4Time"] as const;
+  const hasCaffeineTiming = caffeineAmountFields.some((name) => String(entry[name] ?? "") !== "") || caffeineTimeFields.some((name) => entry[name] !== "");
+  if (hasCaffeineTiming) {
+    entry.coffees = caffeineAmountFields.filter((name) => String(entry[name] ?? "") !== "").length;
+    entry.lastCoffeeTime = caffeineTimeFields.map((name) => String(entry[name] ?? "")).filter(Boolean).sort().at(-1) ?? "";
+  }
+
   if (experiment) entry.experimentName = experimentName(experiment);
 
   return entry;

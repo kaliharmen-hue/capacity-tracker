@@ -50,6 +50,12 @@ export interface DailyEntry {
   experimentPerceivedEffect: string;
   experimentNotes: string;
   amfexaDose: string;
+  amfexaDose1: string;
+  amfexaTime1: string;
+  amfexaDose2: string;
+  amfexaTime2: string;
+  amfexaDose3: string;
+  amfexaTime3: string;
   amfexaEffect: string;
   amfexaWearOffTime: string;
   adhdMedicationNotes: string;
@@ -67,6 +73,14 @@ export interface DailyEntry {
   activationSigns: string[];
   coffees: number;
   lastCoffeeTime: string;
+  caffeine1Time: string;
+  caffeine1Tablespoons: string;
+  caffeine2Time: string;
+  caffeine2Tablespoons: string;
+  caffeine3Time: string;
+  caffeine3Tablespoons: string;
+  caffeine4Time: string;
+  caffeine4Tablespoons: string;
   amfexaTaken: Ternary;
   amfexaNotes: string;
   activationNotes: string;
@@ -403,6 +417,7 @@ export const activationFirstNoticeOptions = [
 ];
 export const simplifiedActivationOptions = ["Heart pounding", "Shallow breathing", "Jumpy", "Feeling on edge", "Defensive / reactive", "None"];
 export const amfexaDoseOptions = ["0", "2.5", "5", "7.5", "10", "12.5", "15", "17.5", "20"];
+export const caffeineTablespoonOptions = ["0.5", "1", "1.5", "2", "2.5"];
 export const activityTypeOptions = [
   "H47 / marketing work",
   "PT / coaching",
@@ -513,7 +528,13 @@ export const sections: SectionDefinition[] = [
     key: "medication",
     title: "ADHD medication",
     fields: [
-      { type: "select", name: "amfexaDose", label: "Dose (mg)", options: amfexaDoseOptions },
+      { type: "info", text: "Amfexa doses" },
+      { type: "select", name: "amfexaDose1", label: "Dose 1 (mg)", options: ["", ...amfexaDoseOptions] },
+      { type: "time", name: "amfexaTime1", label: "Time of dose 1" },
+      { type: "select", name: "amfexaDose2", label: "Dose 2 (mg)", options: ["", ...amfexaDoseOptions] },
+      { type: "time", name: "amfexaTime2", label: "Time of dose 2" },
+      { type: "select", name: "amfexaDose3", label: "Dose 3 (mg)", options: ["", ...amfexaDoseOptions] },
+      { type: "time", name: "amfexaTime3", label: "Time of dose 3" },
       {
         type: "select",
         name: "amfexaEffect",
@@ -582,8 +603,15 @@ export const sections: SectionDefinition[] = [
         options: ["", ...activationFirstNoticeOptions]
       },
       { type: "multi", name: "activationSigns", label: "Activation signs", options: simplifiedActivationOptions },
-      { type: "number", name: "coffees", label: "How many coffees did I have today?", min: 0, max: 12, step: 1 },
-      { type: "time", name: "lastCoffeeTime", label: "If I had coffee, when was the last one?" },
+      { type: "info", text: "Caffeine" },
+      { type: "time", name: "caffeine1Time", label: "Caffeine 1 time" },
+      { type: "select", name: "caffeine1Tablespoons", label: "Caffeine 1 amount (tablespoons)", options: ["", ...caffeineTablespoonOptions] },
+      { type: "time", name: "caffeine2Time", label: "Caffeine 2 time" },
+      { type: "select", name: "caffeine2Tablespoons", label: "Caffeine 2 amount (tablespoons)", options: ["", ...caffeineTablespoonOptions] },
+      { type: "time", name: "caffeine3Time", label: "Caffeine 3 time" },
+      { type: "select", name: "caffeine3Tablespoons", label: "Caffeine 3 amount (tablespoons)", options: ["", ...caffeineTablespoonOptions] },
+      { type: "time", name: "caffeine4Time", label: "Caffeine 4 time" },
+      { type: "select", name: "caffeine4Tablespoons", label: "Caffeine 4 amount (tablespoons)", options: ["", ...caffeineTablespoonOptions] },
       { type: "textarea", name: "activationNotes", label: "Activation notes" }
     ]
   },
@@ -772,6 +800,12 @@ export function createEmptyEntry(date: string): DailyEntry {
     experimentPerceivedEffect: "",
     experimentNotes: "",
     amfexaDose: "15",
+    amfexaDose1: "",
+    amfexaTime1: "",
+    amfexaDose2: "",
+    amfexaTime2: "",
+    amfexaDose3: "",
+    amfexaTime3: "",
     amfexaEffect: "",
     amfexaWearOffTime: "",
     adhdMedicationNotes: "",
@@ -789,6 +823,14 @@ export function createEmptyEntry(date: string): DailyEntry {
     activationSigns: [],
     coffees: 0,
     lastCoffeeTime: "",
+    caffeine1Time: "",
+    caffeine1Tablespoons: "",
+    caffeine2Time: "",
+    caffeine2Tablespoons: "",
+    caffeine3Time: "",
+    caffeine3Tablespoons: "",
+    caffeine4Time: "",
+    caffeine4Tablespoons: "",
     amfexaTaken: "",
     amfexaNotes: "",
     activationNotes: "",
