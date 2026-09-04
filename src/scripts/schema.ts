@@ -460,6 +460,30 @@ export const sections: SectionDefinition[] = [
     ]
   },
   {
+    key: "morningMedication",
+    title: "Morning medication and caffeine",
+    fields: [
+      { type: "info", text: "Amfexa doses" },
+      { type: "select", name: "amfexaDose1", label: "Dose 1 (mg)", options: ["", ...amfexaDoseOptions] },
+      { type: "time", name: "amfexaTime1", label: "Time of dose 1" },
+      { type: "select", name: "amfexaDose2", label: "Dose 2 (mg)", options: ["", ...amfexaDoseOptions] },
+      { type: "time", name: "amfexaTime2", label: "Time of dose 2" },
+      { type: "select", name: "amfexaDose3", label: "Dose 3 (mg)", options: ["", ...amfexaDoseOptions] },
+      { type: "time", name: "amfexaTime3", label: "Time of dose 3" },
+      { type: "select", name: "amfexaEffect", label: "Today's effect", options: ["", "Too weak", "About right", "Too strong"] },
+      { type: "textarea", name: "adhdMedicationNotes", label: "Anything notable?" },
+      { type: "info", text: "Caffeine" },
+      { type: "time", name: "caffeine1Time", label: "Caffeine 1 time" },
+      { type: "select", name: "caffeine1Tablespoons", label: "Caffeine 1 amount (tablespoons)", options: ["", ...caffeineTablespoonOptions] },
+      { type: "time", name: "caffeine2Time", label: "Caffeine 2 time" },
+      { type: "select", name: "caffeine2Tablespoons", label: "Caffeine 2 amount (tablespoons)", options: ["", ...caffeineTablespoonOptions] },
+      { type: "time", name: "caffeine3Time", label: "Caffeine 3 time" },
+      { type: "select", name: "caffeine3Tablespoons", label: "Caffeine 3 amount (tablespoons)", options: ["", ...caffeineTablespoonOptions] },
+      { type: "time", name: "caffeine4Time", label: "Caffeine 4 time" },
+      { type: "select", name: "caffeine4Tablespoons", label: "Caffeine 4 amount (tablespoons)", options: ["", ...caffeineTablespoonOptions] }
+    ]
+  },
+  {
     key: "energy",
     title: "Energy",
     fields: [
@@ -525,26 +549,6 @@ export const sections: SectionDefinition[] = [
     ]
   },
   {
-    key: "medication",
-    title: "ADHD medication",
-    fields: [
-      { type: "info", text: "Amfexa doses" },
-      { type: "select", name: "amfexaDose1", label: "Dose 1 (mg)", options: ["", ...amfexaDoseOptions] },
-      { type: "time", name: "amfexaTime1", label: "Time of dose 1" },
-      { type: "select", name: "amfexaDose2", label: "Dose 2 (mg)", options: ["", ...amfexaDoseOptions] },
-      { type: "time", name: "amfexaTime2", label: "Time of dose 2" },
-      { type: "select", name: "amfexaDose3", label: "Dose 3 (mg)", options: ["", ...amfexaDoseOptions] },
-      { type: "time", name: "amfexaTime3", label: "Time of dose 3" },
-      {
-        type: "select",
-        name: "amfexaEffect",
-        label: "Today's effect",
-        options: ["", "Too weak", "About right", "Too strong"]
-      },
-      { type: "textarea", name: "adhdMedicationNotes", label: "Anything notable?" }
-    ]
-  },
-  {
     key: "pmddMedication",
     title: "PMDD medication",
     fields: [
@@ -603,15 +607,6 @@ export const sections: SectionDefinition[] = [
         options: ["", ...activationFirstNoticeOptions]
       },
       { type: "multi", name: "activationSigns", label: "Activation signs", options: simplifiedActivationOptions },
-      { type: "info", text: "Caffeine" },
-      { type: "time", name: "caffeine1Time", label: "Caffeine 1 time" },
-      { type: "select", name: "caffeine1Tablespoons", label: "Caffeine 1 amount (tablespoons)", options: ["", ...caffeineTablespoonOptions] },
-      { type: "time", name: "caffeine2Time", label: "Caffeine 2 time" },
-      { type: "select", name: "caffeine2Tablespoons", label: "Caffeine 2 amount (tablespoons)", options: ["", ...caffeineTablespoonOptions] },
-      { type: "time", name: "caffeine3Time", label: "Caffeine 3 time" },
-      { type: "select", name: "caffeine3Tablespoons", label: "Caffeine 3 amount (tablespoons)", options: ["", ...caffeineTablespoonOptions] },
-      { type: "time", name: "caffeine4Time", label: "Caffeine 4 time" },
-      { type: "select", name: "caffeine4Tablespoons", label: "Caffeine 4 amount (tablespoons)", options: ["", ...caffeineTablespoonOptions] },
       { type: "textarea", name: "activationNotes", label: "Activation notes" }
     ]
   },
