@@ -1,0 +1,41 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+<BaseLayout title="Bloating & Transit" active="experiments">
+<section class="page-heading"><div><p class="eyebrow">14-day observation</p><h2>Bloating & transit</h2></div><p class="soft-copy">A short experiment to see whether small daily bowel movements, progressive distension and larger evacuations form a repeatable pattern.</p></section>
+<form id="transit-form" class="plain-panel">
+<label class="field-label">Date <input id="date" type="date" /></label>
+<h3>Before coffee / bowel movement</h3>
+<label class="field-label">Weight (kg) <input id="weightBefore" inputmode="decimal" type="number" step="0.1" /></label>
+<label class="field-label">Waist at navel (inches) <input id="waistBefore" inputmode="decimal" type="number" step="0.1" /></label>
+<label class="field-label">Distension 0–10 <input id="distension" type="range" min="0" max="10" value="0" /><output id="distensionOut">0</output></label>
+<h3>Morning bowel movement</h3>
+<fieldset class="option-group"><legend>Amount</legend><div class="chips">
+<label class="chip"><input type="radio" name="amount" value="small"><span>Small</span></label><label class="chip"><input type="radio" name="amount" value="medium"><span>Medium</span></label><label class="chip"><input type="radio" name="amount" value="large"><span>Large</span></label><label class="chip"><input type="radio" name="amount" value="very large"><span>Very large</span></label>
+</div></fieldset>
+<label class="field-label">Bristol stool type (1–7) <input id="bristol" type="range" min="1" max="7" value="4" /><output id="bristolOut">4</output></label>
+<fieldset class="option-group"><legend>Easy to pass?</legend><div class="chips"><label class="chip"><input type="radio" name="easy" value="yes"><span>Yes</span></label><label class="chip"><input type="radio" name="easy" value="no"><span>No</span></label></div></fieldset>
+<fieldset class="option-group"><legend>Felt finished afterwards?</legend><div class="chips"><label class="chip"><input type="radio" name="complete" value="yes"><span>Yes</span></label><label class="chip"><input type="radio" name="complete" value="no"><span>No</span></label></div></fieldset>
+<h3>After bowel movement</h3>
+<label class="field-label">Weight (kg) <input id="weightAfter" inputmode="decimal" type="number" step="0.1" /></label>
+<label class="field-label">Waist at navel (inches) <input id="waistAfter" inputmode="decimal" type="number" step="0.1" /></label>
+<label class="field-label">Wind <select id="wind"><option value="">Choose</option><option>None</option><option>A little</option><option>Moderate</option><option>A lot</option></select></label>
+<label class="field-label">Notes <textarea id="notes" rows="3"></textarea></label>
+<p id="status" class="copy-status">Autosaves on this device.</p>
+<button type="button" id="copy" class="primary-button full-width">Copy 14-day data for ChatGPT</button>
+<button type="button" id="clear" class="secondary-button full-width">Clear this day's entry</button>
+</form>
+<section class="section-title"><div><h3>Recent entries</h3><p>Stored only in this browser.</p></div></section><div id="recent" class="entry-list"></div>
+<script is:inline>
+const KEY="capacity-transit-v1",$=id=>document.getElementById(id),fields=["weightBefore","waistBefore","distension","bristol","weightAfter","waistAfter","wind","notes"],radios=["amount","easy","complete"];
+$("date").value=new Date().toISOString().slice(0,10);
+const all=()=>{try{return JSON.parse(localStorage.getItem(KEY)||"{}")}catch{return{}}};
+const rv=n=>document.querySelector('input[name="'+n+'"]:checked')?.value||"";
+function render(){const rows=Object.values(all()).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,14);$("recent").innerHTML=rows.length?rows.map(d=>'<div class="entry-row"><div><h3>'+d.date+'</h3><p>Waist '+(d.waistBefore||"–")+' → '+(d.waistAfter||"–")+' in · BM '+(d.amount||"–")+' · Bristol '+(d.bristol||"–")+' · distension '+(d.distension||"–")+'/10</p></div></div>').join(""):'<div class="plain-panel"><p>No entries yet.</p></div>'}
+function load(){const d=all()[$("date").value]||{};fields.forEach(id=>{if(d[id]!==undefined)$(id).value=d[id]});radios.forEach(n=>document.querySelectorAll('input[name="'+n+'"]').forEach(x=>x.checked=d[n]===x.value));$("distensionOut").textContent=$("distension").value;$("bristolOut").textContent=$("bristol").value;render()}
+function save(){const data=all(),d={date:$("date").value};fields.forEach(id=>d[id]=$(id).value);radios.forEach(n=>d[n]=rv(n));data[d.date]=d;localStorage.setItem(KEY,JSON.stringify(data));$("status").textContent="Saved";setTimeout(()=>$("status").textContent="Autosaves on this device.",900);render()}
+$("date").addEventListener("change",load);document.querySelectorAll("#transit-form input,#transit-form select,#transit-form textarea").forEach(el=>el.addEventListener("input",()=>{$("distensionOut").textContent=$("distension").value;$("bristolOut").textContent=$("bristol").value;save()}));
+$("clear").addEventListener("click",()=>{const data=all();delete data[$("date").value];localStorage.setItem(KEY,JSON.stringify(data));location.reload()});
+$("copy").addEventListener("click",async()=>{const rows=Object.values(all()).sort((a,b)=>a.date.localeCompare(b.date)).slice(-14),lines=["BLOATING & TRANSIT — 14-DAY DATA","Date | wt before→after kg | waist before→after in | distension/10 | BM amount | Bristol | easy | felt finished | wind | notes",...rows.map(d=>[d.date,(d.weightBefore||"–")+"→"+(d.weightAfter||"–"),(d.waistBefore||"–")+"→"+(d.waistAfter||"–"),(d.distension||"–")+"/10",d.amount||"–",d.bristol||"–",d.easy||"–",d.complete||"–",d.wind||"–",(d.notes||"").replace(/\n/g," ")].join(" | "))];await navigator.clipboard.writeText(lines.join("\n"));$("status").textContent="Copied — paste it into ChatGPT."});load();
+</script>
+</BaseLayout>
