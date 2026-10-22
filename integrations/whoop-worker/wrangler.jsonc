@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "personal-os-whoop",
+  "name": "capacity-tracker",
   "main": "src/index.js",
   "compatibility_date": "2026-10-22",
   "vars": {
