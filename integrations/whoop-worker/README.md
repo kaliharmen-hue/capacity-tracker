@@ -87,3 +87,5 @@ If the GitHub repository is connected in Cloudflare, configure **Settings > Buil
 Cloudflare's integrated build system will install the project dependencies and use the Wrangler version pinned in this folder.
 
 The Cloudflare Worker project itself must be named `personal-os-whoop` so it matches `wrangler.jsonc`.
+
+<!-- Cloudflare deployment trigger: 2026-10-22 -->
