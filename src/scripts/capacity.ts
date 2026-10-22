@@ -1,4 +1,5 @@
 import {
+  getAllEntries,
   getCapacityPractice,
   getCapacityPractices,
   getCapacityReview,
@@ -7,7 +8,7 @@ import {
   type CapacityPracticeEntry,
   type CapacityWeeklyReview
 } from "./db";
-import { todayIso } from "./schema";
+import { todayIso, type DailyEntry } from "./schema";
 
 const dateInput = document.querySelector<HTMLInputElement>("#capacity-date");
 const stateInput = document.querySelector<HTMLSelectElement>("#capacity-state");
@@ -180,7 +181,15 @@ function displayBreakfastName(entry: CapacityPracticeEntry): string {
   return entry.breakfastChoice || "Not recorded";
 }
 
-function renderBreakfastComparison(entries: CapacityPracticeEntry[]): void {
+function dailyAverage(entries: DailyEntry[], field: "sleepHours" | "energyScore" | "clarityScore" | "whoopRecoveryScore" | "capacityRemainingScore"): number | null {
+  const values = entries
+    .map((entry) => entry[field])
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value) && (field !== "sleepHours" || value > 0));
+  if (!values.length) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function renderBreakfastComparison(entries: CapacityPracticeEntry[], dailyEntries: DailyEntry[]): void {
   if (!breakfastComparison) return;
   const breakfastDays = entries.filter((entry) => entry.breakfastChoice && entry.breakfastChoice !== "No breakfast");
   if (!breakfastDays.length) {
@@ -194,14 +203,25 @@ function renderBreakfastComparison(entries: CapacityPracticeEntry[]): void {
     groups.set(name, [...(groups.get(name) ?? []), entry]);
   });
 
+  const dailyByDate = new Map(dailyEntries.map((entry) => [entry.date, entry]));
+
   const rows = [...groups.entries()]
-    .map(([name, group]) => ({
-      name,
-      count: group.length,
-      energy: scoreAverage(group, "breakfastEnergyScore"),
-      hunger: scoreAverage(group, "breakfastHungerScore"),
-      bloating: scoreAverage(group, "breakfastBloatingScore")
-    }))
+    .map(([name, group]) => {
+      const linkedDaily = group.map((entry) => dailyByDate.get(entry.date)).filter((entry): entry is DailyEntry => Boolean(entry));
+      return {
+        name,
+        count: group.length,
+        linkedCount: linkedDaily.length,
+        energy: scoreAverage(group, "breakfastEnergyScore"),
+        hunger: scoreAverage(group, "breakfastHungerScore"),
+        bloating: scoreAverage(group, "breakfastBloatingScore"),
+        sleep: dailyAverage(linkedDaily, "sleepHours"),
+        whoop: dailyAverage(linkedDaily, "whoopRecoveryScore"),
+        dailyEnergy: dailyAverage(linkedDaily, "energyScore"),
+        clarity: dailyAverage(linkedDaily, "clarityScore"),
+        remaining: dailyAverage(linkedDaily, "capacityRemainingScore")
+      };
+    })
     .sort((a, b) => b.count - a.count || (b.energy ?? -1) - (a.energy ?? -1));
 
   const fmt = (value: number | null) => value === null ? "—" : value.toFixed(1);
@@ -211,17 +231,32 @@ function renderBreakfastComparison(entries: CapacityPracticeEntry[]): void {
         <strong>${row.name}</strong>
         <small>${row.count} logged breakfast${row.count === 1 ? "" : "s"}${row.count < 3 ? " · preliminary" : ""}</small>
       </div>
-      <dl>
-        <div><dt>Energy</dt><dd>${fmt(row.energy)} / 4</dd></div>
-        <div><dt>Hunger</dt><dd>${fmt(row.hunger)} / 4</dd></div>
-        <div><dt>Bloating</dt><dd>${fmt(row.bloating)} / 4</dd></div>
-      </dl>
+      <div class="breakfast-result-metrics">
+        <div>
+          <small class="metric-heading">Breakfast response</small>
+          <dl>
+            <div><dt>Morning energy</dt><dd>${fmt(row.energy)} / 4</dd></div>
+            <div><dt>Hunger</dt><dd>${fmt(row.hunger)} / 4</dd></div>
+            <div><dt>Bloating</dt><dd>${fmt(row.bloating)} / 4</dd></div>
+          </dl>
+        </div>
+        <div>
+          <small class="metric-heading">Matched Daily Log · ${row.linkedCount} day${row.linkedCount === 1 ? "" : "s"}</small>
+          <dl class="joined-daily-metrics">
+            <div><dt>Sleep</dt><dd>${row.sleep === null ? "—" : row.sleep.toFixed(1) + " h"}</dd></div>
+            <div><dt>WHOOP</dt><dd>${fmt(row.whoop)}</dd></div>
+            <div><dt>Day energy</dt><dd>${row.dailyEnergy === null ? "—" : row.dailyEnergy.toFixed(1) + " / 10"}</dd></div>
+            <div><dt>Clarity</dt><dd>${row.clarity === null ? "—" : row.clarity.toFixed(1) + " / 10"}</dd></div>
+            <div><dt>Capacity left</dt><dd>${row.remaining === null ? "—" : row.remaining.toFixed(1) + " / 10"}</dd></div>
+          </dl>
+        </div>
+      </div>
     </article>
   `).join("");
 }
 
 async function updateRollingProgress(): Promise<void> {
-  const entries = await getCapacityPractices();
+  const [entries, dailyEntries] = await Promise.all([getCapacityPractices(), getAllEntries()]);
   const end = new Date((dateInput?.value || todayIso()) + "T12:00:00");
   const start = new Date(end);
   start.setDate(start.getDate() - 13);
@@ -276,7 +311,8 @@ async function updateRollingProgress(): Promise<void> {
       .join(" · ") || "Energy, hunger and bloating averages will appear once there are ratings to compare.";
   }
 
-  renderBreakfastComparison(windowEntries);
+  const windowDailyEntries = dailyEntries.filter((entry) => entry.date >= startIso && entry.date <= endIso);
+  renderBreakfastComparison(windowEntries, windowDailyEntries);
 }
 
 async function loadPractice(date: string): Promise<void> {
@@ -383,7 +419,7 @@ weekStartInput?.addEventListener("change", () => {
 });
 
 async function copyCapacityData(): Promise<void> {
-  const entries = await getCapacityPractices();
+  const [entries, dailyEntries] = await Promise.all([getCapacityPractices(), getAllEntries()]);
   const end = new Date((dateInput?.value || todayIso()) + "T12:00:00");
   const start = new Date(end);
   start.setDate(start.getDate() - 13);
@@ -410,10 +446,12 @@ async function copyCapacityData(): Promise<void> {
     );
   }
 
-  lines.push("", "## Capacity context");
+  const dailyByDate = new Map(dailyEntries.map((entry) => [entry.date, entry]));
+  lines.push("", "## Joined whole-system context");
   for (const entry of windowEntries) {
+    const daily = dailyByDate.get(entry.date);
     lines.push(
-      `- ${entry.date}: state=${entry.state || "not recorded"}; checked-in=${entry.checkedIn ? "yes" : "no"}; downshift=${entry.downshifted ? "yes" : "no"}; work-closed=${entry.workClosed ? "yes" : "no"}; something-for-me=${entry.somethingForMe ? "yes" : "no"}; supported=${entry.supportedScore === "" ? "not rated" : entry.supportedScore + "/4"}; carried-alone=${entry.carriedAloneScore === "" ? "not rated" : entry.carriedAloneScore + "/4"}${entry.notes ? "; notes=" + entry.notes.replaceAll("\n", " ") : ""}`
+      `- ${entry.date}: state=${entry.state || "not recorded"}; breakfast=${displayBreakfastName(entry)}; breakfast-energy=${entry.breakfastEnergyScore === "" ? "not rated" : entry.breakfastEnergyScore + "/4"}; hunger=${entry.breakfastHungerScore === "" ? "not rated" : entry.breakfastHungerScore + "/4"}; bloating=${entry.breakfastBloatingScore === "" ? "not rated" : entry.breakfastBloatingScore + "/4"}; sleep=${daily?.sleepHours ? daily.sleepHours + "h" : "not recorded"}; WHOOP=${typeof daily?.whoopRecoveryScore === "number" ? daily.whoopRecoveryScore : "not recorded"}; day-energy=${daily?.energyScore ?? "not recorded"}/10; clarity=${daily?.clarityScore ?? "not recorded"}/10; capacity-left=${typeof daily?.capacityRemainingScore === "number" ? daily.capacityRemainingScore + "/10" : "not recorded"}; fatigue=${daily?.fatigueLevel || "not recorded"}; movement=${daily?.movementTypes?.join(", ") || "not recorded"}; load=${daily?.load?.join(", ") || "not recorded"}; supported=${entry.supportedScore === "" ? "not rated" : entry.supportedScore + "/4"}; carried-alone=${entry.carriedAloneScore === "" ? "not rated" : entry.carriedAloneScore + "/4"}${entry.notes ? "; capacity-notes=" + entry.notes.replaceAll("\n", " ") : ""}`
     );
   }
 
