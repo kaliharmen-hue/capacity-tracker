@@ -5,3 +5,7 @@ dist/
 *.log
 *.err
 CONTEXT_,md/
+
+.dev.vars
+.dev.vars.*
+.env.*
