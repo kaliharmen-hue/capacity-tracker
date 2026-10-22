@@ -2467,3 +2467,70 @@ button.capacity-day:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+
+.capacity-interpretation-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 18px;
+}
+
+.breakfast-comparison {
+  display: grid;
+  gap: 10px;
+}
+
+.breakfast-result-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(260px, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  background: #f8f6f1;
+}
+
+.breakfast-result-card > div {
+  display: grid;
+  gap: 4px;
+}
+
+.breakfast-result-card small {
+  color: var(--muted);
+}
+
+.breakfast-result-card dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.breakfast-result-card dl div {
+  display: grid;
+  gap: 3px;
+}
+
+.breakfast-result-card dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.breakfast-result-card dd {
+  margin: 0;
+  font-weight: 900;
+}
+
+@media (max-width: 720px) {
+  .breakfast-result-card {
+    grid-template-columns: 1fr;
+  }
+
+  .breakfast-result-card dl {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
