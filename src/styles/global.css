@@ -2424,3 +2424,46 @@ button.capacity-day:focus-visible {
     grid-column: auto;
   }
 }
+
+
+.breakfast-experiment-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-left: 4px solid var(--accent);
+  background: #f8f6f1;
+}
+
+.breakfast-experiment-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.breakfast-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.breakfast-options span {
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.breakfast-outcome-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 720px) {
+  .breakfast-outcome-grid {
+    grid-template-columns: 1fr;
+  }
+}
