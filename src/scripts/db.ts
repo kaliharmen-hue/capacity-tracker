@@ -14,7 +14,7 @@ export interface CapacityPracticeEntry {
   proteinSupport?: boolean;
   carbSupport?: boolean;
   hydration?: boolean;
-  breakfastChoice: "" | "3 eggs + 2 slices toast" | "2 eggs + usual protein shake + banana" | "3-egg wholemeal wrap" | "Usual protein shake + banana + toast" | "Other quick protein breakfast" | "No breakfast";
+  breakfastChoice: "" | "2 eggs + usual protein shake" | "3 eggs" | "Usual protein shake" | "Other quick protein breakfast" | "No breakfast";
   breakfastOther: string;
   yoghurtFree: boolean;
   porridgeFree: boolean;
