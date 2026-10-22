@@ -66,15 +66,69 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       </fieldset>
 
       <fieldset class="capacity-check-group nutrition-foundation">
-        <legend>Nutrition support</legend>
-        <p class="field-helper">This is recovery fuel, not a weight-loss target. The aim is to make adequate nourishment easier and more consistent.</p>
-        <div class="capacity-check-grid">
-          <label class="capacity-check"><input id="ate-enough" type="checkbox" /><span><strong>Ate enough</strong><small>I did not deliberately under-fuel or leave myself running on fumes.</small></span></label>
-          <label class="capacity-check"><input id="protein-support" type="checkbox" /><span><strong>Protein across the day</strong><small>I included a meaningful protein source at around three eating opportunities.</small></span></label>
-          <label class="capacity-check"><input id="carb-support" type="checkbox" /><span><strong>Carbohydrate supported demand</strong><small>I used carbs around training or when I needed energy rather than treating them as something to avoid.</small></span></label>
-          <label class="capacity-check"><input id="hydration" type="checkbox" /><span><strong>Hydration</strong><small>I drank enough to support concentration, training and recovery.</small></span></label>
+        <legend>14-day breakfast reset</legend>
+        <p class="field-helper">
+          This is an experiment, not a diet. For 14 days, use a quick protein-centred breakfast without yoghurt or porridge, then judge it by what happens to energy, hunger and bloating rather than by whether it sounds healthy.
+        </p>
+
+        <div class="breakfast-experiment-card">
+          <p><strong>Why these options?</strong> They are designed to give a useful morning protein anchor without weighing food every day and to stay broadly in the same energy range as the yoghurt/protein/oats breakfast you were already eating.</p>
+          <div class="breakfast-options">
+            <span>3 eggs + 2 slices toast</span>
+            <span>2 eggs + usual tolerated protein shake + banana</span>
+            <span>3-egg wholemeal wrap</span>
+            <span>Usual tolerated protein shake + banana + toast</span>
+          </div>
         </div>
-        <p class="capacity-note">Keep following the iron / vitamin-D plan already agreed from your blood results; this tracker is for the behaviour pattern rather than dosing advice.</p>
+
+        <label class="field-label">
+          What did I have for breakfast?
+          <select id="breakfast-choice">
+            <option value="">Not answered</option>
+            <option value="3 eggs + 2 slices toast">3 eggs + 2 slices toast</option>
+            <option value="2 eggs + usual protein shake + banana">2 eggs + usual tolerated protein shake + banana</option>
+            <option value="3-egg wholemeal wrap">3-egg wholemeal wrap</option>
+            <option value="Usual protein shake + banana + toast">Usual tolerated protein shake + banana + toast</option>
+            <option value="Other quick protein breakfast">Other quick protein breakfast</option>
+            <option value="No breakfast">No breakfast</option>
+          </select>
+        </label>
+
+        <label class="field-label">
+          If other, what was it?
+          <input id="breakfast-other" type="text" placeholder="Optional" />
+        </label>
+
+        <div class="capacity-check-grid">
+          <label class="capacity-check"><input id="yoghurt-free" type="checkbox" /><span><strong>Yoghurt-free today</strong><small>A clean yes/no variable, so we can actually test whether removing it changes anything.</small></span></label>
+          <label class="capacity-check"><input id="porridge-free" type="checkbox" /><span><strong>No porridge at breakfast</strong><small>The reset uses other breakfasts first. If things improve, yoghurt and porridge can be challenged separately later.</small></span></label>
+        </div>
+
+        <div class="breakfast-outcome-grid">
+          <label class="field-label">
+            Morning energy / steadiness · 0 poor → 4 excellent
+            <select id="breakfast-energy-score">
+              <option value="">Not rated</option>
+              <option value="0">0 · Poor</option><option value="1">1</option><option value="2">2 · Okay</option><option value="3">3</option><option value="4">4 · Excellent</option>
+            </select>
+          </label>
+          <label class="field-label">
+            Hunger before lunch · 0 none → 4 very hungry
+            <select id="breakfast-hunger-score">
+              <option value="">Not rated</option>
+              <option value="0">0 · None</option><option value="1">1</option><option value="2">2 · Moderate</option><option value="3">3</option><option value="4">4 · Very hungry</option>
+            </select>
+          </label>
+          <label class="field-label">
+            Bloating / digestive discomfort · 0 none → 4 marked
+            <select id="breakfast-bloating-score">
+              <option value="">Not rated</option>
+              <option value="0">0 · None</option><option value="1">1</option><option value="2">2 · Noticeable</option><option value="3">3</option><option value="4">4 · Marked</option>
+            </select>
+          </label>
+        </div>
+
+        <p class="capacity-note">This does not assume yoghurt or porridge is a problem. The point is to give the suspicion a fair test, then reintroduce one variable at a time if the reset clearly helps.</p>
       </fieldset>
 
       <div class="capacity-rating-grid">
@@ -108,7 +162,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       </label>
 
       <div class="capacity-save-line">
-        <strong id="today-progress">0 / 8 foundation actions</strong>
+        <strong id="today-progress">0 / 5 active practices</strong>
         <span id="capacity-save-status" class="autosave-status" aria-live="polite">Autosaves as I go</span>
       </div>
     </form>
@@ -123,9 +177,15 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         <p id="foundation-progress-copy">Log a few days first. The useful signal is whether these behaviours are becoming easier and whether they actually improve capacity.</p>
       </div>
 
+      <div class="capacity-progress-card">
+        <span>Breakfast reset</span>
+        <strong id="breakfast-adherence">No data yet</strong>
+        <p id="breakfast-outcomes">Energy, hunger and bloating averages will appear once there are enough ratings to compare.</p>
+      </div>
+
       <div class="capacity-minimum-card">
         <strong>Low-capacity mode still counts</strong>
-        <p>Check in for 30 seconds. Downshift for 2 minutes. Write tomorrow's first task. Eat something properly nourishing. Choose five minutes that belong to you.</p>
+        <p>Check in for 30 seconds. Downshift for 2 minutes. Write tomorrow's first task. Choose one of the simple breakfast anchors. Choose five minutes that belong to you.</p>
       </div>
 
       <div class="capacity-principle-card">
@@ -169,7 +229,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     <div class="capacity-roadmap-grid">
       <details open class="capacity-roadmap-stage active-stage">
         <summary><span>1</span><strong>Foundation: containment + nourishment</strong></summary>
-        <p>Self-contact, one daily downshift, work closure, non-productive time, adequate fuel, protein, carbohydrate and hydration.</p>
+        <p>Self-contact, one daily downshift, work closure, non-productive time, plus a measurable 14-day breakfast experiment rather than vague nutrition scoring.</p>
       </details>
       <details class="capacity-roadmap-stage">
         <summary><span>2</span><strong>Regulation + sleep skill-building</strong></summary>
