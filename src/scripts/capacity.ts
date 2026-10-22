@@ -33,6 +33,9 @@ const foundationProgressBar = document.querySelector<HTMLElement>("#foundation-p
 const foundationProgressCopy = document.querySelector<HTMLElement>("#foundation-progress-copy");
 const breakfastAdherence = document.querySelector<HTMLElement>("#breakfast-adherence");
 const breakfastOutcomes = document.querySelector<HTMLElement>("#breakfast-outcomes");
+const breakfastComparison = document.querySelector<HTMLElement>("#breakfast-comparison");
+const copyCapacityDataButton = document.querySelector<HTMLButtonElement>("#copy-capacity-data");
+const capacityCopyStatus = document.querySelector<HTMLElement>("#capacity-copy-status");
 
 const weekStartInput = document.querySelector<HTMLInputElement>("#capacity-week-start");
 const weeklyForm = document.querySelector<HTMLFormElement>("#capacity-weekly-form");
@@ -164,6 +167,59 @@ function updateTodayProgress(entry: CapacityPracticeEntry): void {
   if (todayProgress) todayProgress.textContent = String(actionsCompleted(entry)) + " / 5 active practices";
 }
 
+function scoreAverage(entries: CapacityPracticeEntry[], field: "breakfastEnergyScore" | "breakfastHungerScore" | "breakfastBloatingScore"): number | null {
+  const values = entries
+    .map((entry) => entry[field])
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  if (!values.length) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function displayBreakfastName(entry: CapacityPracticeEntry): string {
+  if (entry.breakfastChoice === "Other quick protein breakfast" && entry.breakfastOther.trim()) return entry.breakfastOther.trim();
+  return entry.breakfastChoice || "Not recorded";
+}
+
+function renderBreakfastComparison(entries: CapacityPracticeEntry[]): void {
+  if (!breakfastComparison) return;
+  const breakfastDays = entries.filter((entry) => entry.breakfastChoice && entry.breakfastChoice !== "No breakfast");
+  if (!breakfastDays.length) {
+    breakfastComparison.innerHTML = '<p class="empty-state">Breakfast comparisons will appear after you have logged them.</p>';
+    return;
+  }
+
+  const groups = new Map<string, CapacityPracticeEntry[]>();
+  breakfastDays.forEach((entry) => {
+    const name = displayBreakfastName(entry);
+    groups.set(name, [...(groups.get(name) ?? []), entry]);
+  });
+
+  const rows = [...groups.entries()]
+    .map(([name, group]) => ({
+      name,
+      count: group.length,
+      energy: scoreAverage(group, "breakfastEnergyScore"),
+      hunger: scoreAverage(group, "breakfastHungerScore"),
+      bloating: scoreAverage(group, "breakfastBloatingScore")
+    }))
+    .sort((a, b) => b.count - a.count || (b.energy ?? -1) - (a.energy ?? -1));
+
+  const fmt = (value: number | null) => value === null ? "—" : value.toFixed(1);
+  breakfastComparison.innerHTML = rows.map((row) => `
+    <article class="breakfast-result-card">
+      <div>
+        <strong>${row.name}</strong>
+        <small>${row.count} logged breakfast${row.count === 1 ? "" : "s"}${row.count < 3 ? " · preliminary" : ""}</small>
+      </div>
+      <dl>
+        <div><dt>Energy</dt><dd>${fmt(row.energy)} / 4</dd></div>
+        <div><dt>Hunger</dt><dd>${fmt(row.hunger)} / 4</dd></div>
+        <div><dt>Bloating</dt><dd>${fmt(row.bloating)} / 4</dd></div>
+      </dl>
+    </article>
+  `).join("");
+}
+
 async function updateRollingProgress(): Promise<void> {
   const entries = await getCapacityPractices();
   const end = new Date((dateInput?.value || todayIso()) + "T12:00:00");
@@ -219,6 +275,8 @@ async function updateRollingProgress(): Promise<void> {
       .filter(Boolean)
       .join(" · ") || "Energy, hunger and bloating averages will appear once there are ratings to compare.";
   }
+
+  renderBreakfastComparison(windowEntries);
 }
 
 async function loadPractice(date: string): Promise<void> {
@@ -322,6 +380,64 @@ weeklyForm?.addEventListener("change", scheduleWeeklySave);
 weekStartInput?.addEventListener("change", () => {
   window.clearTimeout(weeklySaveTimer);
   void loadReview(weekStartInput.value || mondayFor(todayIso()));
+});
+
+async function copyCapacityData(): Promise<void> {
+  const entries = await getCapacityPractices();
+  const end = new Date((dateInput?.value || todayIso()) + "T12:00:00");
+  const start = new Date(end);
+  start.setDate(start.getDate() - 13);
+  const startIso = start.toISOString().slice(0, 10);
+  const endIso = end.toISOString().slice(0, 10);
+  const windowEntries = entries.filter((entry) => entry.date >= startIso && entry.date <= endIso);
+
+  if (!windowEntries.length) {
+    if (capacityCopyStatus) capacityCopyStatus.textContent = "There are no Capacity Building entries in this 14-day window yet.";
+    return;
+  }
+
+  const lines = [
+    "# Capacity Building — last 14 days",
+    "",
+    `Range: ${startIso} to ${endIso}`,
+    "",
+    "## Breakfast data"
+  ];
+
+  for (const entry of windowEntries) {
+    lines.push(
+      `- ${entry.date}: breakfast=${displayBreakfastName(entry)}; yoghurt-free=${entry.yoghurtFree ? "yes" : "no"}; porridge-free=${entry.porridgeFree ? "yes" : "no"}; energy=${entry.breakfastEnergyScore === "" ? "not rated" : entry.breakfastEnergyScore + "/4"}; hunger=${entry.breakfastHungerScore === "" ? "not rated" : entry.breakfastHungerScore + "/4"}; bloating=${entry.breakfastBloatingScore === "" ? "not rated" : entry.breakfastBloatingScore + "/4"}`
+    );
+  }
+
+  lines.push("", "## Capacity context");
+  for (const entry of windowEntries) {
+    lines.push(
+      `- ${entry.date}: state=${entry.state || "not recorded"}; checked-in=${entry.checkedIn ? "yes" : "no"}; downshift=${entry.downshifted ? "yes" : "no"}; work-closed=${entry.workClosed ? "yes" : "no"}; something-for-me=${entry.somethingForMe ? "yes" : "no"}; supported=${entry.supportedScore === "" ? "not rated" : entry.supportedScore + "/4"}; carried-alone=${entry.carriedAloneScore === "" ? "not rated" : entry.carriedAloneScore + "/4"}${entry.notes ? "; notes=" + entry.notes.replaceAll("\n", " ") : ""}`
+    );
+  }
+
+  const text = lines.join("\n");
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: "Capacity Building data", text });
+      if (capacityCopyStatus) capacityCopyStatus.textContent = "Shared the last 14 days.";
+      return;
+    }
+  } catch {
+    // Fall back to clipboard after a cancelled or unavailable share.
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    if (capacityCopyStatus) capacityCopyStatus.textContent = "Copied the last 14 days. Paste it into this ChatGPT thread and I can interpret it with the rest of your Personal OS data.";
+  } catch {
+    if (capacityCopyStatus) capacityCopyStatus.textContent = "Copy was blocked by the browser. Use the JSON backup from Export if needed.";
+  }
+}
+
+copyCapacityDataButton?.addEventListener("click", () => {
+  void copyCapacityData();
 });
 
 const initialDate = new URLSearchParams(window.location.search).get("date") || todayIso();
