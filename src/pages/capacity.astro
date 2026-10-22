@@ -1,0 +1,202 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Capacity Building" active="capacity">
+  <section class="page-heading">
+    <div>
+      <p class="eyebrow">Capacity Building & Life Design</p>
+      <h2>Build the conditions that make life easier to carry.</h2>
+    </div>
+    <p class="soft-copy">
+      This is the change side of the Operating System: a small set of practices to build capacity, not another long list to complete.
+    </p>
+  </section>
+
+  <section class="capacity-stage-panel">
+    <div>
+      <p class="eyebrow">Current stage</p>
+      <h3>Stage 1 · Foundation</h3>
+      <p>Predictability, self-contact, deliberate downshifting and enough nutritional support to stop asking an under-fuelled body to recover.</p>
+    </div>
+    <div class="capacity-stage-rule">
+      <strong>Progression rule</strong>
+      <p>Aim for roughly 70–80% consistency for a couple of weeks, but only add the next skill when this stage feels useful and reasonably established — not because a score says I should.</p>
+    </div>
+  </section>
+
+  <section class="capacity-builder-grid">
+    <form id="capacity-form" class="plain-panel capacity-daily-panel">
+      <div class="capacity-section-heading">
+        <div>
+          <p class="eyebrow">Today</p>
+          <h3>Foundation practices</h3>
+        </div>
+        <label class="date-control compact-date">
+          <span>Date</span>
+          <input id="capacity-date" name="date" type="date" />
+        </label>
+      </div>
+
+      <label class="field-label">
+        What state am I in?
+        <select id="capacity-state" name="state">
+          <option value="">Not answered</option>
+          <option value="Settled">Settled</option>
+          <option value="Activated">Activated</option>
+          <option value="Stretched">Stretched</option>
+          <option value="Overloaded">Overloaded</option>
+        </select>
+      </label>
+
+      <label class="field-label">
+        What would help today?
+        <textarea id="capacity-need" name="needToday" rows="2" placeholder="Warmth, food, movement, quiet, company, help, less pressure..."></textarea>
+      </label>
+
+      <fieldset class="capacity-check-group">
+        <legend>Today's capacity builders</legend>
+        <p class="field-helper">The minimum version counts. Two minutes can be enough on a low-capacity day.</p>
+        <div class="capacity-check-grid">
+          <label class="capacity-check"><input id="checked-in" type="checkbox" /><span><strong>Arrive before I perform</strong><small>I checked in with myself before disappearing into demands.</small></span></label>
+          <label class="capacity-check"><input id="downshifted" type="checkbox" /><span><strong>One deliberate downshift</strong><small>Breathing, Vagustim, bath, walk, music, mobility, stillness — whatever actually fitted my state.</small></span></label>
+          <label class="capacity-check"><input id="work-closed" type="checkbox" /><span><strong>Close the working day</strong><small>I externalised what is unfinished and identified tomorrow's first step.</small></span></label>
+          <label class="capacity-check"><input id="something-for-me" type="checkbox" /><span><strong>Something purely for me</strong><small>Something with no productivity requirement and no need to justify its usefulness.</small></span></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="capacity-check-group nutrition-foundation">
+        <legend>Nutrition support</legend>
+        <p class="field-helper">This is recovery fuel, not a weight-loss target. The aim is to make adequate nourishment easier and more consistent.</p>
+        <div class="capacity-check-grid">
+          <label class="capacity-check"><input id="ate-enough" type="checkbox" /><span><strong>Ate enough</strong><small>I did not deliberately under-fuel or leave myself running on fumes.</small></span></label>
+          <label class="capacity-check"><input id="protein-support" type="checkbox" /><span><strong>Protein across the day</strong><small>I included a meaningful protein source at around three eating opportunities.</small></span></label>
+          <label class="capacity-check"><input id="carb-support" type="checkbox" /><span><strong>Carbohydrate supported demand</strong><small>I used carbs around training or when I needed energy rather than treating them as something to avoid.</small></span></label>
+          <label class="capacity-check"><input id="hydration" type="checkbox" /><span><strong>Hydration</strong><small>I drank enough to support concentration, training and recovery.</small></span></label>
+        </div>
+        <p class="capacity-note">Keep following the iron / vitamin-D plan already agreed from your blood results; this tracker is for the behaviour pattern rather than dosing advice.</p>
+      </fieldset>
+
+      <div class="capacity-rating-grid">
+        <label class="field-label">
+          How supported did I feel today? · 0 none → 4 very
+          <select id="supported-score">
+            <option value="">Not answered</option>
+            <option value="0">0 · None</option>
+            <option value="1">1</option>
+            <option value="2">2 · Some</option>
+            <option value="3">3</option>
+            <option value="4">4 · Very</option>
+          </select>
+        </label>
+        <label class="field-label">
+          How much did life feel like something I had to carry alone? · 0 not at all → 4 completely
+          <select id="carried-alone-score">
+            <option value="">Not answered</option>
+            <option value="0">0 · Not at all</option>
+            <option value="1">1</option>
+            <option value="2">2 · Somewhat</option>
+            <option value="3">3</option>
+            <option value="4">4 · Completely</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="field-label">
+        Anything worth remembering?
+        <textarea id="capacity-notes" rows="3" placeholder="Optional. A sentence is enough."></textarea>
+      </label>
+
+      <div class="capacity-save-line">
+        <strong id="today-progress">0 / 8 foundation actions</strong>
+        <span id="capacity-save-status" class="autosave-status" aria-live="polite">Autosaves as I go</span>
+      </div>
+    </form>
+
+    <aside class="plain-panel capacity-progress-panel">
+      <p class="eyebrow">Pattern, not perfection</p>
+      <h3>How the base is forming</h3>
+      <div class="capacity-progress-card">
+        <span>Last 14 days</span>
+        <strong id="foundation-percentage">No data yet</strong>
+        <div class="capacity-progress-track" aria-hidden="true"><span id="foundation-progress-bar"></span></div>
+        <p id="foundation-progress-copy">Log a few days first. The useful signal is whether these behaviours are becoming easier and whether they actually improve capacity.</p>
+      </div>
+
+      <div class="capacity-minimum-card">
+        <strong>Low-capacity mode still counts</strong>
+        <p>Check in for 30 seconds. Downshift for 2 minutes. Write tomorrow's first task. Eat something properly nourishing. Choose five minutes that belong to you.</p>
+      </div>
+
+      <div class="capacity-principle-card">
+        <strong>The question behind this page</strong>
+        <p>What conditions let me function as my best self — and which of those conditions can I deliberately build more often?</p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="plain-panel capacity-weekly-panel">
+    <div class="capacity-section-heading">
+      <div>
+        <p class="eyebrow">Weekly Capacity Review</p>
+        <h3>Turn the week into learning</h3>
+      </div>
+      <label class="date-control compact-date">
+        <span>Week starting</span>
+        <input id="capacity-week-start" type="date" />
+      </label>
+    </div>
+
+    <form id="capacity-weekly-form" class="capacity-weekly-grid">
+      <label class="field-label">What gave me capacity this week?<textarea id="capacity-givers" rows="3"></textarea></label>
+      <label class="field-label">What took more capacity than it was worth?<textarea id="capacity-drains" rows="3"></textarea></label>
+      <label class="field-label">Where did I feel supported or able to receive?<textarea id="received-support" rows="3"></textarea></label>
+      <label class="field-label">Where did I carry something alone that could have been shared, simplified or put down?<textarea id="carried-alone" rows="3"></textarea></label>
+      <label class="field-label capacity-weekly-adjustment">What is the ONE adjustment for next week?<textarea id="one-adjustment" rows="2"></textarea></label>
+    </form>
+    <p id="weekly-save-status" class="autosave-status" aria-live="polite">Autosaves as I go</p>
+  </section>
+
+  <section class="capacity-roadmap">
+    <div class="page-heading capacity-roadmap-heading">
+      <div>
+        <p class="eyebrow">Life plan</p>
+        <h2>The progression</h2>
+      </div>
+      <p class="soft-copy">Only Stage 1 is active. The rest stays visible so I know where this is going without trying to do it all now.</p>
+    </div>
+
+    <div class="capacity-roadmap-grid">
+      <details open class="capacity-roadmap-stage active-stage">
+        <summary><span>1</span><strong>Foundation: containment + nourishment</strong></summary>
+        <p>Self-contact, one daily downshift, work closure, non-productive time, adequate fuel, protein, carbohydrate and hydration.</p>
+      </details>
+      <details class="capacity-roadmap-stage">
+        <summary><span>2</span><strong>Regulation + sleep skill-building</strong></summary>
+        <p>Build state-specific regulation skills and a personalised early-waking protocol instead of adding generic sleep-hygiene rules.</p>
+      </details>
+      <details class="capacity-roadmap-stage">
+        <summary><span>3</span><strong>Physical reserve + enjoyable food systems</strong></summary>
+        <p>Progress strength and conditioning while building an affordable meal repertoire that supports training, energy and pleasure.</p>
+      </details>
+      <details class="capacity-roadmap-stage">
+        <summary><span>4</span><strong>Reduce unnecessary load</strong></summary>
+        <p>Each week identify what can be deleted, automated, delegated, shared, paid for or done less perfectly.</p>
+      </details>
+      <details class="capacity-roadmap-stage">
+        <summary><span>5</span><strong>Receiving + distributed support</strong></summary>
+        <p>Practise accepting help, asking directly, allowing others to contribute and noticing which relationships leave me more settled.</p>
+      </details>
+      <details class="capacity-roadmap-stage">
+        <summary><span>6</span><strong>Relationship security + rescue awareness</strong></summary>
+        <p>Name the need underneath rescue urges and build enough support elsewhere that a partner can be chosen for who he is, not as an emergency exit.</p>
+      </details>
+      <details class="capacity-roadmap-stage">
+        <summary><span>7</span><strong>Expansion</strong></summary>
+        <p>More strength, conditioning, creativity, travel, sexuality, friendship, love and adventure. Optional body-composition work belongs here, once recovery is supported rather than competed with.</p>
+      </details>
+    </div>
+  </section>
+
+  <script src="../scripts/capacity.ts"></script>
+</BaseLayout>

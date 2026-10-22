@@ -1,4 +1,4 @@
-import { db, getAllEntries, getClusterDecisions, getPostExertionalResponses, importClusterDecisions, importEntries, type PostExertionalResponse } from "./db";
+import { db, getAllEntries, getCapacityPractices, getCapacityReviews, getClusterDecisions, getPostExertionalResponses, importCapacityPractices, importCapacityReviews, importClusterDecisions, importEntries, type CapacityPracticeEntry, type CapacityWeeklyReview, type PostExertionalResponse } from "./db";
 import { loadExperiment, saveExperiment, type Experiment } from "./experiment-model";
 import { createEmptyEntry, sections, todayIso, type DailyEntry } from "./schema";
 import type { ClusterDecision } from "./timeline-model";
@@ -15,10 +15,12 @@ const backupKey = "personal-operating-system-last-json-backup";
 let latestPreviewText = "";
 
 interface PersonalOperatingSystemBackup {
-  version: 2 | 3 | 4;
+  version: 2 | 3 | 4 | 5;
   entries: DailyEntry[];
   clusterDecisions: ClusterDecision[];
   postExertionalResponses?: PostExertionalResponse[];
+  capacityPractices?: CapacityPracticeEntry[];
+  capacityReviews?: CapacityWeeklyReview[];
   activeExperiment?: Experiment;
 }
 
@@ -201,11 +203,22 @@ document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) =
     if (action === "json") {
       const clusterDecisions = await getClusterDecisions();
       const postExertionalResponses = await getPostExertionalResponses();
+      const capacityPractices = await getCapacityPractices();
+      const capacityReviews = await getCapacityReviews();
       const activeExperiment = loadExperiment();
-      const backup: PersonalOperatingSystemBackup = { version: 4, entries, clusterDecisions, postExertionalResponses, activeExperiment };
+      const backup: PersonalOperatingSystemBackup = {
+        version: 5,
+        entries,
+        clusterDecisions,
+        postExertionalResponses,
+        capacityPractices,
+        capacityReviews,
+        activeExperiment
+      };
       const content = JSON.stringify(backup, null, 2);
-      setPreview(entries.length ? content : showEmptyState("any date"));
-      if (entries.length) {
+      const hasBackupData = entries.length || clusterDecisions.length || postExertionalResponses.length || capacityPractices.length || capacityReviews.length || activeExperiment;
+      setPreview(hasBackupData ? content : showEmptyState("any date"));
+      if (hasBackupData) {
         download("personal-operating-system-backup.json", content, "application/json");
         localStorage.setItem(backupKey, new Date().toISOString());
         renderBackupStatus();
@@ -222,12 +235,16 @@ importInput?.addEventListener("change", async () => {
   const entries = Array.isArray(parsed) ? parsed : parsed.entries;
   const clusterDecisions = Array.isArray(parsed) ? [] : parsed.clusterDecisions ?? [];
   const postExertionalResponses = Array.isArray(parsed) ? [] : parsed.postExertionalResponses ?? [];
+  const capacityPractices = Array.isArray(parsed) ? [] : parsed.capacityPractices ?? [];
+  const capacityReviews = Array.isArray(parsed) ? [] : parsed.capacityReviews ?? [];
   const activeExperiment = Array.isArray(parsed) ? undefined : parsed.activeExperiment;
   await importEntries(entries);
   if (clusterDecisions.length) await importClusterDecisions(clusterDecisions);
   if (postExertionalResponses.length) await db.postExertionalResponses.bulkPut(postExertionalResponses);
+  if (capacityPractices.length) await importCapacityPractices(capacityPractices);
+  if (capacityReviews.length) await importCapacityReviews(capacityReviews);
   if (activeExperiment) saveExperiment(activeExperiment);
-  setPreview(`Imported ${entries.length} entries${clusterDecisions.length ? `, ${clusterDecisions.length} cluster decisions` : ""}${postExertionalResponses.length ? ` and ${postExertionalResponses.length} post-exertional responses` : ""}${activeExperiment ? " and the active experiment" : ""}.`);
+  setPreview(`Imported ${entries.length} entries${clusterDecisions.length ? `, ${clusterDecisions.length} cluster decisions` : ""}${postExertionalResponses.length ? `, ${postExertionalResponses.length} post-exertional responses` : ""}${capacityPractices.length ? `, ${capacityPractices.length} capacity-building days` : ""}${capacityReviews.length ? ` and ${capacityReviews.length} capacity reviews` : ""}${activeExperiment ? " plus the active experiment" : ""}.`);
 });
 
 sharePreviewButton?.addEventListener("click", () => {
