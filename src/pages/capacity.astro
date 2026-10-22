@@ -201,6 +201,21 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     </aside>
   </section>
 
+  <section class="plain-panel capacity-interpretation-panel">
+    <div class="capacity-section-heading">
+      <div>
+        <p class="eyebrow">Interpretation</p>
+        <h3>What is the breakfast data showing?</h3>
+      </div>
+      <button id="copy-capacity-data" type="button" class="secondary-button">Copy last 14 days for ChatGPT</button>
+    </div>
+    <p class="soft-copy">These comparisons use the ratings you record after each breakfast. They are descriptive, not proof of cause; several repeats of a breakfast are more useful than a one-off result.</p>
+    <div id="breakfast-comparison" class="breakfast-comparison">
+      <p class="empty-state">Breakfast comparisons will appear after you have logged them.</p>
+    </div>
+    <p id="capacity-copy-status" class="autosave-status" aria-live="polite"></p>
+  </section>
+
   <section class="plain-panel capacity-weekly-panel">
     <div class="capacity-section-heading">
       <div>
