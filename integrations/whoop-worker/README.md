@@ -72,3 +72,18 @@ Each main sleep is assigned to the local date on which that sleep ended (the wak
 - Workouts and workout strain
 
 This date-normalised shape is what the Capacity Tracker will join to its existing Daily Log and Capacity Building records.
+
+
+## Workers Builds settings
+
+If the GitHub repository is connected in Cloudflare, configure **Settings > Build** as follows:
+
+- Git repository: `kaliharmen-hue/capacity-tracker`
+- Production branch: `main`
+- Root directory: `integrations/whoop-worker`
+- Build command: leave blank
+- Deploy command: `npx wrangler deploy`
+
+Cloudflare's integrated build system will install the project dependencies and use the Wrangler version pinned in this folder.
+
+The Cloudflare Worker project itself must be named `personal-os-whoop` so it matches `wrangler.jsonc`.
