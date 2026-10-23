@@ -431,7 +431,6 @@ async function disconnectWhoop(): Promise<void> {
   if (whoopSyncStatus) whoopSyncStatus.textContent = "WHOOP disconnected and locally synced WHOOP data cleared.";
   await renderWhoopDay(dateInput?.value || todayIso());
   await updateRollingProgress();
-  await renderWhoopDay(date);
 }
 
 async function loadPractice(date: string): Promise<void> {
@@ -441,6 +440,7 @@ async function loadPractice(date: string): Promise<void> {
   loadingDaily = false;
   if (saveStatus) saveStatus.textContent = "Autosaves as I go";
   await updateRollingProgress();
+  await renderWhoopDay(date);
 }
 
 function scheduleDailySave(): void {
