@@ -3,7 +3,7 @@ import "../styles/global.css";
 
 interface Props {
   title: string;
-  active: "daily" | "capacity" | "timeline" | "weekly" | "monthly" | "pmdd" | "clinical" | "experiments" | "export";
+  active: "daily" | "capacity" | "timeline" | "weekly" | "monthly" | "pmdd" | "clinical" | "experiments" | "export" | "privacy";
 }
 
 const { title, active } = Astro.props;
@@ -58,11 +58,15 @@ const links = [
     <main>
       <slot />
     </main>
+    <footer class="app-footer">
+      <span>Personal Operating System</span>
+      <a href={`${base}privacy/`}>Privacy Policy</a>
+    </footer>
     <script>
       if ("serviceWorker" in navigator) {
         const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
         window.addEventListener("load", () => {
-          navigator.serviceWorker.register(`${base}sw.js?v=13`).then((registration) => registration.update()).catch(() => undefined);
+          navigator.serviceWorker.register(`${base}sw.js?v=14`).then((registration) => registration.update()).catch(() => undefined);
         });
       }
     </script>
