@@ -89,3 +89,5 @@ Cloudflare's integrated build system will install the project dependencies and u
 The Cloudflare Worker project itself must be named `personal-os-whoop` so it matches `wrangler.jsonc`.
 
 <!-- Cloudflare deployment trigger: 2026-10-22 -->
+
+<!-- Cloudflare build-settings retry: 2026-10-23 -->
