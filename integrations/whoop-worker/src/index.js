@@ -328,6 +328,7 @@ async function handleData(request, env) {
 
 
 function validChatGPTRedirect(uri) {
+  if (uri === "https://personal-os-read-bridge.kyoda.chatgpt.site/oauth/callback") return true;
   try {
     const url = new URL(uri);
     if (url.origin !== "https://chatgpt.com") return false;
@@ -338,6 +339,7 @@ function validChatGPTRedirect(uri) {
 }
 
 function validChatGPTClientId(clientId) {
+  if (clientId === "https://personal-os-read-bridge.kyoda.chatgpt.site/oauth/client.json") return true;
   try {
     const url = new URL(clientId);
     return url.origin === "https://chatgpt.com" && /^\/oauth\/(?:[A-Za-z0-9_-]+\/)?client\.json$/.test(url.pathname);
