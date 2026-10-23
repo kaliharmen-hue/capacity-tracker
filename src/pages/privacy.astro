@@ -1,0 +1,112 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Privacy Policy" active="privacy">
+  <section class="page-heading privacy-heading">
+    <div>
+      <p class="eyebrow">Privacy</p>
+      <h2>Privacy Policy</h2>
+    </div>
+    <p class="soft-copy">Effective 23 October 2026</p>
+  </section>
+
+  <article class="plain-panel privacy-policy">
+    <section>
+      <h3>About this app</h3>
+      <p>
+        Personal Operating System is a personal wellbeing and capacity-tracking application. It is designed to keep the information I enter primarily on my own device and to let me optionally connect data from services such as WHOOP.
+      </p>
+      <p>
+        This app is not a medical service and does not replace professional medical advice, diagnosis or treatment.
+      </p>
+    </section>
+
+    <section>
+      <h3>Information stored in the app</h3>
+      <p>
+        Information entered into the Personal Operating System, including daily logs, capacity-building records, experiment notes, symptom information and reflections, is stored locally in the browser using IndexedDB unless I deliberately export or share it.
+      </p>
+      <p>
+        The app may also store small pieces of technical information in the browser, such as the date of the most recent backup. The app does not currently use advertising trackers or analytics cookies.
+      </p>
+    </section>
+
+    <section>
+      <h3>Optional WHOOP connection</h3>
+      <p>
+        If I choose to connect my WHOOP account, the app requests only the permissions needed for the Personal Operating System: recovery, sleep, physiological cycles and workouts. Depending on what WHOOP makes available through those permissions, this can include Recovery score, heart-rate variability, resting heart rate, sleep duration and sleep metrics, day Strain, steps, workout activity and workout Strain.
+      </p>
+      <p>
+        WHOOP access is authorised using OAuth. WHOOP access and refresh tokens are stored in a Cloudflare Workers KV namespace so the connection can be maintained securely. The WHOOP Client Secret is stored as a Cloudflare secret and is not included in the public website code.
+      </p>
+      <p>
+        The Cloudflare bridge is designed to retrieve WHOOP data when requested and return it to the Personal Operating System without keeping a permanent copy of the retrieved WHOOP health history on the bridge.
+      </p>
+    </section>
+
+    <section>
+      <h3>How information is used</h3>
+      <p>
+        Information is used to help me review patterns in sleep, recovery, energy, capacity, training, nutrition experiments and other factors I choose to track. WHOOP data may be matched to locally stored Personal Operating System records by date so that I can compare patterns in context.
+      </p>
+      <p>
+        The current WHOOP integration does not automatically send WHOOP data to ChatGPT or another artificial-intelligence service. If I deliberately export, copy or share information to another service, that is a separate user-initiated action and the receiving service's privacy terms apply.
+      </p>
+    </section>
+
+    <section>
+      <h3>Sharing and sale of data</h3>
+      <p>
+        Personal Operating System data and WHOOP data are not sold, rented or used for advertising. Data is shared only with infrastructure providers needed to operate the app and connection, or when I explicitly choose to export or share information myself.
+      </p>
+    </section>
+
+    <section>
+      <h3>Service providers</h3>
+      <ul>
+        <li><strong>GitHub Pages</strong> hosts the static Personal Operating System website.</li>
+        <li><strong>Cloudflare Workers and Workers KV</strong> provide the secure server-side bridge and token storage for the optional WHOOP connection.</li>
+        <li><strong>WHOOP</strong> provides the wearable data I choose to authorise through its API.</li>
+      </ul>
+      <p>
+        These providers may process technical information such as IP addresses, request metadata and security logs in accordance with their own privacy policies and terms.
+      </p>
+    </section>
+
+    <section>
+      <h3>Security</h3>
+      <p>
+        Connections use HTTPS. Private credentials are kept out of the public GitHub Pages code. WHOOP OAuth tokens are stored server-side in Cloudflare KV, and the WHOOP Client Secret is stored using Cloudflare's secret-management mechanism.
+      </p>
+      <p>
+        No internet-connected system can guarantee absolute security, but the app is designed to minimise the amount of sensitive information held outside my own browser.
+      </p>
+    </section>
+
+    <section>
+      <h3>Retention, access and deletion</h3>
+      <p>
+        Local Personal Operating System records remain in the browser until I delete the site's browser storage, replace/import data, or otherwise remove them. I can export my locally stored records using the app's Export page.
+      </p>
+      <p>
+        I can disconnect WHOOP access at any time. Disconnecting revokes the app's WHOOP access and removes the stored OAuth session from the bridge. I can also revoke an authorised application through WHOOP where that control is available.
+      </p>
+    </section>
+
+    <section>
+      <h3>Changes to this policy</h3>
+      <p>
+        This policy may be updated when the Personal Operating System changes, particularly if new data sources or sharing features are added. The effective date at the top of this page will be updated when material changes are made.
+      </p>
+    </section>
+
+    <section>
+      <h3>Contact</h3>
+      <p>
+        Questions about this app or this privacy policy can be raised through the application's public GitHub repository:
+        <a href="https://github.com/kaliharmen-hue/capacity-tracker" rel="noreferrer">kaliharmen-hue/capacity-tracker</a>.
+      </p>
+    </section>
+  </article>
+</BaseLayout>
