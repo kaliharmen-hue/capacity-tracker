@@ -512,17 +512,27 @@ async function handleChatGPTToken(request, env) {
     const verifier = String(form.get("code_verifier") || "");
     const grant = await env.WHOOP_AUTH.get(`chatgpt-code:${code}`, "json");
     if (!grant || Number(grant.expiresAt || 0) <= Date.now()) {
-      return json({ error: "invalid_grant" }, 400, { "Cache-Control": "no-store" });
+      return json({ error: "invalid_grant", error_description: "Authorization code is invalid or expired." }, 400, { "Cache-Control": "no-store" });
     }
-    if (
-      grant.clientId !== clientId ||
-      grant.redirectUri !== redirectUri ||
-      grant.resource !== resource ||
-      !verifier ||
-      await sha256Base64Url(verifier) !== grant.codeChallenge
-    ) {
-      return json({ error: "invalid_grant" }, 400, { "Cache-Control": "no-store" });
+
+    const isPersonalOsSite = grant.clientId === "https://personal-os-read-bridge.kyoda.chatgpt.site/oauth/client.json";
+    const effectiveClientId = isPersonalOsSite && !clientId ? grant.clientId : clientId;
+    const effectiveResource = isPersonalOsSite && !resource ? grant.resource : resource;
+    const verifierMatches = Boolean(verifier) && await sha256Base64Url(verifier) === grant.codeChallenge;
+
+    if (grant.clientId !== effectiveClientId) {
+      return json({ error: "invalid_grant", error_description: "OAuth client did not match the authorization request." }, 400, { "Cache-Control": "no-store" });
     }
+    if (grant.redirectUri !== redirectUri) {
+      return json({ error: "invalid_grant", error_description: "Redirect URI did not match the authorization request." }, 400, { "Cache-Control": "no-store" });
+    }
+    if (grant.resource !== effectiveResource) {
+      return json({ error: "invalid_grant", error_description: "Resource did not match the authorization request." }, 400, { "Cache-Control": "no-store" });
+    }
+    if (!verifierMatches) {
+      return json({ error: "invalid_grant", error_description: "PKCE verification failed." }, 400, { "Cache-Control": "no-store" });
+    }
+
     await env.WHOOP_AUTH.delete(`chatgpt-code:${code}`);
     return json(await issueChatGPTOAuthTokens(env, grant), 200, { "Cache-Control": "no-store" });
   }
@@ -530,14 +540,21 @@ async function handleChatGPTToken(request, env) {
   if (grantType === "refresh_token") {
     const refreshToken = String(form.get("refresh_token") || "");
     const grant = await env.WHOOP_AUTH.get(`chatgpt-refresh:${refreshToken}`, "json");
+    if (!grant) {
+      return json({ error: "invalid_grant", error_description: "Refresh token is invalid." }, 400, { "Cache-Control": "no-store" });
+    }
+
+    const isPersonalOsSite = grant.clientId === "https://personal-os-read-bridge.kyoda.chatgpt.site/oauth/client.json";
+    const effectiveClientId = isPersonalOsSite && !clientId ? grant.clientId : clientId;
+    const effectiveResource = isPersonalOsSite && !resource ? grant.resource : resource;
+
     if (
-      !grant ||
       Number(grant.expiresAt || 0) <= Date.now() ||
       Number(grant.version || 0) !== await chatgptAuthVersion(env) ||
-      grant.clientId !== clientId ||
-      grant.resource !== resource
+      grant.clientId !== effectiveClientId ||
+      grant.resource !== effectiveResource
     ) {
-      return json({ error: "invalid_grant" }, 400, { "Cache-Control": "no-store" });
+      return json({ error: "invalid_grant", error_description: "Refresh token context did not match." }, 400, { "Cache-Control": "no-store" });
     }
     await env.WHOOP_AUTH.delete(`chatgpt-refresh:${refreshToken}`);
     return json(await issueChatGPTOAuthTokens(env, grant), 200, { "Cache-Control": "no-store" });
