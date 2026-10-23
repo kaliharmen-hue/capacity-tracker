@@ -297,7 +297,16 @@ export default {
     }
 
     try {
-      if (url.pathname === "/health") return json({ ok: true, service: "personal-os-whoop-bridge" });
+      if (url.pathname === "/health") {
+        const clientId = String(env.WHOOP_CLIENT_ID || "").trim();
+        return json({
+          ok: true,
+          service: "personal-os-whoop-bridge",
+          whoopClientIdConfigured: Boolean(clientId),
+          whoopClientIdFormatLooksValid: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId),
+          whoopClientSecretConfigured: Boolean(String(env.WHOOP_CLIENT_SECRET || "").trim())
+        });
+      }
       if (url.pathname === "/oauth/start" && request.method === "GET") return handleStart(request, env);
       if (url.pathname === "/oauth/callback" && request.method === "GET") return handleCallback(request, env);
       if (url.pathname === "/api/whoop" && request.method === "GET") return handleData(request, env);
