@@ -56,9 +56,6 @@ const chatgptAccessCopy = document.querySelector<HTMLElement>("#chatgpt-access-c
 const chatgptEnableButton = document.querySelector<HTMLButtonElement>("#chatgpt-enable");
 const chatgptSyncButton = document.querySelector<HTMLButtonElement>("#chatgpt-sync");
 const chatgptRevokeButton = document.querySelector<HTMLButtonElement>("#chatgpt-revoke");
-const chatgptKeyBox = document.querySelector<HTMLElement>("#chatgpt-key-box");
-const chatgptKeyValue = document.querySelector<HTMLElement>("#chatgpt-key-value");
-const chatgptCopyKeyButton = document.querySelector<HTMLButtonElement>("#chatgpt-copy-key");
 const chatgptSyncStatus = document.querySelector<HTMLElement>("#chatgpt-sync-status");
 
 const WHOOP_BRIDGE = "https://capacity-tracker.kaliharmen.workers.dev";
@@ -446,35 +443,15 @@ async function disconnectWhoop(): Promise<void> {
 }
 
 async function renderChatGPTAccessStatus(): Promise<void> {
-  const session = localStorage.getItem(WHOOP_SESSION_KEY);
-  let enabled = isPersonalOsCloudSyncEnabled();
-
-  if (session) {
-    try {
-      const response = await fetch(`${WHOOP_BRIDGE}/api/chatgpt-key`, {
-        headers: { Authorization: `Bearer ${session}` }
-      });
-      if (response.ok) {
-        const payload = await response.json();
-        enabled = Boolean(payload?.configured);
-        setPersonalOsCloudSyncEnabled(enabled);
-        if (chatgptSyncStatus && enabled && payload?.mirrorSyncedAt) {
-          chatgptSyncStatus.textContent = `Cloud mirror last synced ${new Date(payload.mirrorSyncedAt).toLocaleString()}.`;
-        }
-      }
-    } catch {
-      // Fall back to the local opt-in state when the network is unavailable.
-    }
-  }
-
+  const enabled = isPersonalOsCloudSyncEnabled();
   if (chatgptAccessStatus) chatgptAccessStatus.textContent = enabled ? "Enabled" : "Not enabled";
   if (chatgptEnableButton) chatgptEnableButton.hidden = enabled;
   if (chatgptSyncButton) chatgptSyncButton.hidden = !enabled;
   if (chatgptRevokeButton) chatgptRevokeButton.hidden = !enabled;
   if (chatgptAccessCopy) {
     chatgptAccessCopy.textContent = enabled
-      ? "Read-only ChatGPT access is enabled. Local Daily Log and Capacity changes are mirrored automatically; WHOOP can be refreshed live when queried."
-      : "Optional read-only access lets the private Personal OS plugin query the joined Daily Log, Capacity and WHOOP data without copy/paste.";
+      ? "Cloud mirroring is enabled. Local Daily Log and Capacity changes sync automatically; ChatGPT connects separately through browser approval and WHOOP can refresh live when queried."
+      : "Optional read-only access lets the private Personal OS plugin query the joined Daily Log, Capacity and WHOOP data without copy/paste. ChatGPT connects through a browser approval flow — there is no key to paste.";
   }
 }
 
@@ -485,29 +462,15 @@ async function enableChatGPTAccess(): Promise<void> {
     return;
   }
 
-  if (chatgptSyncStatus) chatgptSyncStatus.textContent = "Creating read-only ChatGPT access...";
-  try {
-    const response = await fetch(`${WHOOP_BRIDGE}/api/chatgpt-key`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${session}` }
-    });
-    const payload = await response.json();
-    if (!response.ok || !payload?.key) throw new Error(payload?.error || "Could not create ChatGPT access key.");
-
-    setPersonalOsCloudSyncEnabled(true);
-    const syncResult = await syncPersonalOsCloudMirror();
-
-    if (chatgptKeyValue) chatgptKeyValue.textContent = payload.key;
-    if (chatgptKeyBox) chatgptKeyBox.hidden = false;
-    if (chatgptSyncStatus) {
-      chatgptSyncStatus.textContent = syncResult.ok
-        ? `Access enabled and ${syncResult.recordCount ?? 0} Personal OS day${syncResult.recordCount === 1 ? "" : "s"} mirrored.`
-        : `Access enabled, but the first mirror sync needs retrying: ${syncResult.error || "unknown error"}`;
-    }
-    await renderChatGPTAccessStatus();
-  } catch (error) {
-    if (chatgptSyncStatus) chatgptSyncStatus.textContent = error instanceof Error ? error.message : "Could not enable ChatGPT access.";
+  setPersonalOsCloudSyncEnabled(true);
+  if (chatgptSyncStatus) chatgptSyncStatus.textContent = "Syncing the Personal OS cloud mirror...";
+  const syncResult = await syncPersonalOsCloudMirror();
+  if (chatgptSyncStatus) {
+    chatgptSyncStatus.textContent = syncResult.ok
+      ? `Cloud mirror enabled with ${syncResult.recordCount ?? 0} Personal OS day${syncResult.recordCount === 1 ? "" : "s"}.`
+      : `Cloud mirror enabled, but the first sync needs retrying: ${syncResult.error || "unknown error"}`;
   }
+  await renderChatGPTAccessStatus();
 }
 
 async function syncChatGPTMirror(): Promise<void> {
@@ -537,8 +500,6 @@ async function revokeChatGPTAccess(): Promise<void> {
     const payload = await response.json();
     if (!response.ok) throw new Error(payload?.error || "Could not revoke ChatGPT access.");
     setPersonalOsCloudSyncEnabled(false);
-    if (chatgptKeyBox) chatgptKeyBox.hidden = true;
-    if (chatgptKeyValue) chatgptKeyValue.textContent = "";
     if (chatgptSyncStatus) chatgptSyncStatus.textContent = "ChatGPT access revoked and the cloud mirror deleted.";
     await renderChatGPTAccessStatus();
   } catch (error) {
@@ -736,16 +697,41 @@ chatgptRevokeButton?.addEventListener("click", () => {
   void revokeChatGPTAccess();
 });
 
-chatgptCopyKeyButton?.addEventListener("click", async () => {
-  const key = chatgptKeyValue?.textContent || "";
-  if (!key) return;
-  try {
-    await navigator.clipboard.writeText(key);
-    if (chatgptSyncStatus) chatgptSyncStatus.textContent = "Connection key copied.";
-  } catch {
-    if (chatgptSyncStatus) chatgptSyncStatus.textContent = "Copy was blocked by the browser. Select the key manually.";
+async function handleChatGPTOAuthRequest(): Promise<void> {
+  const params = new URLSearchParams(window.location.search);
+  const requestId = params.get("chatgpt_oauth");
+  if (!requestId) return;
+
+  const session = localStorage.getItem(WHOOP_SESSION_KEY);
+  if (!session) {
+    if (chatgptSyncStatus) chatgptSyncStatus.textContent = "ChatGPT is waiting for approval, but WHOOP is not connected in this browser.";
+    return;
   }
-});
+
+  const approved = window.confirm("Allow the Personal Operating System plugin in ChatGPT to read your mirrored Daily Log, Capacity and WHOOP data? ChatGPT will not be able to edit the tracker.");
+  if (approved) {
+    setPersonalOsCloudSyncEnabled(true);
+    await syncPersonalOsCloudMirror();
+  }
+
+  if (chatgptSyncStatus) chatgptSyncStatus.textContent = approved ? "Approving ChatGPT connection..." : "Declining ChatGPT connection...";
+
+  try {
+    const response = await fetch(`${WHOOP_BRIDGE}/api/chatgpt-oauth/decision`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ requestId, approved })
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload?.redirectUrl) throw new Error(payload?.error || "Could not complete ChatGPT approval.");
+    window.location.href = payload.redirectUrl;
+  } catch (error) {
+    if (chatgptSyncStatus) chatgptSyncStatus.textContent = error instanceof Error ? error.message : "Could not complete ChatGPT approval.";
+  }
+}
 
 const returnedFromWhoop = captureWhoopSession();
 
@@ -756,4 +742,5 @@ void loadPractice(initialDate);
 void loadReview(mondayFor(initialDate));
 void renderChatGPTAccessStatus();
 if (isPersonalOsCloudSyncEnabled()) void syncChatGPTMirror();
+void handleChatGPTOAuthRequest();
 if (returnedFromWhoop) void syncWhoop(30);
