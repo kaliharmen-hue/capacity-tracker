@@ -6,5 +6,11 @@
   "vars": {
     "APP_ORIGIN": "https://kaliharmen-hue.github.io/capacity-tracker/",
     "PUBLIC_BASE_URL": "https://capacity-tracker.kaliharmen.workers.dev"
-  }
+  },
+  "kv_namespaces": [
+    {
+      "binding": "WHOOP_AUTH",
+      "id": "b13485120ea84b6795ceb69a29838af1"
+    }
+  ]
 }
