@@ -417,6 +417,7 @@ async function handleChatGPTAuthorize(request, env) {
   }
 
   const requestId = randomHex(24);
+  const approvalToken = `approve_${randomHex(32)}`;
   await env.WHOOP_AUTH.put(`chatgpt-oauth-request:${requestId}`, JSON.stringify({
     clientId,
     redirectUri,
@@ -424,23 +425,32 @@ async function handleChatGPTAuthorize(request, env) {
     state,
     codeChallenge,
     resource,
+    approvalTokenHash: await sha256Hex(approvalToken),
     createdAt: Date.now()
   }), { expirationTtl: 600 });
 
   const target = new URL("capacity/", env.APP_ORIGIN);
   target.searchParams.set("chatgpt_oauth", requestId);
+  target.searchParams.set("chatgpt_approval", approvalToken);
   return Response.redirect(target.toString(), 302);
 }
 
 async function handleChatGPTOAuthDecision(request, env) {
-  const ownerSession = await loadOwnerSession(request, env);
-  if (!ownerSession) return json({ error: "Not authorised" }, 401, corsHeaders(request, env));
-
   const body = await request.json();
   const requestId = String(body?.requestId || "");
+  const approvalToken = String(body?.approvalToken || "");
   const approved = body?.approved === true;
   const pending = await env.WHOOP_AUTH.get(`chatgpt-oauth-request:${requestId}`, "json");
   if (!pending) return json({ error: "OAuth request was invalid or expired" }, 400, corsHeaders(request, env));
+
+  const approvalMatches =
+    Boolean(approvalToken) &&
+    Boolean(pending.approvalTokenHash) &&
+    await sha256Hex(approvalToken) === pending.approvalTokenHash;
+  if (!approvalMatches) {
+    return json({ error: "Approval token was invalid or expired" }, 401, corsHeaders(request, env));
+  }
+
   await env.WHOOP_AUTH.delete(`chatgpt-oauth-request:${requestId}`);
 
   const redirect = new URL(pending.redirectUri);
@@ -500,47 +510,91 @@ async function issueChatGPTOAuthTokens(env, grant) {
   };
 }
 
-async function handleChatGPTToken(request, env) {
+async function readOAuthTokenParams(request) {
+  const contentType = request.headers.get("Content-Type") || "";
+  if (contentType.includes("application/json")) {
+    const body = await request.json();
+    return {
+      grantType: String(body?.grant_type || ""),
+      clientId: String(body?.client_id || ""),
+      resource: String(body?.resource || ""),
+      code: String(body?.code || ""),
+      redirectUri: String(body?.redirect_uri || ""),
+      verifier: String(body?.code_verifier || ""),
+      refreshToken: String(body?.refresh_token || "")
+    };
+  }
+
   const form = await request.formData();
-  const grantType = String(form.get("grant_type") || "");
-  const clientId = String(form.get("client_id") || "");
-  const resource = String(form.get("resource") || "");
+  return {
+    grantType: String(form.get("grant_type") || ""),
+    clientId: String(form.get("client_id") || ""),
+    resource: String(form.get("resource") || ""),
+    code: String(form.get("code") || ""),
+    redirectUri: String(form.get("redirect_uri") || ""),
+    verifier: String(form.get("code_verifier") || ""),
+    refreshToken: String(form.get("refresh_token") || "")
+  };
+}
+
+async function rememberOAuthDiagnostic(env, data) {
+  await env.WHOOP_AUTH.put(
+    "chatgpt-oauth-last-diagnostic",
+    JSON.stringify({ at: new Date().toISOString(), ...data }),
+    { expirationTtl: 3600 }
+  );
+}
+
+async function handleChatGPTToken(request, env) {
+  let params;
+  try {
+    params = await readOAuthTokenParams(request);
+  } catch {
+    await rememberOAuthDiagnostic(env, { stage: "token_parse", reason: "request_body_unreadable" });
+    return json({ error: "invalid_request", error_description: "Token request body could not be read." }, 400, { "Cache-Control": "no-store" });
+  }
+
+  const { grantType, clientId, resource, code, redirectUri, verifier, refreshToken } = params;
 
   if (grantType === "authorization_code") {
-    const code = String(form.get("code") || "");
-    const redirectUri = String(form.get("redirect_uri") || "");
-    const verifier = String(form.get("code_verifier") || "");
     const grant = await env.WHOOP_AUTH.get(`chatgpt-code:${code}`, "json");
     if (!grant || Number(grant.expiresAt || 0) <= Date.now()) {
+      await rememberOAuthDiagnostic(env, { stage: "authorization_code", reason: "code_invalid_or_expired" });
       return json({ error: "invalid_grant", error_description: "Authorization code is invalid or expired." }, 400, { "Cache-Control": "no-store" });
     }
 
     const isPersonalOsSite = grant.clientId === "https://personal-os-read-bridge.kyoda.chatgpt.site/oauth/client.json";
     const effectiveClientId = isPersonalOsSite && !clientId ? grant.clientId : clientId;
     const effectiveResource = isPersonalOsSite && !resource ? grant.resource : resource;
+    const effectiveRedirectUri = isPersonalOsSite && !redirectUri ? grant.redirectUri : redirectUri;
     const verifierMatches = Boolean(verifier) && await sha256Base64Url(verifier) === grant.codeChallenge;
 
     if (grant.clientId !== effectiveClientId) {
+      await rememberOAuthDiagnostic(env, { stage: "authorization_code", reason: "client_mismatch", clientIdPresent: Boolean(clientId) });
       return json({ error: "invalid_grant", error_description: "OAuth client did not match the authorization request." }, 400, { "Cache-Control": "no-store" });
     }
-    if (grant.redirectUri !== redirectUri) {
+    if (grant.redirectUri !== effectiveRedirectUri) {
+      await rememberOAuthDiagnostic(env, { stage: "authorization_code", reason: "redirect_mismatch", redirectUriPresent: Boolean(redirectUri) });
       return json({ error: "invalid_grant", error_description: "Redirect URI did not match the authorization request." }, 400, { "Cache-Control": "no-store" });
     }
     if (grant.resource !== effectiveResource) {
+      await rememberOAuthDiagnostic(env, { stage: "authorization_code", reason: "resource_mismatch", resourcePresent: Boolean(resource) });
       return json({ error: "invalid_grant", error_description: "Resource did not match the authorization request." }, 400, { "Cache-Control": "no-store" });
     }
     if (!verifierMatches) {
+      await rememberOAuthDiagnostic(env, { stage: "authorization_code", reason: "pkce_failed", verifierPresent: Boolean(verifier) });
       return json({ error: "invalid_grant", error_description: "PKCE verification failed." }, 400, { "Cache-Control": "no-store" });
     }
 
     await env.WHOOP_AUTH.delete(`chatgpt-code:${code}`);
+    await rememberOAuthDiagnostic(env, { stage: "authorization_code", reason: "success" });
     return json(await issueChatGPTOAuthTokens(env, grant), 200, { "Cache-Control": "no-store" });
   }
 
   if (grantType === "refresh_token") {
-    const refreshToken = String(form.get("refresh_token") || "");
     const grant = await env.WHOOP_AUTH.get(`chatgpt-refresh:${refreshToken}`, "json");
     if (!grant) {
+      await rememberOAuthDiagnostic(env, { stage: "refresh_token", reason: "refresh_invalid" });
       return json({ error: "invalid_grant", error_description: "Refresh token is invalid." }, 400, { "Cache-Control": "no-store" });
     }
 
@@ -554,12 +608,16 @@ async function handleChatGPTToken(request, env) {
       grant.clientId !== effectiveClientId ||
       grant.resource !== effectiveResource
     ) {
+      await rememberOAuthDiagnostic(env, { stage: "refresh_token", reason: "refresh_context_mismatch" });
       return json({ error: "invalid_grant", error_description: "Refresh token context did not match." }, 400, { "Cache-Control": "no-store" });
     }
+
     await env.WHOOP_AUTH.delete(`chatgpt-refresh:${refreshToken}`);
+    await rememberOAuthDiagnostic(env, { stage: "refresh_token", reason: "success" });
     return json(await issueChatGPTOAuthTokens(env, grant), 200, { "Cache-Control": "no-store" });
   }
 
+  await rememberOAuthDiagnostic(env, { stage: "token", reason: "unsupported_grant_type", grantType });
   return json({ error: "unsupported_grant_type" }, 400, { "Cache-Control": "no-store" });
 }
 
@@ -905,7 +963,8 @@ export default {
           service: "personal-os-whoop-bridge",
           whoopClientIdConfigured: Boolean(clientId),
           whoopClientIdFormatLooksValid: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId),
-          whoopClientSecretConfigured: Boolean(String(env.WHOOP_CLIENT_SECRET || "").trim())
+          whoopClientSecretConfigured: Boolean(String(env.WHOOP_CLIENT_SECRET || "").trim()),
+          lastChatGPTOAuthDiagnostic: await env.WHOOP_AUTH.get("chatgpt-oauth-last-diagnostic", "json")
         });
       }
       if (url.pathname === "/.well-known/oauth-protected-resource" && request.method === "GET") return json(protectedResourceMetadata(env));
