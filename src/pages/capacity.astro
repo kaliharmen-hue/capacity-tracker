@@ -211,18 +211,12 @@ import BaseLayout from "../layouts/BaseLayout.astro";
           <strong id="chatgpt-access-status">Not enabled</strong>
         </div>
         <p id="chatgpt-access-copy">
-          Optional read-only access lets the private Personal OS plugin query the joined Daily Log, Capacity and WHOOP data without copy/paste.
+          Optional read-only access lets the private Personal OS plugin query the joined Daily Log, Capacity and WHOOP data without copy/paste. ChatGPT connects through a browser approval flow — there is no key to paste.
         </p>
         <div class="whoop-actions">
-          <button id="chatgpt-enable" type="button" class="secondary-button">Enable access</button>
+          <button id="chatgpt-enable" type="button" class="secondary-button">Enable cloud mirror</button>
           <button id="chatgpt-sync" type="button" class="secondary-button" hidden>Sync now</button>
           <button id="chatgpt-revoke" type="button" class="secondary-button" hidden>Revoke access</button>
-        </div>
-        <div id="chatgpt-key-box" class="chatgpt-key-box" hidden>
-          <small>One-time connection key</small>
-          <code id="chatgpt-key-value"></code>
-          <button id="chatgpt-copy-key" type="button" class="secondary-button">Copy key</button>
-          <p>Use this once when ChatGPT asks for the Personal OS API key. It is not stored in the app after this page is reloaded.</p>
         </div>
         <p id="chatgpt-sync-status" class="autosave-status" aria-live="polite"></p>
       </div>
