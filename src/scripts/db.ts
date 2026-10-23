@@ -37,6 +37,42 @@ export interface CapacityWeeklyReview {
   updatedAt: string;
 }
 
+export interface WhoopWorkout {
+  id: string | number;
+  sportName: string | null;
+  start: string | null;
+  end: string | null;
+  strain: number | null;
+  averageHeartRate: number | null;
+  maxHeartRate: number | null;
+}
+
+export interface WhoopDay {
+  date: string;
+  sleepId: string | number | null;
+  cycleId: string | number | null;
+  recoveryScore: number | null;
+  hrvRmssdMs: number | null;
+  restingHeartRate: number | null;
+  spo2Percentage: number | null;
+  skinTempCelsius: number | null;
+  sleepHours: number | null;
+  sleepStart: string | null;
+  sleepEnd: string | null;
+  sleepPerformancePercentage: number | null;
+  sleepEfficiencyPercentage: number | null;
+  sleepConsistencyPercentage: number | null;
+  disturbanceCount: number | null;
+  respiratoryRate: number | null;
+  cycleStrain: number | null;
+  cycleKilojoule: number | null;
+  averageHeartRate: number | null;
+  maxHeartRate: number | null;
+  stepCount: number | null;
+  workouts: WhoopWorkout[];
+  syncedAt: string;
+}
+
 export interface PostExertionalResponse {
   exposureDate: string;
   worseningTiming: "No" | "Immediately" | "Several hours later" | "The following day" | "Unsure" | "";
@@ -52,6 +88,7 @@ class CapacityDatabase extends Dexie {
   postExertionalResponses!: Table<PostExertionalResponse, string>;
   capacityPractices!: Table<CapacityPracticeEntry, string>;
   capacityReviews!: Table<CapacityWeeklyReview, string>;
+  whoopDays!: Table<WhoopDay, string>;
 
   constructor() {
     super("capacity-tracker");
@@ -73,6 +110,14 @@ class CapacityDatabase extends Dexie {
       postExertionalResponses: "exposureDate, updatedAt",
       capacityPractices: "date, updatedAt",
       capacityReviews: "weekStart, updatedAt"
+    });
+    this.version(5).stores({
+      entries: "date, updatedAt",
+      clusterDecisions: "id, status, startDate, endDate, updatedAt",
+      postExertionalResponses: "exposureDate, updatedAt",
+      capacityPractices: "date, updatedAt",
+      capacityReviews: "weekStart, updatedAt",
+      whoopDays: "date, syncedAt"
     });
   }
 }
@@ -148,4 +193,22 @@ export async function getCapacityReviews(): Promise<CapacityWeeklyReview[]> {
 
 export async function importCapacityReviews(reviews: CapacityWeeklyReview[]): Promise<void> {
   await db.capacityReviews.bulkPut(reviews);
+}
+
+
+export async function saveWhoopDays(records: Array<Omit<WhoopDay, "syncedAt"> | WhoopDay>): Promise<void> {
+  const syncedAt = new Date().toISOString();
+  await db.whoopDays.bulkPut(records.map((record) => ({ ...record, syncedAt })));
+}
+
+export async function getWhoopDay(date: string): Promise<WhoopDay | undefined> {
+  return db.whoopDays.get(date);
+}
+
+export async function getWhoopDays(): Promise<WhoopDay[]> {
+  return db.whoopDays.orderBy("date").toArray();
+}
+
+export async function clearWhoopDays(): Promise<void> {
+  await db.whoopDays.clear();
 }
