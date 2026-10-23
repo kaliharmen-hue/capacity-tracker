@@ -27,9 +27,45 @@ async function sha256Hex(value) {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+function base64Url(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function sha256Base64Url(value) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return base64Url(new Uint8Array(digest));
+}
+
+function personalOsResource(env) {
+  return `${env.PUBLIC_BASE_URL.replace(/\/$/, "")}/mcp`;
+}
+
+async function chatgptAuthVersion(env) {
+  return Number(await env.WHOOP_AUTH.get("chatgpt-auth-version") || "1");
+}
+
+async function loadChatGPTOAuthToken(token, env) {
+  if (!token) return null;
+  const stored = await env.WHOOP_AUTH.get(`chatgpt-access:${token}`, "json");
+  if (!stored) return null;
+  if (Number(stored.expiresAt || 0) <= Date.now()) {
+    await env.WHOOP_AUTH.delete(`chatgpt-access:${token}`);
+    return null;
+  }
+  if (Number(stored.version || 0) !== await chatgptAuthVersion(env)) return null;
+  if (stored.resource !== personalOsResource(env)) return null;
+  if (!String(stored.scope || "").split(/\s+/).includes("personal_os:read")) return null;
+  return stored;
+}
+
 async function isChatGPTKey(token, env) {
   if (!token) return false;
   if (env.CHATGPT_API_KEY && token === env.CHATGPT_API_KEY) return true;
+  const oauthToken = await loadChatGPTOAuthToken(token, env);
+  if (oauthToken) return true;
   const expected = await env.WHOOP_AUTH.get("chatgpt-api-key-hash");
   if (!expected) return false;
   return (await sha256Hex(token)) === expected;
@@ -295,6 +331,206 @@ async function handleData(request, env) {
 }
 
 
+
+function validChatGPTRedirect(uri) {
+  try {
+    const url = new URL(uri);
+    if (url.origin !== "https://chatgpt.com") return false;
+    return url.pathname === "/connector_platform_oauth_redirect" || /^\/connector\/oauth\/[A-Za-z0-9_-]+$/.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function validChatGPTClientId(clientId) {
+  try {
+    const url = new URL(clientId);
+    return url.origin === "https://chatgpt.com" && /^\/oauth\/(?:[A-Za-z0-9_-]+\/)?client\.json$/.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function oauthMetadata(env) {
+  const base = env.PUBLIC_BASE_URL.replace(/\/$/, "");
+  return {
+    issuer: base,
+    authorization_response_iss_parameter_supported: true,
+    authorization_endpoint: `${base}/oauth/chatgpt/authorize`,
+    token_endpoint: `${base}/oauth/chatgpt/token`,
+    response_types_supported: ["code"],
+    grant_types_supported: ["authorization_code", "refresh_token"],
+    token_endpoint_auth_methods_supported: ["none"],
+    code_challenge_methods_supported: ["S256"],
+    scopes_supported: ["personal_os:read"],
+    client_id_metadata_document_supported: true
+  };
+}
+
+function protectedResourceMetadata(env) {
+  const base = env.PUBLIC_BASE_URL.replace(/\/$/, "");
+  return {
+    resource: personalOsResource(env),
+    authorization_servers: [base],
+    scopes_supported: ["personal_os:read"],
+    resource_documentation: `${env.APP_ORIGIN.replace(/\/$/, "")}/privacy/`
+  };
+}
+
+async function handleChatGPTAuthorize(request, env) {
+  const url = new URL(request.url);
+  const clientId = url.searchParams.get("client_id") || "";
+  const redirectUri = url.searchParams.get("redirect_uri") || "";
+  const responseType = url.searchParams.get("response_type") || "";
+  const scope = url.searchParams.get("scope") || "";
+  const state = url.searchParams.get("state") || "";
+  const codeChallenge = url.searchParams.get("code_challenge") || "";
+  const codeChallengeMethod = url.searchParams.get("code_challenge_method") || "";
+  const resource = url.searchParams.get("resource") || "";
+
+  if (
+    responseType !== "code" ||
+    !validChatGPTClientId(clientId) ||
+    !validChatGPTRedirect(redirectUri) ||
+    !state ||
+    codeChallengeMethod !== "S256" ||
+    !codeChallenge ||
+    resource !== personalOsResource(env) ||
+    !scope.split(/\s+/).includes("personal_os:read")
+  ) {
+    return json({ error: "invalid_request", error_description: "Invalid ChatGPT OAuth request." }, 400);
+  }
+
+  const requestId = randomHex(24);
+  await env.WHOOP_AUTH.put(`chatgpt-oauth-request:${requestId}`, JSON.stringify({
+    clientId,
+    redirectUri,
+    scope: "personal_os:read",
+    state,
+    codeChallenge,
+    resource,
+    createdAt: Date.now()
+  }), { expirationTtl: 600 });
+
+  const target = new URL("capacity/", env.APP_ORIGIN);
+  target.searchParams.set("chatgpt_oauth", requestId);
+  return Response.redirect(target.toString(), 302);
+}
+
+async function handleChatGPTOAuthDecision(request, env) {
+  const ownerSession = await loadOwnerSession(request, env);
+  if (!ownerSession) return json({ error: "Not authorised" }, 401, corsHeaders(request, env));
+
+  const body = await request.json();
+  const requestId = String(body?.requestId || "");
+  const approved = body?.approved === true;
+  const pending = await env.WHOOP_AUTH.get(`chatgpt-oauth-request:${requestId}`, "json");
+  if (!pending) return json({ error: "OAuth request was invalid or expired" }, 400, corsHeaders(request, env));
+  await env.WHOOP_AUTH.delete(`chatgpt-oauth-request:${requestId}`);
+
+  const redirect = new URL(pending.redirectUri);
+  redirect.searchParams.set("state", pending.state);
+  redirect.searchParams.set("iss", env.PUBLIC_BASE_URL.replace(/\/$/, ""));
+
+  if (!approved) {
+    redirect.searchParams.set("error", "access_denied");
+    redirect.searchParams.set("error_description", "Personal OS access was not approved.");
+    return json({ redirectUrl: redirect.toString() }, 200, corsHeaders(request, env));
+  }
+
+  const code = `pos_code_${randomHex(32)}`;
+  await env.WHOOP_AUTH.put(`chatgpt-code:${code}`, JSON.stringify({
+    clientId: pending.clientId,
+    redirectUri: pending.redirectUri,
+    scope: pending.scope,
+    codeChallenge: pending.codeChallenge,
+    resource: pending.resource,
+    version: await chatgptAuthVersion(env),
+    expiresAt: Date.now() + 300000
+  }), { expirationTtl: 300 });
+
+  redirect.searchParams.set("code", code);
+  return json({ redirectUrl: redirect.toString() }, 200, corsHeaders(request, env));
+}
+
+async function issueChatGPTOAuthTokens(env, grant) {
+  const version = await chatgptAuthVersion(env);
+  const accessToken = `pos_at_${randomHex(32)}`;
+  const refreshToken = `pos_rt_${randomHex(32)}`;
+  const now = Date.now();
+  const access = {
+    clientId: grant.clientId,
+    scope: grant.scope,
+    resource: grant.resource,
+    version,
+    expiresAt: now + 3600000
+  };
+  const refresh = {
+    clientId: grant.clientId,
+    scope: grant.scope,
+    resource: grant.resource,
+    version,
+    expiresAt: now + 2592000000
+  };
+  await Promise.all([
+    env.WHOOP_AUTH.put(`chatgpt-access:${accessToken}`, JSON.stringify(access), { expirationTtl: 3600 }),
+    env.WHOOP_AUTH.put(`chatgpt-refresh:${refreshToken}`, JSON.stringify(refresh), { expirationTtl: 2592000 })
+  ]);
+  return {
+    access_token: accessToken,
+    token_type: "Bearer",
+    expires_in: 3600,
+    refresh_token: refreshToken,
+    scope: grant.scope
+  };
+}
+
+async function handleChatGPTToken(request, env) {
+  const form = await request.formData();
+  const grantType = String(form.get("grant_type") || "");
+  const clientId = String(form.get("client_id") || "");
+  const resource = String(form.get("resource") || "");
+
+  if (grantType === "authorization_code") {
+    const code = String(form.get("code") || "");
+    const redirectUri = String(form.get("redirect_uri") || "");
+    const verifier = String(form.get("code_verifier") || "");
+    const grant = await env.WHOOP_AUTH.get(`chatgpt-code:${code}`, "json");
+    if (!grant || Number(grant.expiresAt || 0) <= Date.now()) {
+      return json({ error: "invalid_grant" }, 400, { "Cache-Control": "no-store" });
+    }
+    if (
+      grant.clientId !== clientId ||
+      grant.redirectUri !== redirectUri ||
+      grant.resource !== resource ||
+      !verifier ||
+      await sha256Base64Url(verifier) !== grant.codeChallenge
+    ) {
+      return json({ error: "invalid_grant" }, 400, { "Cache-Control": "no-store" });
+    }
+    await env.WHOOP_AUTH.delete(`chatgpt-code:${code}`);
+    return json(await issueChatGPTOAuthTokens(env, grant), 200, { "Cache-Control": "no-store" });
+  }
+
+  if (grantType === "refresh_token") {
+    const refreshToken = String(form.get("refresh_token") || "");
+    const grant = await env.WHOOP_AUTH.get(`chatgpt-refresh:${refreshToken}`, "json");
+    if (
+      !grant ||
+      Number(grant.expiresAt || 0) <= Date.now() ||
+      Number(grant.version || 0) !== await chatgptAuthVersion(env) ||
+      grant.clientId !== clientId ||
+      grant.resource !== resource
+    ) {
+      return json({ error: "invalid_grant" }, 400, { "Cache-Control": "no-store" });
+    }
+    await env.WHOOP_AUTH.delete(`chatgpt-refresh:${refreshToken}`);
+    return json(await issueChatGPTOAuthTokens(env, grant), 200, { "Cache-Control": "no-store" });
+  }
+
+  return json({ error: "unsupported_grant_type" }, 400, { "Cache-Control": "no-store" });
+}
+
 async function handleChatGPTKey(request, env) {
   const ownerSession = await loadOwnerSession(request, env);
   if (!ownerSession) return json({ error: "Not authorised" }, 401, corsHeaders(request, env));
@@ -316,7 +552,9 @@ async function handleChatGPTKey(request, env) {
   }
 
   if (request.method === "DELETE") {
+    const nextVersion = await chatgptAuthVersion(env) + 1;
     await Promise.all([
+      env.WHOOP_AUTH.put("chatgpt-auth-version", String(nextVersion)),
       env.WHOOP_AUTH.delete("chatgpt-api-key-hash"),
       env.WHOOP_AUTH.delete("personal-os-mirror")
     ]);
@@ -380,6 +618,8 @@ const MCP_TOOLS = [
   {
     name: "get_personal_os_status",
     description: "Get the sync status and available date range for the user's Personal Operating System data.",
+    securitySchemes: [{ type: "oauth2", scopes: ["personal_os:read"] }],
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     inputSchema: {
       type: "object",
       properties: {},
@@ -389,6 +629,8 @@ const MCP_TOOLS = [
   {
     name: "get_personal_os_day",
     description: "Get the joined Personal Operating System record for one date, including the Daily Log, Capacity Building entry and WHOOP data when available.",
+    securitySchemes: [{ type: "oauth2", scopes: ["personal_os:read"] }],
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     inputSchema: {
       type: "object",
       properties: {
@@ -401,6 +643,8 @@ const MCP_TOOLS = [
   {
     name: "get_recent_personal_os",
     description: "Get the most recent joined Personal Operating System records. Use this for recent trends in sleep, recovery, energy, capacity, medication/caffeine, load, training, nutrition experiments and WHOOP.",
+    securitySchemes: [{ type: "oauth2", scopes: ["personal_os:read"] }],
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     inputSchema: {
       type: "object",
       properties: {
@@ -412,6 +656,8 @@ const MCP_TOOLS = [
   {
     name: "get_personal_os_window",
     description: "Get joined Personal Operating System records for a specific date range, up to 60 days.",
+    securitySchemes: [{ type: "oauth2", scopes: ["personal_os:read"] }],
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     inputSchema: {
       type: "object",
       properties: {
@@ -538,11 +784,6 @@ async function callPersonalOsTool(request, env, name, args = {}) {
 }
 
 async function handleMcp(request, env) {
-  const bearer = bearerToken(request);
-  if (!(await isChatGPTKey(bearer, env))) {
-    return json({ error: "Invalid or missing Personal OS API key" }, 401, { "WWW-Authenticate": "Bearer" });
-  }
-
   if (request.method !== "POST") {
     return json({ error: "MCP endpoint accepts POST requests" }, 405);
   }
@@ -559,7 +800,7 @@ async function handleMcp(request, env) {
     return json(rpcResult(id, {
       protocolVersion: "2025-06-18",
       capabilities: { tools: {} },
-      serverInfo: { name: "personal-operating-system", version: "0.1.0" },
+      serverInfo: { name: "personal-operating-system", version: "0.2.0" },
       instructions: "Read-only access to the user's Personal Operating System data. Use date-scoped tools and interpret patterns cautiously."
     }));
   }
@@ -571,6 +812,19 @@ async function handleMcp(request, env) {
   }
 
   if (method === "tools/call") {
+    const bearer = bearerToken(request);
+    if (!(await isChatGPTKey(bearer, env))) {
+      return json(rpcResult(id, {
+        content: [{ type: "text", text: "Authentication required to read Personal OS data." }],
+        _meta: {
+          "mcp/www_authenticate": [
+            `Bearer resource_metadata="${env.PUBLIC_BASE_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource", error="insufficient_scope", error_description="Connect Personal Operating System to continue"`
+          ]
+        },
+        isError: true
+      }));
+    }
+
     const name = body?.params?.name;
     const args = body?.params?.arguments || {};
     if (!MCP_TOOLS.some((tool) => tool.name === name)) {
@@ -621,6 +875,11 @@ export default {
           whoopClientSecretConfigured: Boolean(String(env.WHOOP_CLIENT_SECRET || "").trim())
         });
       }
+      if (url.pathname === "/.well-known/oauth-protected-resource" && request.method === "GET") return json(protectedResourceMetadata(env));
+      if (url.pathname === "/.well-known/oauth-authorization-server" && request.method === "GET") return json(oauthMetadata(env));
+      if (url.pathname === "/oauth/chatgpt/authorize" && request.method === "GET") return handleChatGPTAuthorize(request, env);
+      if (url.pathname === "/oauth/chatgpt/token" && request.method === "POST") return handleChatGPTToken(request, env);
+      if (url.pathname === "/api/chatgpt-oauth/decision" && request.method === "POST") return handleChatGPTOAuthDecision(request, env);
       if (url.pathname === "/oauth/start" && request.method === "GET") return handleStart(request, env);
       if (url.pathname === "/oauth/callback" && request.method === "GET") return handleCallback(request, env);
       if (url.pathname === "/api/whoop" && request.method === "GET") return handleData(request, env);
