@@ -813,7 +813,7 @@ async function handleMcp(request, env) {
         content: [{ type: "text", text: "Authentication required to read Personal OS data." }],
         _meta: {
           "mcp/www_authenticate": [
-            `Bearer resource_metadata="${env.PUBLIC_BASE_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource", error="insufficient_scope", error_description="Connect Personal Operating System to continue"`
+            `Bearer resource_metadata="${env.PUBLIC_BASE_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource", scope="personal_os:read", error="insufficient_scope", error_description="Connect Personal Operating System to continue"`
           ]
         },
         isError: true
