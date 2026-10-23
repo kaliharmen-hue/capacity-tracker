@@ -398,8 +398,14 @@ function captureWhoopSession(): boolean {
   const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
   const session = hash.get("whoop_session");
   if (!session) return false;
+
   localStorage.setItem(WHOOP_SESSION_KEY, session);
-  history.replaceState({}, document.title, window.location.pathname + window.location.search.replace(/[?&]whoop=connected(&|$)/, "$1").replace(/[?&]$/, ""));
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete("whoop");
+  url.hash = "";
+  history.replaceState({}, document.title, url.pathname + (url.searchParams.toString() ? `?${url.searchParams.toString()}` : ""));
+
   return true;
 }
 
