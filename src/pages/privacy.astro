@@ -57,7 +57,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         ChatGPT access is optional and must be enabled from inside the Personal Operating System. When enabled, a private read-only plugin can request date-scoped Personal Operating System records from the Cloudflare bridge. ChatGPT cannot write to the tracker through this connection. WHOOP can be refreshed live by the bridge when a read request is made.
       </p>
       <p>
-        The ChatGPT access key is separate from the WHOOP connection and can be revoked independently. Revoking ChatGPT access deletes the stored access key and the cloud analysis mirror while leaving the local browser records under my control.
+        ChatGPT connects using an OAuth browser approval flow. The ChatGPT connection is separate from the WHOOP connection and can be revoked independently. Revoking ChatGPT access invalidates existing ChatGPT access tokens and deletes the cloud analysis mirror while leaving the local browser records under my control.
       </p>
     </section>
 
@@ -72,7 +72,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       <h3>Service providers</h3>
       <ul>
         <li><strong>GitHub Pages</strong> hosts the static Personal Operating System website.</li>
-        <li><strong>Cloudflare Workers and Workers KV</strong> provide the secure server-side bridge, WHOOP token storage and, when ChatGPT access is enabled, the Personal Operating System analysis mirror and read-access credential.</li>
+        <li><strong>Cloudflare Workers and Workers KV</strong> provide the secure server-side bridge, WHOOP token storage and, when ChatGPT access is enabled, the Personal Operating System analysis mirror and OAuth access tokens.</li>
         <li><strong>WHOOP</strong> provides the wearable data I choose to authorise through its API.</li>
       </ul>
       <p>
