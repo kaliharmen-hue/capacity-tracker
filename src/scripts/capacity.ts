@@ -445,6 +445,107 @@ async function disconnectWhoop(): Promise<void> {
   await updateRollingProgress();
 }
 
+async function renderChatGPTAccessStatus(): Promise<void> {
+  const session = localStorage.getItem(WHOOP_SESSION_KEY);
+  let enabled = isPersonalOsCloudSyncEnabled();
+
+  if (session) {
+    try {
+      const response = await fetch(`${WHOOP_BRIDGE}/api/chatgpt-key`, {
+        headers: { Authorization: `Bearer ${session}` }
+      });
+      if (response.ok) {
+        const payload = await response.json();
+        enabled = Boolean(payload?.configured);
+        setPersonalOsCloudSyncEnabled(enabled);
+        if (chatgptSyncStatus && enabled && payload?.mirrorSyncedAt) {
+          chatgptSyncStatus.textContent = `Cloud mirror last synced ${new Date(payload.mirrorSyncedAt).toLocaleString()}.`;
+        }
+      }
+    } catch {
+      // Fall back to the local opt-in state when the network is unavailable.
+    }
+  }
+
+  if (chatgptAccessStatus) chatgptAccessStatus.textContent = enabled ? "Enabled" : "Not enabled";
+  if (chatgptEnableButton) chatgptEnableButton.hidden = enabled;
+  if (chatgptSyncButton) chatgptSyncButton.hidden = !enabled;
+  if (chatgptRevokeButton) chatgptRevokeButton.hidden = !enabled;
+  if (chatgptAccessCopy) {
+    chatgptAccessCopy.textContent = enabled
+      ? "Read-only ChatGPT access is enabled. Local Daily Log and Capacity changes are mirrored automatically; WHOOP can be refreshed live when queried."
+      : "Optional read-only access lets the private Personal OS plugin query the joined Daily Log, Capacity and WHOOP data without copy/paste.";
+  }
+}
+
+async function enableChatGPTAccess(): Promise<void> {
+  const session = localStorage.getItem(WHOOP_SESSION_KEY);
+  if (!session) {
+    if (chatgptSyncStatus) chatgptSyncStatus.textContent = "Connect WHOOP first so this browser can authorise Personal OS cloud access.";
+    return;
+  }
+
+  if (chatgptSyncStatus) chatgptSyncStatus.textContent = "Creating read-only ChatGPT access...";
+  try {
+    const response = await fetch(`${WHOOP_BRIDGE}/api/chatgpt-key`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session}` }
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload?.key) throw new Error(payload?.error || "Could not create ChatGPT access key.");
+
+    setPersonalOsCloudSyncEnabled(true);
+    const syncResult = await syncPersonalOsCloudMirror();
+
+    if (chatgptKeyValue) chatgptKeyValue.textContent = payload.key;
+    if (chatgptKeyBox) chatgptKeyBox.hidden = false;
+    if (chatgptSyncStatus) {
+      chatgptSyncStatus.textContent = syncResult.ok
+        ? `Access enabled and ${syncResult.recordCount ?? 0} Personal OS day${syncResult.recordCount === 1 ? "" : "s"} mirrored.`
+        : `Access enabled, but the first mirror sync needs retrying: ${syncResult.error || "unknown error"}`;
+    }
+    await renderChatGPTAccessStatus();
+  } catch (error) {
+    if (chatgptSyncStatus) chatgptSyncStatus.textContent = error instanceof Error ? error.message : "Could not enable ChatGPT access.";
+  }
+}
+
+async function syncChatGPTMirror(): Promise<void> {
+  if (chatgptSyncStatus) chatgptSyncStatus.textContent = "Syncing Personal OS cloud mirror...";
+  const result = await syncPersonalOsCloudMirror();
+  if (chatgptSyncStatus) {
+    chatgptSyncStatus.textContent = result.ok
+      ? `Synced ${result.recordCount ?? 0} Personal OS day${result.recordCount === 1 ? "" : "s"} at ${new Date(result.syncedAt || Date.now()).toLocaleString()}.`
+      : result.error || "Personal OS cloud sync failed.";
+  }
+}
+
+async function revokeChatGPTAccess(): Promise<void> {
+  const session = localStorage.getItem(WHOOP_SESSION_KEY);
+  if (!session) {
+    setPersonalOsCloudSyncEnabled(false);
+    await renderChatGPTAccessStatus();
+    return;
+  }
+
+  if (chatgptSyncStatus) chatgptSyncStatus.textContent = "Revoking ChatGPT access...";
+  try {
+    const response = await fetch(`${WHOOP_BRIDGE}/api/chatgpt-key`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${session}` }
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload?.error || "Could not revoke ChatGPT access.");
+    setPersonalOsCloudSyncEnabled(false);
+    if (chatgptKeyBox) chatgptKeyBox.hidden = true;
+    if (chatgptKeyValue) chatgptKeyValue.textContent = "";
+    if (chatgptSyncStatus) chatgptSyncStatus.textContent = "ChatGPT access revoked and the cloud mirror deleted.";
+    await renderChatGPTAccessStatus();
+  } catch (error) {
+    if (chatgptSyncStatus) chatgptSyncStatus.textContent = error instanceof Error ? error.message : "Could not revoke ChatGPT access.";
+  }
+}
+
 async function loadPractice(date: string): Promise<void> {
   loadingDaily = true;
   const entry = { ...emptyPractice(date), ...((await getCapacityPractice(date)) ?? {}) };
@@ -623,6 +724,29 @@ whoopDisconnectButton?.addEventListener("click", () => {
   void disconnectWhoop();
 });
 
+chatgptEnableButton?.addEventListener("click", () => {
+  void enableChatGPTAccess();
+});
+
+chatgptSyncButton?.addEventListener("click", () => {
+  void syncChatGPTMirror();
+});
+
+chatgptRevokeButton?.addEventListener("click", () => {
+  void revokeChatGPTAccess();
+});
+
+chatgptCopyKeyButton?.addEventListener("click", async () => {
+  const key = chatgptKeyValue?.textContent || "";
+  if (!key) return;
+  try {
+    await navigator.clipboard.writeText(key);
+    if (chatgptSyncStatus) chatgptSyncStatus.textContent = "Connection key copied.";
+  } catch {
+    if (chatgptSyncStatus) chatgptSyncStatus.textContent = "Copy was blocked by the browser. Select the key manually.";
+  }
+});
+
 const returnedFromWhoop = captureWhoopSession();
 
 const initialDate = new URLSearchParams(window.location.search).get("date") || todayIso();
@@ -630,4 +754,6 @@ if (dateInput) dateInput.value = initialDate;
 if (weekStartInput) weekStartInput.value = mondayFor(initialDate);
 void loadPractice(initialDate);
 void loadReview(mondayFor(initialDate));
+void renderChatGPTAccessStatus();
+if (isPersonalOsCloudSyncEnabled()) void syncChatGPTMirror();
 if (returnedFromWhoop) void syncWhoop(30);
