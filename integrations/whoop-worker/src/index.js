@@ -251,7 +251,7 @@ async function handleCallback(request, env) {
   await env.WHOOP_AUTH.put(`session:${sessionId}`, JSON.stringify(session));
   await env.WHOOP_AUTH.put("owner-session", sessionId);
 
-  const target = new URL(env.APP_ORIGIN);
+  const target = new URL("capacity/", env.APP_ORIGIN);
   target.searchParams.set("whoop", "connected");
   target.hash = `whoop_session=${sessionId}`;
   return Response.redirect(target.toString(), 302);
