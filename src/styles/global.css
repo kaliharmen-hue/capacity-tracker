@@ -2609,3 +2609,91 @@ button.capacity-day:focus-visible {
     display: grid;
   }
 }
+
+
+.whoop-card {
+  border-left: 4px solid #557c9a;
+}
+
+.whoop-card-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.whoop-card-heading strong {
+  font-size: 0.85rem;
+}
+
+.whoop-day-summary {
+  display: grid;
+  gap: 8px;
+}
+
+.whoop-day-summary p,
+.whoop-day-summary small {
+  margin: 0;
+  color: var(--muted);
+}
+
+.whoop-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0;
+}
+
+.whoop-summary-grid div {
+  display: grid;
+  gap: 2px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-strong);
+}
+
+.whoop-summary-grid dt {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+}
+
+.whoop-summary-grid dd {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.whoop-actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.whoop-actions .secondary-button {
+  min-height: 36px;
+  font-size: 0.76rem;
+}
+
+.breakfast-result-metrics {
+  display: grid;
+  gap: 10px;
+}
+
+.metric-heading {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.breakfast-result-card .joined-daily-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(75px, 1fr));
+}
+
+@media (max-width: 520px) {
+  .whoop-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
