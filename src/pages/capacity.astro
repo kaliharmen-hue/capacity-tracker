@@ -3,6 +3,19 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 ---
 
 <BaseLayout title="Capacity Building" active="capacity">
+  <section id="chatgpt-oauth-approval" class="plain-panel oauth-approval-panel" hidden aria-live="polite">
+    <div>
+      <p class="eyebrow">Personal OS connection</p>
+      <h2>Allow read-only access?</h2>
+      <p>The private Personal OS bridge is asking to read your mirrored Daily Log, Capacity Building and WHOOP data. It cannot edit your tracker.</p>
+    </div>
+    <div class="oauth-approval-actions">
+      <button id="chatgpt-oauth-allow" type="button" class="primary-button">Allow read-only access</button>
+      <button id="chatgpt-oauth-cancel" type="button" class="secondary-button">Cancel</button>
+    </div>
+    <p id="chatgpt-oauth-status" class="autosave-status"></p>
+  </section>
+
   <section class="page-heading">
     <div>
       <p class="eyebrow">Capacity Building & Life Design</p>
