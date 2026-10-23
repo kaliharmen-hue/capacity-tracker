@@ -25,7 +25,10 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     <section>
       <h3>Information stored in the app</h3>
       <p>
-        Information entered into the Personal Operating System, including daily logs, capacity-building records, experiment notes, symptom information and reflections, is stored locally in the browser using IndexedDB unless I deliberately export or share it.
+        Information entered into the Personal Operating System, including daily logs, capacity-building records, experiment notes, symptom information and reflections, is stored locally in the browser using IndexedDB by default.
+      </p>
+      <p>
+        If I explicitly enable ChatGPT access in the app, a joined analysis mirror of selected Personal Operating System records is also stored in Cloudflare Workers KV so that my private Personal OS ChatGPT plugin can read it without manual copy and paste. This cloud mirror can include Daily Log, Capacity Building, weekly review and locally synced WHOOP information.
       </p>
       <p>
         The app may also store small pieces of technical information in the browser, such as the date of the most recent backup. The app does not currently use advertising trackers or analytics cookies.
@@ -41,7 +44,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         WHOOP access is authorised using OAuth. WHOOP access and refresh tokens are stored in a Cloudflare Workers KV namespace so the connection can be maintained securely. The WHOOP Client Secret is stored as a Cloudflare secret and is not included in the public website code.
       </p>
       <p>
-        The Cloudflare bridge is designed to retrieve WHOOP data when requested and return it to the Personal Operating System without keeping a permanent copy of the retrieved WHOOP health history on the bridge.
+        The Cloudflare bridge retrieves WHOOP data when requested. WHOOP data is not kept as a separate permanent WHOOP archive by the bridge; however, if I enable ChatGPT access, WHOOP metrics can be included in the joined Personal Operating System analysis mirror described above.
       </p>
     </section>
 
@@ -51,7 +54,10 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         Information is used to help me review patterns in sleep, recovery, energy, capacity, training, nutrition experiments and other factors I choose to track. WHOOP data may be matched to locally stored Personal Operating System records by date so that I can compare patterns in context.
       </p>
       <p>
-        The current WHOOP integration does not automatically send WHOOP data to ChatGPT or another artificial-intelligence service. If I deliberately export, copy or share information to another service, that is a separate user-initiated action and the receiving service's privacy terms apply.
+        ChatGPT access is optional and must be enabled from inside the Personal Operating System. When enabled, a private read-only plugin can request date-scoped Personal Operating System records from the Cloudflare bridge. ChatGPT cannot write to the tracker through this connection. WHOOP can be refreshed live by the bridge when a read request is made.
+      </p>
+      <p>
+        The ChatGPT access key is separate from the WHOOP connection and can be revoked independently. Revoking ChatGPT access deletes the stored access key and the cloud analysis mirror while leaving the local browser records under my control.
       </p>
     </section>
 
@@ -66,7 +72,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       <h3>Service providers</h3>
       <ul>
         <li><strong>GitHub Pages</strong> hosts the static Personal Operating System website.</li>
-        <li><strong>Cloudflare Workers and Workers KV</strong> provide the secure server-side bridge and token storage for the optional WHOOP connection.</li>
+        <li><strong>Cloudflare Workers and Workers KV</strong> provide the secure server-side bridge, WHOOP token storage and, when ChatGPT access is enabled, the Personal Operating System analysis mirror and read-access credential.</li>
         <li><strong>WHOOP</strong> provides the wearable data I choose to authorise through its API.</li>
       </ul>
       <p>
@@ -87,7 +93,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     <section>
       <h3>Retention, access and deletion</h3>
       <p>
-        Local Personal Operating System records remain in the browser until I delete the site's browser storage, replace/import data, or otherwise remove them. I can export my locally stored records using the app's Export page.
+        Local Personal Operating System records remain in the browser until I delete the site's browser storage, replace/import data, or otherwise remove them. I can export my locally stored records using the app's Export page. If ChatGPT access is enabled, revoking that access deletes the cloud analysis mirror.
       </p>
       <p>
         I can disconnect WHOOP access at any time. Disconnecting revokes the app's WHOOP access and removes the stored OAuth session from the bridge. I can also revoke an authorised application through WHOOP where that control is available.
