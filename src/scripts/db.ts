@@ -126,6 +126,7 @@ export const db = new CapacityDatabase();
 
 export async function saveEntry(entry: DailyEntry): Promise<void> {
   await db.entries.put({ ...entry, updatedAt: new Date().toISOString() });
+  schedulePersonalOsCloudSync();
 }
 
 export async function getEntry(date: string): Promise<DailyEntry | undefined> {
@@ -148,6 +149,7 @@ export async function getClusterDecisions(): Promise<ClusterDecision[]> {
 
 export async function saveClusterDecision(decision: ClusterDecision): Promise<void> {
   await db.clusterDecisions.put(decision);
+  schedulePersonalOsCloudSync();
 }
 
 export async function importClusterDecisions(decisions: ClusterDecision[]): Promise<void> {
@@ -160,6 +162,7 @@ export async function getPostExertionalResponses(): Promise<PostExertionalRespon
 
 export async function savePostExertionalResponse(response: PostExertionalResponse): Promise<void> {
   await db.postExertionalResponses.put({ ...response, updatedAt: new Date().toISOString() });
+  schedulePersonalOsCloudSync();
 }
 
 
@@ -169,6 +172,7 @@ export async function getCapacityPractice(date: string): Promise<CapacityPractic
 
 export async function saveCapacityPractice(entry: CapacityPracticeEntry): Promise<void> {
   await db.capacityPractices.put({ ...entry, updatedAt: new Date().toISOString() });
+  schedulePersonalOsCloudSync();
 }
 
 export async function getCapacityPractices(): Promise<CapacityPracticeEntry[]> {
@@ -185,6 +189,7 @@ export async function getCapacityReview(weekStart: string): Promise<CapacityWeek
 
 export async function saveCapacityReview(review: CapacityWeeklyReview): Promise<void> {
   await db.capacityReviews.put({ ...review, updatedAt: new Date().toISOString() });
+  schedulePersonalOsCloudSync();
 }
 
 export async function getCapacityReviews(): Promise<CapacityWeeklyReview[]> {
@@ -199,6 +204,7 @@ export async function importCapacityReviews(reviews: CapacityWeeklyReview[]): Pr
 export async function saveWhoopDays(records: Array<Omit<WhoopDay, "syncedAt"> | WhoopDay>): Promise<void> {
   const syncedAt = new Date().toISOString();
   await db.whoopDays.bulkPut(records.map((record) => ({ ...record, syncedAt })));
+  schedulePersonalOsCloudSync();
 }
 
 export async function getWhoopDay(date: string): Promise<WhoopDay | undefined> {
@@ -211,4 +217,91 @@ export async function getWhoopDays(): Promise<WhoopDay[]> {
 
 export async function clearWhoopDays(): Promise<void> {
   await db.whoopDays.clear();
+}
+
+
+const PERSONAL_OS_BRIDGE = "https://capacity-tracker.kaliharmen.workers.dev";
+const WHOOP_SESSION_KEY = "personal-os-whoop-session";
+const CLOUD_SYNC_ENABLED_KEY = "personal-os-chatgpt-sync-enabled";
+let personalOsSyncTimer = 0;
+
+export function isPersonalOsCloudSyncEnabled(): boolean {
+  return typeof window !== "undefined" && localStorage.getItem(CLOUD_SYNC_ENABLED_KEY) === "true";
+}
+
+export function setPersonalOsCloudSyncEnabled(enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  if (enabled) localStorage.setItem(CLOUD_SYNC_ENABLED_KEY, "true");
+  else localStorage.removeItem(CLOUD_SYNC_ENABLED_KEY);
+}
+
+export function schedulePersonalOsCloudSync(delay = 900): void {
+  if (typeof window === "undefined" || !isPersonalOsCloudSyncEnabled()) return;
+  window.clearTimeout(personalOsSyncTimer);
+  personalOsSyncTimer = window.setTimeout(() => {
+    void syncPersonalOsCloudMirror();
+  }, delay);
+}
+
+export async function syncPersonalOsCloudMirror(): Promise<{
+  ok: boolean;
+  syncedAt?: string;
+  recordCount?: number;
+  rangeStart?: string | null;
+  rangeEnd?: string | null;
+  error?: string;
+}> {
+  if (typeof window === "undefined" || !isPersonalOsCloudSyncEnabled()) {
+    return { ok: false, error: "Cloud sync is not enabled." };
+  }
+
+  const session = localStorage.getItem(WHOOP_SESSION_KEY);
+  if (!session) return { ok: false, error: "WHOOP connection is required to authorise Personal OS cloud sync." };
+
+  const [entries, capacityPractices, whoopDays, weeklyReviews, postExertionalResponses, clusterDecisions] = await Promise.all([
+    db.entries.orderBy("date").toArray(),
+    db.capacityPractices.orderBy("date").toArray(),
+    db.whoopDays.orderBy("date").toArray(),
+    db.capacityReviews.orderBy("weekStart").toArray(),
+    db.postExertionalResponses.orderBy("exposureDate").toArray(),
+    db.clusterDecisions.toArray()
+  ]);
+
+  const allDates = new Set<string>();
+  entries.forEach((entry) => allDates.add(entry.date));
+  capacityPractices.forEach((entry) => allDates.add(entry.date));
+  whoopDays.forEach((entry) => allDates.add(entry.date));
+
+  const dates = [...allDates].sort().slice(-180);
+  const dailyByDate = new Map(entries.map((entry) => [entry.date, entry]));
+  const capacityByDate = new Map(capacityPractices.map((entry) => [entry.date, entry]));
+  const whoopByDate = new Map(whoopDays.map((entry) => [entry.date, entry]));
+
+  const records = dates.map((date) => ({
+    date,
+    daily: dailyByDate.get(date) ?? null,
+    capacity: capacityByDate.get(date) ?? null,
+    whoop: whoopByDate.get(date) ?? null
+  }));
+
+  try {
+    const response = await fetch(`${PERSONAL_OS_BRIDGE}/api/personal-os/sync`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${session}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        records,
+        weeklyReviews,
+        postExertionalResponses,
+        clusterDecisions
+      })
+    });
+    const payload = await response.json();
+    if (!response.ok) return { ok: false, error: payload?.error || "Personal OS cloud sync failed." };
+    return { ok: true, ...payload };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Personal OS cloud sync failed." };
+  }
 }
