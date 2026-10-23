@@ -262,8 +262,16 @@ async function getWhoopWindow(accessToken, days) {
 }
 
 async function handleStart(request, env) {
+  const requestUrl = new URL(request.url);
+  const pendingChatGPT = requestUrl.searchParams.get("chatgpt_oauth") || "";
+  const chatgptOauth = /^[0-9a-f]{48}$/i.test(pendingChatGPT) ? pendingChatGPT : null;
+
   const state = randomHex(4); // WHOOP requires an 8-character state value.
-  await env.WHOOP_AUTH.put(`oauth-state:${state}`, "1", { expirationTtl: 600 });
+  await env.WHOOP_AUTH.put(
+    `oauth-state:${state}`,
+    JSON.stringify({ chatgptOauth }),
+    { expirationTtl: 600 }
+  );
 
   const redirectUri = `${env.PUBLIC_BASE_URL.replace(/\/$/, "")}/oauth/callback`;
   const url = new URL(WHOOP_AUTH_URL);
@@ -284,6 +292,13 @@ async function handleCallback(request, env) {
   const validState = await env.WHOOP_AUTH.get(`oauth-state:${state}`);
   if (!validState) return json({ error: "OAuth state was invalid or expired" }, 400);
   await env.WHOOP_AUTH.delete(`oauth-state:${state}`);
+
+  let stateContext = { chatgptOauth: null };
+  try {
+    stateContext = JSON.parse(validState);
+  } catch {
+    // Backwards compatibility with the earlier "1" state marker.
+  }
 
   const redirectUri = `${env.PUBLIC_BASE_URL.replace(/\/$/, "")}/oauth/callback`;
   const tokens = await tokenRequest(
@@ -309,6 +324,9 @@ async function handleCallback(request, env) {
 
   const target = new URL("capacity/", env.APP_ORIGIN);
   target.searchParams.set("whoop", "connected");
+  if (stateContext?.chatgptOauth && /^[0-9a-f]{48}$/i.test(stateContext.chatgptOauth)) {
+    target.searchParams.set("chatgpt_oauth", stateContext.chatgptOauth);
+  }
   target.hash = `whoop_session=${sessionId}`;
   return Response.redirect(target.toString(), 302);
 }
