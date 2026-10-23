@@ -2534,3 +2534,78 @@ button.capacity-day:focus-visible {
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+
+.app-footer {
+  width: min(1120px, calc(100% - 40px));
+  margin: 0 auto 28px;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.app-footer a {
+  color: var(--accent-dark);
+}
+
+.privacy-heading {
+  align-items: end;
+}
+
+.privacy-policy {
+  max-width: 860px;
+  margin: 0 auto;
+  gap: 0;
+  padding: clamp(20px, 4vw, 36px);
+}
+
+.privacy-policy section {
+  display: grid;
+  gap: 8px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.privacy-policy section:first-child {
+  padding-top: 0;
+}
+
+.privacy-policy section:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.privacy-policy h3,
+.privacy-policy p,
+.privacy-policy ul {
+  margin: 0;
+}
+
+.privacy-policy p,
+.privacy-policy li {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.privacy-policy ul {
+  display: grid;
+  gap: 7px;
+  padding-left: 22px;
+}
+
+.privacy-policy a {
+  color: var(--accent-dark);
+  font-weight: 800;
+}
+
+@media (max-width: 520px) {
+  .app-footer {
+    width: calc(100% - 40px);
+    display: grid;
+  }
+}
