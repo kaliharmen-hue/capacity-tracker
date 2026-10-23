@@ -16,6 +16,32 @@ function randomHex(bytes) {
   return [...data].map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 
+function bearerToken(request) {
+  const header = request.headers.get("Authorization") || "";
+  return header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+}
+
+async function sha256Hex(value) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function isChatGPTKey(token, env) {
+  if (!token) return false;
+  if (env.CHATGPT_API_KEY && token === env.CHATGPT_API_KEY) return true;
+  const expected = await env.WHOOP_AUTH.get("chatgpt-api-key-hash");
+  if (!expected) return false;
+  return (await sha256Hex(token)) === expected;
+}
+
+async function loadOwnerSession(request, env) {
+  const bearer = bearerToken(request);
+  if (!bearer) return null;
+  const stored = await env.WHOOP_AUTH.get(`session:${bearer}`, "json");
+  return stored ? { sessionId: bearer, data: stored } : null;
+}
+
 function appOrigin(env) {
   return new URL(env.APP_ORIGIN).origin;
 }
@@ -26,7 +52,7 @@ function corsHeaders(request, env) {
     return {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Headers": "Authorization, Content-Type",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
       "Vary": "Origin"
     };
   }
@@ -58,11 +84,10 @@ async function tokenRequest(body, env) {
 }
 
 async function loadSession(request, env) {
-  const header = request.headers.get("Authorization") || "";
-  const bearer = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  const bearer = bearerToken(request);
   if (!bearer) return null;
 
-  if (env.CHATGPT_API_KEY && bearer === env.CHATGPT_API_KEY) {
+  if (await isChatGPTKey(bearer, env)) {
     const ownerSession = await env.WHOOP_AUTH.get("owner-session");
     if (!ownerSession) return null;
     const stored = await env.WHOOP_AUTH.get(`session:${ownerSession}`, "json");
@@ -269,6 +294,295 @@ async function handleData(request, env) {
   return json(payload, 200, corsHeaders(request, env));
 }
 
+
+async function handleChatGPTKey(request, env) {
+  const ownerSession = await loadOwnerSession(request, env);
+  if (!ownerSession) return json({ error: "Not authorised" }, 401, corsHeaders(request, env));
+
+  if (request.method === "GET") {
+    const configured = Boolean(await env.WHOOP_AUTH.get("chatgpt-api-key-hash"));
+    const mirror = await env.WHOOP_AUTH.get("personal-os-mirror", "json");
+    return json({
+      configured,
+      mirrorSyncedAt: mirror?.syncedAt ?? null,
+      mirrorRecordCount: Array.isArray(mirror?.records) ? mirror.records.length : 0
+    }, 200, corsHeaders(request, env));
+  }
+
+  if (request.method === "POST") {
+    const key = `pos_${randomHex(32)}`;
+    await env.WHOOP_AUTH.put("chatgpt-api-key-hash", await sha256Hex(key));
+    return json({ key, createdAt: new Date().toISOString() }, 200, corsHeaders(request, env));
+  }
+
+  if (request.method === "DELETE") {
+    await Promise.all([
+      env.WHOOP_AUTH.delete("chatgpt-api-key-hash"),
+      env.WHOOP_AUTH.delete("personal-os-mirror")
+    ]);
+    return json({ revoked: true, mirrorDeleted: true }, 200, corsHeaders(request, env));
+  }
+
+  return json({ error: "Method not allowed" }, 405, corsHeaders(request, env));
+}
+
+async function handleMirrorSync(request, env) {
+  const ownerSession = await loadOwnerSession(request, env);
+  if (!ownerSession) return json({ error: "Not authorised" }, 401, corsHeaders(request, env));
+
+  const payload = await request.json();
+  const records = Array.isArray(payload?.records) ? payload.records : [];
+  if (records.length > 180) return json({ error: "Too many daily records" }, 400, corsHeaders(request, env));
+
+  const mirror = {
+    version: 1,
+    syncedAt: new Date().toISOString(),
+    rangeStart: records[0]?.date ?? null,
+    rangeEnd: records[records.length - 1]?.date ?? null,
+    records,
+    weeklyReviews: Array.isArray(payload?.weeklyReviews) ? payload.weeklyReviews.slice(-30) : [],
+    postExertionalResponses: Array.isArray(payload?.postExertionalResponses) ? payload.postExertionalResponses.slice(-60) : [],
+    clusterDecisions: Array.isArray(payload?.clusterDecisions) ? payload.clusterDecisions.slice(-60) : []
+  };
+
+  const encoded = JSON.stringify(mirror);
+  if (encoded.length > 20_000_000) {
+    return json({ error: "Personal OS mirror is too large" }, 413, corsHeaders(request, env));
+  }
+
+  await env.WHOOP_AUTH.put("personal-os-mirror", encoded);
+  return json({
+    ok: true,
+    syncedAt: mirror.syncedAt,
+    recordCount: records.length,
+    rangeStart: mirror.rangeStart,
+    rangeEnd: mirror.rangeEnd
+  }, 200, corsHeaders(request, env));
+}
+
+function rpcResult(id, result) {
+  return {
+    jsonrpc: "2.0",
+    id,
+    result
+  };
+}
+
+function rpcError(id, code, message) {
+  return {
+    jsonrpc: "2.0",
+    id: id ?? null,
+    error: { code, message }
+  };
+}
+
+const MCP_TOOLS = [
+  {
+    name: "get_personal_os_status",
+    description: "Get the sync status and available date range for the user's Personal Operating System data.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false
+    }
+  },
+  {
+    name: "get_personal_os_day",
+    description: "Get the joined Personal Operating System record for one date, including the Daily Log, Capacity Building entry and WHOOP data when available.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        date: { type: "string", description: "Date in YYYY-MM-DD format." }
+      },
+      required: ["date"],
+      additionalProperties: false
+    }
+  },
+  {
+    name: "get_recent_personal_os",
+    description: "Get the most recent joined Personal Operating System records. Use this for recent trends in sleep, recovery, energy, capacity, medication/caffeine, load, training, nutrition experiments and WHOOP.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        days: { type: "integer", minimum: 1, maximum: 60, description: "Number of recent days to return. Default 14." }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: "get_personal_os_window",
+    description: "Get joined Personal Operating System records for a specific date range, up to 60 days.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        start_date: { type: "string", description: "Start date in YYYY-MM-DD format." },
+        end_date: { type: "string", description: "End date in YYYY-MM-DD format." }
+      },
+      required: ["start_date", "end_date"],
+      additionalProperties: false
+    }
+  }
+];
+
+async function loadMirror(env) {
+  return env.WHOOP_AUTH.get("personal-os-mirror", "json");
+}
+
+function dateDiffDays(startDate, endDate) {
+  const start = new Date(`${startDate}T12:00:00Z`);
+  const end = new Date(`${endDate}T12:00:00Z`);
+  return Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+}
+
+async function liveWhoopByDate(request, env, days) {
+  try {
+    const session = await loadSession(request, env);
+    if (!session) return new Map();
+    const accessToken = await ensureAccessToken(session, env);
+    const payload = await getWhoopWindow(accessToken, Math.max(1, Math.min(90, days)));
+    return new Map((payload.records || []).map((record) => [record.date, record]));
+  } catch {
+    return new Map();
+  }
+}
+
+async function enrichedRecords(request, env, records) {
+  if (!records.length) return records;
+  const latest = records[records.length - 1]?.date;
+  const today = new Date().toISOString().slice(0, 10);
+  const daysBack = latest ? Math.min(90, Math.max(1, dateDiffDays(records[0].date, today))) : 1;
+  const whoopByDate = await liveWhoopByDate(request, env, daysBack);
+  return records.map((record) => ({
+    ...record,
+    whoop: whoopByDate.get(record.date) ?? record.whoop ?? null
+  }));
+}
+
+async function callPersonalOsTool(request, env, name, args = {}) {
+  const mirror = await loadMirror(env);
+  if (!mirror) {
+    return {
+      content: [{ type: "text", text: "No Personal OS cloud mirror is available yet. Enable ChatGPT access in Capacity Building and sync the data first." }],
+      isError: true
+    };
+  }
+
+  const records = Array.isArray(mirror.records) ? mirror.records : [];
+
+  if (name === "get_personal_os_status") {
+    const result = {
+      syncedAt: mirror.syncedAt ?? null,
+      rangeStart: mirror.rangeStart ?? records[0]?.date ?? null,
+      rangeEnd: mirror.rangeEnd ?? records[records.length - 1]?.date ?? null,
+      recordCount: records.length,
+      weeklyReviewCount: Array.isArray(mirror.weeklyReviews) ? mirror.weeklyReviews.length : 0,
+      note: "WHOOP is refreshed live where possible when date records are requested."
+    };
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+
+  if (name === "get_personal_os_day") {
+    const date = String(args.date || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return { content: [{ type: "text", text: "date must be YYYY-MM-DD" }], isError: true };
+    }
+    const record = records.find((item) => item.date === date);
+    if (!record) {
+      return { content: [{ type: "text", text: `No Personal OS record is available for ${date}.` }], isError: true };
+    }
+    const enriched = await enrichedRecords(request, env, [record]);
+    return { content: [{ type: "text", text: JSON.stringify(enriched[0]) }] };
+  }
+
+  if (name === "get_recent_personal_os") {
+    const days = Math.max(1, Math.min(60, Number(args.days || 14)));
+    const selected = records.slice(-days);
+    const enriched = await enrichedRecords(request, env, selected);
+    const result = {
+      syncedAt: mirror.syncedAt,
+      records: enriched,
+      weeklyReviews: Array.isArray(mirror.weeklyReviews) ? mirror.weeklyReviews.slice(-10) : [],
+      postExertionalResponses: Array.isArray(mirror.postExertionalResponses) ? mirror.postExertionalResponses.slice(-20) : []
+    };
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+
+  if (name === "get_personal_os_window") {
+    const startDate = String(args.start_date || "");
+    const endDate = String(args.end_date || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      return { content: [{ type: "text", text: "start_date and end_date must be YYYY-MM-DD" }], isError: true };
+    }
+    const span = dateDiffDays(startDate, endDate);
+    if (span < 1 || span > 60) {
+      return { content: [{ type: "text", text: "Date range must be between 1 and 60 days." }], isError: true };
+    }
+    const selected = records.filter((item) => item.date >= startDate && item.date <= endDate);
+    const enriched = await enrichedRecords(request, env, selected);
+    const result = {
+      startDate,
+      endDate,
+      syncedAt: mirror.syncedAt,
+      records: enriched,
+      weeklyReviews: Array.isArray(mirror.weeklyReviews)
+        ? mirror.weeklyReviews.filter((review) => review.weekStart >= startDate && review.weekStart <= endDate)
+        : [],
+      postExertionalResponses: Array.isArray(mirror.postExertionalResponses)
+        ? mirror.postExertionalResponses.filter((item) => item.exposureDate >= startDate && item.exposureDate <= endDate)
+        : []
+    };
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+
+  return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };
+}
+
+async function handleMcp(request, env) {
+  const bearer = bearerToken(request);
+  if (!(await isChatGPTKey(bearer, env))) {
+    return json({ error: "Invalid or missing Personal OS API key" }, 401, { "WWW-Authenticate": "Bearer" });
+  }
+
+  if (request.method !== "POST") {
+    return json({ error: "MCP endpoint accepts POST requests" }, 405);
+  }
+
+  const body = await request.json();
+  const id = body?.id;
+  const method = body?.method;
+
+  if (method === "notifications/initialized") {
+    return new Response(null, { status: 202 });
+  }
+
+  if (method === "initialize") {
+    return json(rpcResult(id, {
+      protocolVersion: "2025-06-18",
+      capabilities: { tools: {} },
+      serverInfo: { name: "personal-operating-system", version: "0.1.0" },
+      instructions: "Read-only access to the user's Personal Operating System data. Use date-scoped tools and interpret patterns cautiously."
+    }));
+  }
+
+  if (method === "ping") return json(rpcResult(id, {}));
+
+  if (method === "tools/list") {
+    return json(rpcResult(id, { tools: MCP_TOOLS }));
+  }
+
+  if (method === "tools/call") {
+    const name = body?.params?.name;
+    const args = body?.params?.arguments || {};
+    if (!MCP_TOOLS.some((tool) => tool.name === name)) {
+      return json(rpcError(id, -32602, "Unknown tool"));
+    }
+    const result = await callPersonalOsTool(request, env, name, args);
+    return json(rpcResult(id, result));
+  }
+
+  return json(rpcError(id, -32601, "Method not found"));
+}
+
 async function handleDisconnect(request, env) {
   const session = await loadSession(request, env);
   if (!session) return json({ error: "Not authorised" }, 401, corsHeaders(request, env));
@@ -310,7 +624,10 @@ export default {
       if (url.pathname === "/oauth/start" && request.method === "GET") return handleStart(request, env);
       if (url.pathname === "/oauth/callback" && request.method === "GET") return handleCallback(request, env);
       if (url.pathname === "/api/whoop" && request.method === "GET") return handleData(request, env);
+      if (url.pathname === "/api/chatgpt-key" && ["GET", "POST", "DELETE"].includes(request.method)) return handleChatGPTKey(request, env);
+      if (url.pathname === "/api/personal-os/sync" && request.method === "POST") return handleMirrorSync(request, env);
       if (url.pathname === "/api/disconnect" && request.method === "POST") return handleDisconnect(request, env);
+      if (url.pathname === "/mcp") return handleMcp(request, env);
       return json({ error: "Not found" }, 404, corsHeaders(request, env));
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "Unexpected error" }, 500, corsHeaders(request, env));
