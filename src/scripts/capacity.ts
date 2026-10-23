@@ -704,7 +704,8 @@ async function handleChatGPTOAuthRequest(): Promise<void> {
 
   const session = localStorage.getItem(WHOOP_SESSION_KEY);
   if (!session) {
-    if (chatgptSyncStatus) chatgptSyncStatus.textContent = "ChatGPT is waiting for approval, but WHOOP is not connected in this browser.";
+    if (chatgptSyncStatus) chatgptSyncStatus.textContent = "Authenticating this browser with WHOOP before Personal OS approval...";
+    window.location.href = `${WHOOP_BRIDGE}/oauth/start?chatgpt_oauth=${encodeURIComponent(requestId)}`;
     return;
   }
 
