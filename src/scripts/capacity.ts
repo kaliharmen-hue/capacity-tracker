@@ -6,9 +6,12 @@ import {
   getCapacityReview,
   getWhoopDay,
   getWhoopDays,
+  isPersonalOsCloudSyncEnabled,
   saveCapacityPractice,
   saveCapacityReview,
   saveWhoopDays,
+  setPersonalOsCloudSyncEnabled,
+  syncPersonalOsCloudMirror,
   type CapacityPracticeEntry,
   type CapacityWeeklyReview,
   type WhoopDay
@@ -48,6 +51,15 @@ const whoopConnectButton = document.querySelector<HTMLButtonElement>("#whoop-con
 const whoopSyncButton = document.querySelector<HTMLButtonElement>("#whoop-sync");
 const whoopDisconnectButton = document.querySelector<HTMLButtonElement>("#whoop-disconnect");
 const whoopSyncStatus = document.querySelector<HTMLElement>("#whoop-sync-status");
+const chatgptAccessStatus = document.querySelector<HTMLElement>("#chatgpt-access-status");
+const chatgptAccessCopy = document.querySelector<HTMLElement>("#chatgpt-access-copy");
+const chatgptEnableButton = document.querySelector<HTMLButtonElement>("#chatgpt-enable");
+const chatgptSyncButton = document.querySelector<HTMLButtonElement>("#chatgpt-sync");
+const chatgptRevokeButton = document.querySelector<HTMLButtonElement>("#chatgpt-revoke");
+const chatgptKeyBox = document.querySelector<HTMLElement>("#chatgpt-key-box");
+const chatgptKeyValue = document.querySelector<HTMLElement>("#chatgpt-key-value");
+const chatgptCopyKeyButton = document.querySelector<HTMLButtonElement>("#chatgpt-copy-key");
+const chatgptSyncStatus = document.querySelector<HTMLElement>("#chatgpt-sync-status");
 
 const WHOOP_BRIDGE = "https://capacity-tracker.kaliharmen.workers.dev";
 const WHOOP_SESSION_KEY = "personal-os-whoop-session";
