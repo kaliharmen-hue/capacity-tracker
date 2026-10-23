@@ -707,31 +707,14 @@ chatgptRevokeButton?.addEventListener("click", () => {
   void revokeChatGPTAccess();
 });
 
-async function completeChatGPTOAuthDecision(requestId: string, approved: boolean): Promise<void> {
-  const session = localStorage.getItem(WHOOP_SESSION_KEY);
-  if (!session) {
-    if (chatgptOauthStatus) chatgptOauthStatus.textContent = "WHOOP authentication is missing in this browser.";
-    return;
-  }
-
-  if (approved) {
-    setPersonalOsCloudSyncEnabled(true);
-    const syncResult = await syncPersonalOsCloudMirror();
-    if (!syncResult.ok && chatgptOauthStatus) {
-      chatgptOauthStatus.textContent = "Read-only access is being approved, but the Personal OS mirror needs another sync.";
-    }
-  }
-
+async function completeChatGPTOAuthDecision(requestId: string, approvalToken: string, approved: boolean): Promise<void> {
   if (chatgptOauthStatus) chatgptOauthStatus.textContent = approved ? "Approving read-only access..." : "Cancelling connection...";
 
   try {
     const response = await fetch(`${WHOOP_BRIDGE}/api/chatgpt-oauth/decision`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${session}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ requestId, approved })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requestId, approvalToken, approved })
     });
     const payload = await response.json();
     if (!response.ok || !payload?.redirectUrl) throw new Error(payload?.error || "Could not complete Personal OS approval.");
@@ -744,14 +727,8 @@ async function completeChatGPTOAuthDecision(requestId: string, approved: boolean
 async function handleChatGPTOAuthRequest(): Promise<void> {
   const params = new URLSearchParams(window.location.search);
   const requestId = params.get("chatgpt_oauth");
-  if (!requestId) return;
-
-  const session = localStorage.getItem(WHOOP_SESSION_KEY);
-  if (!session) {
-    if (chatgptSyncStatus) chatgptSyncStatus.textContent = "Authenticating this browser with WHOOP before Personal OS approval...";
-    window.location.href = `${WHOOP_BRIDGE}/oauth/start?chatgpt_oauth=${encodeURIComponent(requestId)}`;
-    return;
-  }
+  const approvalToken = params.get("chatgpt_approval");
+  if (!requestId || !approvalToken) return;
 
   if (chatgptOauthApproval) {
     chatgptOauthApproval.hidden = false;
@@ -760,11 +737,11 @@ async function handleChatGPTOAuthRequest(): Promise<void> {
   if (chatgptOauthStatus) chatgptOauthStatus.textContent = "Choose whether to allow read-only Personal OS access.";
 
   chatgptOauthAllowButton?.addEventListener("click", () => {
-    void completeChatGPTOAuthDecision(requestId, true);
+    void completeChatGPTOAuthDecision(requestId, approvalToken, true);
   }, { once: true });
 
   chatgptOauthCancelButton?.addEventListener("click", () => {
-    void completeChatGPTOAuthDecision(requestId, false);
+    void completeChatGPTOAuthDecision(requestId, approvalToken, false);
   }, { once: true });
 }
 
