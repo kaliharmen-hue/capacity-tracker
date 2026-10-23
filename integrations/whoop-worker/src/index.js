@@ -63,12 +63,7 @@ async function loadChatGPTOAuthToken(token, env) {
 
 async function isChatGPTKey(token, env) {
   if (!token) return false;
-  if (env.CHATGPT_API_KEY && token === env.CHATGPT_API_KEY) return true;
-  const oauthToken = await loadChatGPTOAuthToken(token, env);
-  if (oauthToken) return true;
-  const expected = await env.WHOOP_AUTH.get("chatgpt-api-key-hash");
-  if (!expected) return false;
-  return (await sha256Hex(token)) === expected;
+  return Boolean(await loadChatGPTOAuthToken(token, env));
 }
 
 async function loadOwnerSession(request, env) {
