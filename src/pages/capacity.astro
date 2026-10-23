@@ -189,6 +189,22 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         <p id="breakfast-outcomes">Energy, hunger and bloating averages will appear once there are enough ratings to compare.</p>
       </div>
 
+      <div class="capacity-progress-card whoop-card">
+        <div class="whoop-card-heading">
+          <span>WHOOP</span>
+          <strong id="whoop-status">Not connected</strong>
+        </div>
+        <div id="whoop-day-summary" class="whoop-day-summary">
+          <p>Connect WHOOP to pull recovery, sleep, HRV, resting heart rate, strain, steps and workouts into the Personal OS.</p>
+        </div>
+        <div class="whoop-actions">
+          <button id="whoop-connect" type="button" class="secondary-button">Connect WHOOP</button>
+          <button id="whoop-sync" type="button" class="secondary-button" hidden>Sync 30 days</button>
+          <button id="whoop-disconnect" type="button" class="secondary-button" hidden>Disconnect</button>
+        </div>
+        <p id="whoop-sync-status" class="autosave-status" aria-live="polite"></p>
+      </div>
+
       <div class="capacity-minimum-card">
         <strong>Low-capacity mode still counts</strong>
         <p>Check in for 30 seconds. Downshift for 2 minutes. Write tomorrow's first task. Choose one of the simple breakfast anchors. Choose five minutes that belong to you.</p>
