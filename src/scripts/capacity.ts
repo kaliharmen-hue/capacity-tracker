@@ -1,12 +1,17 @@
 import {
+  clearWhoopDays,
   getAllEntries,
   getCapacityPractice,
   getCapacityPractices,
   getCapacityReview,
+  getWhoopDay,
+  getWhoopDays,
   saveCapacityPractice,
   saveCapacityReview,
+  saveWhoopDays,
   type CapacityPracticeEntry,
-  type CapacityWeeklyReview
+  type CapacityWeeklyReview,
+  type WhoopDay
 } from "./db";
 import { todayIso, type DailyEntry } from "./schema";
 
@@ -37,6 +42,15 @@ const breakfastOutcomes = document.querySelector<HTMLElement>("#breakfast-outcom
 const breakfastComparison = document.querySelector<HTMLElement>("#breakfast-comparison");
 const copyCapacityDataButton = document.querySelector<HTMLButtonElement>("#copy-capacity-data");
 const capacityCopyStatus = document.querySelector<HTMLElement>("#capacity-copy-status");
+const whoopStatus = document.querySelector<HTMLElement>("#whoop-status");
+const whoopDaySummary = document.querySelector<HTMLElement>("#whoop-day-summary");
+const whoopConnectButton = document.querySelector<HTMLButtonElement>("#whoop-connect");
+const whoopSyncButton = document.querySelector<HTMLButtonElement>("#whoop-sync");
+const whoopDisconnectButton = document.querySelector<HTMLButtonElement>("#whoop-disconnect");
+const whoopSyncStatus = document.querySelector<HTMLElement>("#whoop-sync-status");
+
+const WHOOP_BRIDGE = "https://capacity-tracker.kaliharmen.workers.dev";
+const WHOOP_SESSION_KEY = "personal-os-whoop-session";
 
 const weekStartInput = document.querySelector<HTMLInputElement>("#capacity-week-start");
 const weeklyForm = document.querySelector<HTMLFormElement>("#capacity-weekly-form");
@@ -181,6 +195,14 @@ function displayBreakfastName(entry: CapacityPracticeEntry): string {
   return entry.breakfastChoice || "Not recorded";
 }
 
+function whoopAverage(entries: WhoopDay[], field: "sleepHours" | "recoveryScore" | "hrvRmssdMs" | "restingHeartRate" | "cycleStrain" | "stepCount"): number | null {
+  const values = entries
+    .map((entry) => entry[field])
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  if (!values.length) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
 function dailyAverage(entries: DailyEntry[], field: "sleepHours" | "energyScore" | "clarityScore" | "whoopRecoveryScore" | "capacityRemainingScore"): number | null {
   const values = entries
     .map((entry) => entry[field])
@@ -189,7 +211,7 @@ function dailyAverage(entries: DailyEntry[], field: "sleepHours" | "energyScore"
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function renderBreakfastComparison(entries: CapacityPracticeEntry[], dailyEntries: DailyEntry[]): void {
+function renderBreakfastComparison(entries: CapacityPracticeEntry[], dailyEntries: DailyEntry[], whoopEntries: WhoopDay[]): void {
   if (!breakfastComparison) return;
   const breakfastDays = entries.filter((entry) => entry.breakfastChoice && entry.breakfastChoice !== "No breakfast");
   if (!breakfastDays.length) {
@@ -204,10 +226,12 @@ function renderBreakfastComparison(entries: CapacityPracticeEntry[], dailyEntrie
   });
 
   const dailyByDate = new Map(dailyEntries.map((entry) => [entry.date, entry]));
+  const whoopByDate = new Map(whoopEntries.map((entry) => [entry.date, entry]));
 
   const rows = [...groups.entries()]
     .map(([name, group]) => {
       const linkedDaily = group.map((entry) => dailyByDate.get(entry.date)).filter((entry): entry is DailyEntry => Boolean(entry));
+      const linkedWhoop = group.map((entry) => whoopByDate.get(entry.date)).filter((entry): entry is WhoopDay => Boolean(entry));
       return {
         name,
         count: group.length,
@@ -215,8 +239,12 @@ function renderBreakfastComparison(entries: CapacityPracticeEntry[], dailyEntrie
         energy: scoreAverage(group, "breakfastEnergyScore"),
         hunger: scoreAverage(group, "breakfastHungerScore"),
         bloating: scoreAverage(group, "breakfastBloatingScore"),
-        sleep: dailyAverage(linkedDaily, "sleepHours"),
-        whoop: dailyAverage(linkedDaily, "whoopRecoveryScore"),
+        sleep: whoopAverage(linkedWhoop, "sleepHours") ?? dailyAverage(linkedDaily, "sleepHours"),
+        whoop: whoopAverage(linkedWhoop, "recoveryScore") ?? dailyAverage(linkedDaily, "whoopRecoveryScore"),
+        hrv: whoopAverage(linkedWhoop, "hrvRmssdMs"),
+        rhr: whoopAverage(linkedWhoop, "restingHeartRate"),
+        strain: whoopAverage(linkedWhoop, "cycleStrain"),
+        steps: whoopAverage(linkedWhoop, "stepCount"),
         dailyEnergy: dailyAverage(linkedDaily, "energyScore"),
         clarity: dailyAverage(linkedDaily, "clarityScore"),
         remaining: dailyAverage(linkedDaily, "capacityRemainingScore")
@@ -244,7 +272,11 @@ function renderBreakfastComparison(entries: CapacityPracticeEntry[], dailyEntrie
           <small class="metric-heading">Matched Daily Log · ${row.linkedCount} day${row.linkedCount === 1 ? "" : "s"}</small>
           <dl class="joined-daily-metrics">
             <div><dt>Sleep</dt><dd>${row.sleep === null ? "—" : row.sleep.toFixed(1) + " h"}</dd></div>
-            <div><dt>WHOOP</dt><dd>${fmt(row.whoop)}</dd></div>
+            <div><dt>Recovery</dt><dd>${fmt(row.whoop)}</dd></div>
+            <div><dt>HRV</dt><dd>${row.hrv === null ? "—" : row.hrv.toFixed(0) + " ms"}</dd></div>
+            <div><dt>RHR</dt><dd>${row.rhr === null ? "—" : row.rhr.toFixed(0)}</dd></div>
+            <div><dt>Strain</dt><dd>${fmt(row.strain)}</dd></div>
+            <div><dt>Steps</dt><dd>${row.steps === null ? "—" : Math.round(row.steps).toLocaleString()}</dd></div>
             <div><dt>Day energy</dt><dd>${row.dailyEnergy === null ? "—" : row.dailyEnergy.toFixed(1) + " / 10"}</dd></div>
             <div><dt>Clarity</dt><dd>${row.clarity === null ? "—" : row.clarity.toFixed(1) + " / 10"}</dd></div>
             <div><dt>Capacity left</dt><dd>${row.remaining === null ? "—" : row.remaining.toFixed(1) + " / 10"}</dd></div>
@@ -256,7 +288,7 @@ function renderBreakfastComparison(entries: CapacityPracticeEntry[], dailyEntrie
 }
 
 async function updateRollingProgress(): Promise<void> {
-  const [entries, dailyEntries] = await Promise.all([getCapacityPractices(), getAllEntries()]);
+  const [entries, dailyEntries, whoopEntries] = await Promise.all([getCapacityPractices(), getAllEntries(), getWhoopDays()]);
   const end = new Date((dateInput?.value || todayIso()) + "T12:00:00");
   const start = new Date(end);
   start.setDate(start.getDate() - 13);
@@ -312,7 +344,94 @@ async function updateRollingProgress(): Promise<void> {
   }
 
   const windowDailyEntries = dailyEntries.filter((entry) => entry.date >= startIso && entry.date <= endIso);
-  renderBreakfastComparison(windowEntries, windowDailyEntries);
+  const windowWhoopEntries = whoopEntries.filter((entry) => entry.date >= startIso && entry.date <= endIso);
+  renderBreakfastComparison(windowEntries, windowDailyEntries, windowWhoopEntries);
+}
+
+function formatWhoopValue(value: number | null, suffix = "", digits = 0): string {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits) + suffix : "—";
+}
+
+async function renderWhoopDay(date: string): Promise<void> {
+  const session = localStorage.getItem(WHOOP_SESSION_KEY);
+  const day = await getWhoopDay(date);
+  if (whoopStatus) whoopStatus.textContent = session ? "Connected" : "Not connected";
+  if (whoopConnectButton) whoopConnectButton.hidden = Boolean(session);
+  if (whoopSyncButton) whoopSyncButton.hidden = !session;
+  if (whoopDisconnectButton) whoopDisconnectButton.hidden = !session;
+
+  if (!whoopDaySummary) return;
+  if (!day) {
+    whoopDaySummary.innerHTML = session
+      ? "<p>No synced WHOOP record for this date yet.</p>"
+      : "<p>Connect WHOOP to pull recovery, sleep, HRV, resting heart rate, strain, steps and workouts into the Personal OS.</p>";
+    return;
+  }
+
+  whoopDaySummary.innerHTML = `
+    <dl class="whoop-summary-grid">
+      <div><dt>Recovery</dt><dd>${formatWhoopValue(day.recoveryScore)}</dd></div>
+      <div><dt>Sleep</dt><dd>${formatWhoopValue(day.sleepHours, " h", 1)}</dd></div>
+      <div><dt>HRV</dt><dd>${formatWhoopValue(day.hrvRmssdMs, " ms")}</dd></div>
+      <div><dt>RHR</dt><dd>${formatWhoopValue(day.restingHeartRate)}</dd></div>
+      <div><dt>Strain</dt><dd>${formatWhoopValue(day.cycleStrain, "", 1)}</dd></div>
+      <div><dt>Steps</dt><dd>${typeof day.stepCount === "number" ? Math.round(day.stepCount).toLocaleString() : "—"}</dd></div>
+    </dl>
+    <small>Last synced ${new Date(day.syncedAt).toLocaleString()}</small>
+  `;
+}
+
+function captureWhoopSession(): boolean {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const session = hash.get("whoop_session");
+  if (!session) return false;
+  localStorage.setItem(WHOOP_SESSION_KEY, session);
+  history.replaceState({}, document.title, window.location.pathname + window.location.search.replace(/[?&]whoop=connected(&|$)/, "$1").replace(/[?&]$/, ""));
+  return true;
+}
+
+async function syncWhoop(days = 30): Promise<void> {
+  const session = localStorage.getItem(WHOOP_SESSION_KEY);
+  if (!session) {
+    await renderWhoopDay(dateInput?.value || todayIso());
+    return;
+  }
+
+  if (whoopSyncStatus) whoopSyncStatus.textContent = "Syncing WHOOP...";
+  try {
+    const response = await fetch(`${WHOOP_BRIDGE}/api/whoop?days=${days}`, {
+      headers: { Authorization: `Bearer ${session}` }
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload?.error || "WHOOP sync failed");
+    const records = Array.isArray(payload?.records) ? payload.records : [];
+    await saveWhoopDays(records);
+    if (whoopSyncStatus) whoopSyncStatus.textContent = `Synced ${records.length} WHOOP day${records.length === 1 ? "" : "s"}.`;
+    await renderWhoopDay(dateInput?.value || todayIso());
+    await updateRollingProgress();
+  } catch (error) {
+    if (whoopSyncStatus) whoopSyncStatus.textContent = error instanceof Error ? error.message : "WHOOP sync failed.";
+  }
+}
+
+async function disconnectWhoop(): Promise<void> {
+  const session = localStorage.getItem(WHOOP_SESSION_KEY);
+  if (session) {
+    try {
+      await fetch(`${WHOOP_BRIDGE}/api/disconnect`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session}` }
+      });
+    } catch {
+      // Local disconnect still proceeds if the network request fails.
+    }
+  }
+  localStorage.removeItem(WHOOP_SESSION_KEY);
+  await clearWhoopDays();
+  if (whoopSyncStatus) whoopSyncStatus.textContent = "WHOOP disconnected and locally synced WHOOP data cleared.";
+  await renderWhoopDay(dateInput?.value || todayIso());
+  await updateRollingProgress();
+  await renderWhoopDay(date);
 }
 
 async function loadPractice(date: string): Promise<void> {
@@ -419,7 +538,7 @@ weekStartInput?.addEventListener("change", () => {
 });
 
 async function copyCapacityData(): Promise<void> {
-  const [entries, dailyEntries] = await Promise.all([getCapacityPractices(), getAllEntries()]);
+  const [entries, dailyEntries, whoopEntries] = await Promise.all([getCapacityPractices(), getAllEntries(), getWhoopDays()]);
   const end = new Date((dateInput?.value || todayIso()) + "T12:00:00");
   const start = new Date(end);
   start.setDate(start.getDate() - 13);
@@ -447,11 +566,13 @@ async function copyCapacityData(): Promise<void> {
   }
 
   const dailyByDate = new Map(dailyEntries.map((entry) => [entry.date, entry]));
+  const whoopByDate = new Map(whoopEntries.map((entry) => [entry.date, entry]));
   lines.push("", "## Joined whole-system context");
   for (const entry of windowEntries) {
     const daily = dailyByDate.get(entry.date);
+    const whoop = whoopByDate.get(entry.date);
     lines.push(
-      `- ${entry.date}: state=${entry.state || "not recorded"}; breakfast=${displayBreakfastName(entry)}; breakfast-energy=${entry.breakfastEnergyScore === "" ? "not rated" : entry.breakfastEnergyScore + "/4"}; hunger=${entry.breakfastHungerScore === "" ? "not rated" : entry.breakfastHungerScore + "/4"}; bloating=${entry.breakfastBloatingScore === "" ? "not rated" : entry.breakfastBloatingScore + "/4"}; sleep=${daily?.sleepHours ? daily.sleepHours + "h" : "not recorded"}; WHOOP=${typeof daily?.whoopRecoveryScore === "number" ? daily.whoopRecoveryScore : "not recorded"}; day-energy=${daily?.energyScore ?? "not recorded"}/10; clarity=${daily?.clarityScore ?? "not recorded"}/10; capacity-left=${typeof daily?.capacityRemainingScore === "number" ? daily.capacityRemainingScore + "/10" : "not recorded"}; fatigue=${daily?.fatigueLevel || "not recorded"}; movement=${daily?.movementTypes?.join(", ") || "not recorded"}; load=${daily?.load?.join(", ") || "not recorded"}; supported=${entry.supportedScore === "" ? "not rated" : entry.supportedScore + "/4"}; carried-alone=${entry.carriedAloneScore === "" ? "not rated" : entry.carriedAloneScore + "/4"}${entry.notes ? "; capacity-notes=" + entry.notes.replaceAll("\n", " ") : ""}`
+      `- ${entry.date}: state=${entry.state || "not recorded"}; breakfast=${displayBreakfastName(entry)}; breakfast-energy=${entry.breakfastEnergyScore === "" ? "not rated" : entry.breakfastEnergyScore + "/4"}; hunger=${entry.breakfastHungerScore === "" ? "not rated" : entry.breakfastHungerScore + "/4"}; bloating=${entry.breakfastBloatingScore === "" ? "not rated" : entry.breakfastBloatingScore + "/4"}; WHOOP-recovery=${whoop?.recoveryScore ?? (typeof daily?.whoopRecoveryScore === "number" ? daily.whoopRecoveryScore : "not recorded")}; WHOOP-HRV=${whoop?.hrvRmssdMs ?? "not recorded"}; WHOOP-RHR=${whoop?.restingHeartRate ?? "not recorded"}; WHOOP-sleep=${whoop?.sleepHours ?? (daily?.sleepHours || "not recorded")}; WHOOP-strain=${whoop?.cycleStrain ?? "not recorded"}; WHOOP-steps=${whoop?.stepCount ?? "not recorded"}; day-energy=${daily?.energyScore ?? "not recorded"}/10; clarity=${daily?.clarityScore ?? "not recorded"}/10; capacity-left=${typeof daily?.capacityRemainingScore === "number" ? daily.capacityRemainingScore + "/10" : "not recorded"}; fatigue=${daily?.fatigueLevel || "not recorded"}; movement=${daily?.movementTypes?.join(", ") || "not recorded"}; load=${daily?.load?.join(", ") || "not recorded"}; supported=${entry.supportedScore === "" ? "not rated" : entry.supportedScore + "/4"}; carried-alone=${entry.carriedAloneScore === "" ? "not rated" : entry.carriedAloneScore + "/4"}${entry.notes ? "; capacity-notes=" + entry.notes.replaceAll("\n", " ") : ""}`
     );
   }
 
@@ -478,8 +599,23 @@ copyCapacityDataButton?.addEventListener("click", () => {
   void copyCapacityData();
 });
 
+whoopConnectButton?.addEventListener("click", () => {
+  window.location.href = `${WHOOP_BRIDGE}/oauth/start`;
+});
+
+whoopSyncButton?.addEventListener("click", () => {
+  void syncWhoop(30);
+});
+
+whoopDisconnectButton?.addEventListener("click", () => {
+  void disconnectWhoop();
+});
+
+const returnedFromWhoop = captureWhoopSession();
+
 const initialDate = new URLSearchParams(window.location.search).get("date") || todayIso();
 if (dateInput) dateInput.value = initialDate;
 if (weekStartInput) weekStartInput.value = mondayFor(initialDate);
 void loadPractice(initialDate);
 void loadReview(mondayFor(initialDate));
+if (returnedFromWhoop) void syncWhoop(30);
