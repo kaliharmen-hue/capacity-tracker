@@ -57,6 +57,10 @@ const chatgptEnableButton = document.querySelector<HTMLButtonElement>("#chatgpt-
 const chatgptSyncButton = document.querySelector<HTMLButtonElement>("#chatgpt-sync");
 const chatgptRevokeButton = document.querySelector<HTMLButtonElement>("#chatgpt-revoke");
 const chatgptSyncStatus = document.querySelector<HTMLElement>("#chatgpt-sync-status");
+const chatgptOauthApproval = document.querySelector<HTMLElement>("#chatgpt-oauth-approval");
+const chatgptOauthAllowButton = document.querySelector<HTMLButtonElement>("#chatgpt-oauth-allow");
+const chatgptOauthCancelButton = document.querySelector<HTMLButtonElement>("#chatgpt-oauth-cancel");
+const chatgptOauthStatus = document.querySelector<HTMLElement>("#chatgpt-oauth-status");
 
 const WHOOP_BRIDGE = "https://capacity-tracker.kaliharmen.workers.dev";
 const WHOOP_SESSION_KEY = "personal-os-whoop-session";
@@ -697,6 +701,40 @@ chatgptRevokeButton?.addEventListener("click", () => {
   void revokeChatGPTAccess();
 });
 
+async function completeChatGPTOAuthDecision(requestId: string, approved: boolean): Promise<void> {
+  const session = localStorage.getItem(WHOOP_SESSION_KEY);
+  if (!session) {
+    if (chatgptOauthStatus) chatgptOauthStatus.textContent = "WHOOP authentication is missing in this browser.";
+    return;
+  }
+
+  if (approved) {
+    setPersonalOsCloudSyncEnabled(true);
+    const syncResult = await syncPersonalOsCloudMirror();
+    if (!syncResult.ok && chatgptOauthStatus) {
+      chatgptOauthStatus.textContent = "Read-only access is being approved, but the Personal OS mirror needs another sync.";
+    }
+  }
+
+  if (chatgptOauthStatus) chatgptOauthStatus.textContent = approved ? "Approving read-only access..." : "Cancelling connection...";
+
+  try {
+    const response = await fetch(`${WHOOP_BRIDGE}/api/chatgpt-oauth/decision`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ requestId, approved })
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload?.redirectUrl) throw new Error(payload?.error || "Could not complete Personal OS approval.");
+    window.location.href = payload.redirectUrl;
+  } catch (error) {
+    if (chatgptOauthStatus) chatgptOauthStatus.textContent = error instanceof Error ? error.message : "Could not complete Personal OS approval.";
+  }
+}
+
 async function handleChatGPTOAuthRequest(): Promise<void> {
   const params = new URLSearchParams(window.location.search);
   const requestId = params.get("chatgpt_oauth");
@@ -709,29 +747,19 @@ async function handleChatGPTOAuthRequest(): Promise<void> {
     return;
   }
 
-  const approved = window.confirm("Allow the Personal Operating System plugin in ChatGPT to read your mirrored Daily Log, Capacity and WHOOP data? ChatGPT will not be able to edit the tracker.");
-  if (approved) {
-    setPersonalOsCloudSyncEnabled(true);
-    await syncPersonalOsCloudMirror();
+  if (chatgptOauthApproval) {
+    chatgptOauthApproval.hidden = false;
+    chatgptOauthApproval.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+  if (chatgptOauthStatus) chatgptOauthStatus.textContent = "Choose whether to allow read-only Personal OS access.";
 
-  if (chatgptSyncStatus) chatgptSyncStatus.textContent = approved ? "Approving ChatGPT connection..." : "Declining ChatGPT connection...";
+  chatgptOauthAllowButton?.addEventListener("click", () => {
+    void completeChatGPTOAuthDecision(requestId, true);
+  }, { once: true });
 
-  try {
-    const response = await fetch(`${WHOOP_BRIDGE}/api/chatgpt-oauth/decision`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${session}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ requestId, approved })
-    });
-    const payload = await response.json();
-    if (!response.ok || !payload?.redirectUrl) throw new Error(payload?.error || "Could not complete ChatGPT approval.");
-    window.location.href = payload.redirectUrl;
-  } catch (error) {
-    if (chatgptSyncStatus) chatgptSyncStatus.textContent = error instanceof Error ? error.message : "Could not complete ChatGPT approval.";
-  }
+  chatgptOauthCancelButton?.addEventListener("click", () => {
+    void completeChatGPTOAuthDecision(requestId, false);
+  }, { once: true });
 }
 
 const returnedFromWhoop = captureWhoopSession();
