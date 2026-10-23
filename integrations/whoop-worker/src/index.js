@@ -809,15 +809,16 @@ async function handleMcp(request, env) {
   if (method === "tools/call") {
     const bearer = bearerToken(request);
     if (!(await isChatGPTKey(bearer, env))) {
-      return json(rpcResult(id, {
-        content: [{ type: "text", text: "Authentication required to read Personal OS data." }],
-        _meta: {
-          "mcp/www_authenticate": [
-            `Bearer resource_metadata="${env.PUBLIC_BASE_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource", scope="personal_os:read", error="insufficient_scope", error_description="Connect Personal Operating System to continue"`
-          ]
-        },
-        isError: true
-      }));
+      const challenge = `Bearer resource_metadata="${env.PUBLIC_BASE_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource", scope="personal_os:read", error="insufficient_scope", error_description="Connect Personal Operating System to continue"`;
+      return json(
+        rpcResult(id, {
+          content: [{ type: "text", text: "Authentication required to read Personal OS data." }],
+          _meta: { "mcp/www_authenticate": [challenge] },
+          isError: true
+        }),
+        401,
+        { "WWW-Authenticate": challenge }
+      );
     }
 
     const name = body?.params?.name;
