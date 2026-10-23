@@ -2736,3 +2736,44 @@ button.capacity-day:focus-visible {
 .chatgpt-key-box[hidden] {
   display: none !important;
 }
+
+
+.oauth-approval-panel {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 18px;
+  border: 2px solid var(--accent);
+  background: #eef4f0;
+}
+
+.oauth-approval-panel[hidden] {
+  display: none !important;
+}
+
+.oauth-approval-panel h2,
+.oauth-approval-panel p {
+  margin: 0;
+}
+
+.oauth-approval-panel > div:first-child {
+  display: grid;
+  gap: 8px;
+}
+
+.oauth-approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.oauth-approval-actions .primary-button,
+.oauth-approval-actions .secondary-button {
+  min-height: 44px;
+}
+
+@media (max-width: 520px) {
+  .oauth-approval-actions {
+    display: grid;
+  }
+}
