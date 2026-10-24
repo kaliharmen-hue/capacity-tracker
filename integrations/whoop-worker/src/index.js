@@ -1,3 +1,5 @@
+import { mirrorCounts, validateUpload } from './mirror-merge.js';
+import { mirrorStore } from './mirror-store.js';
 const WHOOP_AUTH_URL = "https://api.prod.whoop.com/oauth/oauth2/auth";
 const WHOOP_TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token";
 const WHOOP_API = "https://api.prod.whoop.com/developer/v2";
@@ -627,7 +629,7 @@ async function handleChatGPTKey(request, env) {
 
   if (request.method === "GET") {
     const configured = Boolean(await env.WHOOP_AUTH.get("chatgpt-api-key-hash"));
-    const mirror = await env.WHOOP_AUTH.get("personal-os-mirror", "json");
+    const mirror = await loadMirror(env);
     return json({
       configured,
       mirrorSyncedAt: mirror?.syncedAt ?? null,
@@ -659,33 +661,11 @@ async function handleMirrorSync(request, env) {
   if (!ownerSession) return json({ error: "Not authorised" }, 401, corsHeaders(request, env));
 
   const payload = await request.json();
-  const records = Array.isArray(payload?.records) ? payload.records : [];
-  if (records.length > 180) return json({ error: "Too many daily records" }, 400, corsHeaders(request, env));
-
-  const mirror = {
-    version: 1,
-    syncedAt: new Date().toISOString(),
-    rangeStart: records[0]?.date ?? null,
-    rangeEnd: records[records.length - 1]?.date ?? null,
-    records,
-    weeklyReviews: Array.isArray(payload?.weeklyReviews) ? payload.weeklyReviews.slice(-30) : [],
-    postExertionalResponses: Array.isArray(payload?.postExertionalResponses) ? payload.postExertionalResponses.slice(-60) : [],
-    clusterDecisions: Array.isArray(payload?.clusterDecisions) ? payload.clusterDecisions.slice(-60) : []
-  };
-
-  const encoded = JSON.stringify(mirror);
-  if (encoded.length > 20_000_000) {
-    return json({ error: "Personal OS mirror is too large" }, 413, corsHeaders(request, env));
-  }
-
-  await env.WHOOP_AUTH.put("personal-os-mirror", encoded);
-  return json({
-    ok: true,
-    syncedAt: mirror.syncedAt,
-    recordCount: records.length,
-    rangeStart: mirror.rangeStart,
-    rangeEnd: mirror.rangeEnd
-  }, 200, corsHeaders(request, env));
+  try { validateUpload(payload); }
+  catch (error) { return json({ error: error.message }, 400, corsHeaders(request, env)); }
+  if (!env.PERSONAL_OS_MIRROR) return json({ error: "Safe merge storage is unavailable; existing mirror was not changed." }, 503, corsHeaders(request, env));
+  const response = await mirrorStore(env).fetch('https://mirror.internal/', { method: 'POST', body: JSON.stringify(payload), headers: { 'Content-Type': 'application/json' } });
+  return json(await response.json(), response.status, corsHeaders(request, env));
 }
 
 function rpcResult(id, result) {
@@ -761,7 +741,10 @@ const MCP_TOOLS = [
 ];
 
 async function loadMirror(env) {
-  return env.WHOOP_AUTH.get("personal-os-mirror", "json");
+  if (!env.PERSONAL_OS_MIRROR) return env.WHOOP_AUTH.get("personal-os-mirror", "json");
+  const response = await mirrorStore(env).fetch('https://mirror.internal/');
+  if (!response.ok) throw new Error('Personal OS mirror is temporarily unavailable.');
+  return response.json();
 }
 
 function dateDiffDays(startDate, endDate) {
@@ -811,6 +794,9 @@ async function callPersonalOsTool(request, env, name, args = {}) {
       rangeStart: mirror.rangeStart ?? records[0]?.date ?? null,
       rangeEnd: mirror.rangeEnd ?? records[records.length - 1]?.date ?? null,
       recordCount: records.length,
+      counts: mirrorCounts(records),
+      mirrorVersion: mirror.version || 1,
+      lastSync: mirror.lastSync ?? null,
       weeklyReviewCount: Array.isArray(mirror.weeklyReviews) ? mirror.weeklyReviews.length : 0,
       note: "WHOOP is refreshed live where possible when date records are requested."
     };

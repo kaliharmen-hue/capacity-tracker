@@ -6,6 +6,7 @@ import {
   getCapacityReview,
   getWhoopDay,
   getWhoopDays,
+  getPersonalOsLocalCounts,
   isPersonalOsCloudSyncEnabled,
   saveCapacityPractice,
   saveCapacityReview,
@@ -16,6 +17,7 @@ import {
   type CapacityWeeklyReview,
   type WhoopDay
 } from "./db";
+import { formatMirrorSync } from './personal-os-sync';
 import { todayIso, type DailyEntry } from "./schema";
 
 const dateInput = document.querySelector<HTMLInputElement>("#capacity-date");
@@ -453,6 +455,12 @@ async function disconnectWhoop(): Promise<void> {
 }
 
 async function renderChatGPTAccessStatus(): Promise<void> {
+  const diagnostic = document.querySelector('#chatgpt-local-counts');
+  if (diagnostic) {
+    const counts = await getPersonalOsLocalCounts();
+    const id = localStorage.getItem('personal-os-sync-client-id');
+    diagnostic.textContent = `This browser${id ? ' '+id.slice(0,8) : ''} · ${window.location.origin} · capacity-tracker: ${counts.daily} Daily Log, ${counts.capacity} Capacity, ${counts.whoop} WHOOP saved locally. Separate browsers and home-screen apps may have different local records.`;
+  }
   const enabled = isPersonalOsCloudSyncEnabled();
   if (chatgptAccessStatus) chatgptAccessStatus.textContent = enabled ? "Enabled" : "Not enabled";
   if (chatgptEnableButton) chatgptEnableButton.hidden = enabled;
@@ -476,9 +484,7 @@ async function enableChatGPTAccess(): Promise<void> {
   if (chatgptSyncStatus) chatgptSyncStatus.textContent = "Syncing the Personal OS cloud mirror...";
   const syncResult = await syncPersonalOsCloudMirror();
   if (chatgptSyncStatus) {
-    chatgptSyncStatus.textContent = syncResult.ok
-      ? `Cloud mirror enabled with ${syncResult.recordCount ?? 0} Personal OS day${syncResult.recordCount === 1 ? "" : "s"}.`
-      : `Cloud mirror enabled, but the first sync needs retrying: ${syncResult.error || "unknown error"}`;
+    chatgptSyncStatus.textContent = formatMirrorSync(syncResult);
   }
   await renderChatGPTAccessStatus();
 }
@@ -487,10 +493,9 @@ async function syncChatGPTMirror(): Promise<void> {
   if (chatgptSyncStatus) chatgptSyncStatus.textContent = "Syncing Personal OS cloud mirror...";
   const result = await syncPersonalOsCloudMirror();
   if (chatgptSyncStatus) {
-    chatgptSyncStatus.textContent = result.ok
-      ? `Synced ${result.recordCount ?? 0} Personal OS day${result.recordCount === 1 ? "" : "s"} at ${new Date(result.syncedAt || Date.now()).toLocaleString()}.`
-      : result.error || "Personal OS cloud sync failed.";
+    chatgptSyncStatus.textContent = formatMirrorSync(result);
   }
+  await renderChatGPTAccessStatus();
 }
 
 async function revokeChatGPTAccess(): Promise<void> {
@@ -746,6 +751,10 @@ async function handleChatGPTOAuthRequest(): Promise<void> {
 }
 
 const returnedFromWhoop = captureWhoopSession();
+window.addEventListener('personal-os-cloud-sync', event => {
+  if (chatgptSyncStatus) chatgptSyncStatus.textContent = formatMirrorSync((event as CustomEvent).detail);
+  void renderChatGPTAccessStatus();
+});
 
 const initialDate = new URLSearchParams(window.location.search).get("date") || todayIso();
 if (dateInput) dateInput.value = initialDate;

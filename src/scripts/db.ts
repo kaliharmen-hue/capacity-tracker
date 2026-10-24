@@ -1,6 +1,7 @@
 import Dexie, { type Table } from "dexie";
 import type { DailyEntry } from "./schema";
 import type { ClusterDecision } from "./timeline-model";
+import { buildMirrorBatches, type MirrorCounts } from './personal-os-sync';
 
 export interface CapacityPracticeEntry {
   date: string;
@@ -243,14 +244,33 @@ export function schedulePersonalOsCloudSync(delay = 900): void {
   }, delay);
 }
 
-export async function syncPersonalOsCloudMirror(): Promise<{
+export interface CloudMirrorSyncResult {
   ok: boolean;
   syncedAt?: string;
   recordCount?: number;
   rangeStart?: string | null;
   rangeEnd?: string | null;
   error?: string;
-}> {
+  localCounts?: MirrorCounts;
+  uploadedCounts?: MirrorCounts;
+  counts?: MirrorCounts;
+  clientId?: string;
+}
+export async function getPersonalOsLocalCounts(): Promise<MirrorCounts> {
+  const [entries, capacity, whoop] = await Promise.all([db.entries.toArray(), db.capacityPractices.toArray(), db.whoopDays.toArray()]);
+  return buildMirrorBatches(entries, capacity, whoop).counts;
+}
+let syncInFlight: Promise<CloudMirrorSyncResult> | null = null;
+let syncRequestedAgain = false;
+export function syncPersonalOsCloudMirror(): Promise<CloudMirrorSyncResult> {
+  if (syncInFlight) { syncRequestedAgain = true; return syncInFlight; }
+  syncInFlight = performPersonalOsCloudSync().finally(() => {
+    syncInFlight = null;
+    if (syncRequestedAgain) { syncRequestedAgain = false; schedulePersonalOsCloudSync(); }
+  });
+  return syncInFlight;
+}
+async function performPersonalOsCloudSync(): Promise<CloudMirrorSyncResult> {
   if (typeof window === "undefined" || !isPersonalOsCloudSyncEnabled()) {
     return { ok: false, error: "Cloud sync is not enabled." };
   }
@@ -258,33 +278,21 @@ export async function syncPersonalOsCloudMirror(): Promise<{
   const session = localStorage.getItem(WHOOP_SESSION_KEY);
   if (!session) return { ok: false, error: "WHOOP connection is required to authorise Personal OS cloud sync." };
 
-  const [entries, capacityPractices, whoopDays, weeklyReviews, postExertionalResponses, clusterDecisions] = await Promise.all([
+  try {
+  const clientKey = 'personal-os-sync-client-id';
+  const clientId = localStorage.getItem(clientKey) || crypto.randomUUID();
+  localStorage.setItem(clientKey, clientId);
+  const [entries, capacityPractices, whoopDays, weeklyReviews, postExertionalResponses, clusterDecisions] = await db.transaction('r', [db.entries, db.capacityPractices, db.whoopDays, db.capacityReviews, db.postExertionalResponses, db.clusterDecisions], () => Promise.all([
     db.entries.orderBy("date").toArray(),
     db.capacityPractices.orderBy("date").toArray(),
     db.whoopDays.orderBy("date").toArray(),
     db.capacityReviews.orderBy("weekStart").toArray(),
     db.postExertionalResponses.orderBy("exposureDate").toArray(),
     db.clusterDecisions.toArray()
-  ]);
-
-  const allDates = new Set<string>();
-  entries.forEach((entry) => allDates.add(entry.date));
-  capacityPractices.forEach((entry) => allDates.add(entry.date));
-  whoopDays.forEach((entry) => allDates.add(entry.date));
-
-  const dates = [...allDates].sort().slice(-180);
-  const dailyByDate = new Map(entries.map((entry) => [entry.date, entry]));
-  const capacityByDate = new Map(capacityPractices.map((entry) => [entry.date, entry]));
-  const whoopByDate = new Map(whoopDays.map((entry) => [entry.date, entry]));
-
-  const records = dates.map((date) => ({
-    date,
-    daily: dailyByDate.get(date) ?? null,
-    capacity: capacityByDate.get(date) ?? null,
-    whoop: whoopByDate.get(date) ?? null
-  }));
-
-  try {
+  ]));
+  const { batches, counts: localCounts } = buildMirrorBatches(entries, capacityPractices, whoopDays);
+  let payload: Partial<CloudMirrorSyncResult> = {};
+  for (const records of batches) {
     const response = await fetch(`${PERSONAL_OS_BRIDGE}/api/personal-os/sync`, {
       method: "POST",
       headers: {
@@ -293,14 +301,18 @@ export async function syncPersonalOsCloudMirror(): Promise<{
       },
       body: JSON.stringify({
         records,
+        client: { id: clientId, origin: window.location.origin, database: 'capacity-tracker' },
         weeklyReviews,
         postExertionalResponses,
         clusterDecisions
       })
     });
-    const payload = await response.json();
+    payload = await response.json();
     if (!response.ok) return { ok: false, error: payload?.error || "Personal OS cloud sync failed." };
-    return { ok: true, ...payload };
+  }
+  const result = { ...payload, ok: true, localCounts, uploadedCounts: localCounts, clientId } as CloudMirrorSyncResult;
+  window.dispatchEvent(new CustomEvent('personal-os-cloud-sync', { detail: result }));
+  return result;
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Personal OS cloud sync failed." };
   }
