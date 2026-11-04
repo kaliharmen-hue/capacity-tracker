@@ -146,5 +146,16 @@ try {
   await page.screenshot({ path: 'qa/phone-connection-code.png' });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
+  const capacityDate = await page.locator('#capacity-date').inputValue();
+  await page.locator('#capacity-notes').fill('Reconnect must preserve this pending edit');
+  await page.getByRole('button', { name: 'Reconnect WHOOP', exact: true }).click();
+  await page.waitForURL('https://capacity-tracker.kaliharmen.workers.dev/oauth/start');
+  await page.goto(origin + '/fixture');
+  const capacitySaved = await page.evaluate(async date => {
+    const db = await new Promise(resolve => { const request = indexedDB.open('capacity-tracker'); request.onsuccess = () => resolve(request.result); });
+    const record = await new Promise(resolve => { const request = db.transaction('capacityPractices').objectStore('capacityPractices').get(date); request.onsuccess = () => resolve(request.result); });
+    db.close(); return record;
+  }, capacityDate);
+  assert.equal(capacitySaved.notes, 'Reconnect must preserve this pending edit');
   console.log('PASS: history/WHOOP preserved; autosave and JPEG retries pass; temporary phone connection is applied; code controls render without errors.');
 } finally { await browser.close(); server.close(); }

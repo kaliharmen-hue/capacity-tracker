@@ -692,7 +692,14 @@ copyCapacityDataButton?.addEventListener("click", () => {
   void copyCapacityData();
 });
 
-whoopConnectButton?.addEventListener("click", () => {
+whoopConnectButton?.addEventListener("click", async () => {
+  if (loadingDaily) { if (whoopSyncStatus) whoopSyncStatus.textContent = 'Please wait for this date to finish loading.'; return; }
+  if (dailySaveTimer !== undefined) {
+    window.clearTimeout(dailySaveTimer);
+    dailySaveTimer = undefined;
+    try { await saveCapacityPractice(collectPractice()); }
+    catch { if (whoopSyncStatus) whoopSyncStatus.textContent = 'Could not save this edit yet. Please keep this page open and retry.'; return; }
+  }
   window.location.href = `${WHOOP_BRIDGE}/oauth/start`;
 });
 
