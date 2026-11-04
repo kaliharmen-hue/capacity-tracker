@@ -2,6 +2,7 @@ import Dexie, { type Table } from "dexie";
 import type { DailyEntry } from "./schema";
 import type { ClusterDecision } from "./timeline-model";
 import type { V2DailyEntry } from "./v2-schema";
+import type { WhoopRecord } from "./whoop-schema";
 
 export interface PostExertionalResponse {
   exposureDate: string;
@@ -17,6 +18,7 @@ class CapacityDatabase extends Dexie {
   clusterDecisions!: Table<ClusterDecision, string>;
   postExertionalResponses!: Table<PostExertionalResponse, string>;
   v2Entries!: Table<V2DailyEntry, string>;
+  whoopRecords!: Table<WhoopRecord, string>;
 
   constructor() {
     super("capacity-tracker");
@@ -37,6 +39,13 @@ class CapacityDatabase extends Dexie {
       clusterDecisions: "id, status, startDate, endDate, updatedAt",
       postExertionalResponses: "exposureDate, updatedAt",
       v2Entries: "date, updatedAt"
+    });
+    this.version(5).stores({
+      entries: "date, updatedAt",
+      clusterDecisions: "id, status, startDate, endDate, updatedAt",
+      postExertionalResponses: "exposureDate, updatedAt",
+      v2Entries: "date, updatedAt",
+      whoopRecords: "recordKey, recordType, date, start, syncedAt"
     });
   }
 }
@@ -96,5 +105,15 @@ export async function getAllV2Entries(): Promise<V2DailyEntry[]> {
 export async function importV2Entries(entries: V2DailyEntry[]): Promise<void> {
   await db.transaction("rw", db.v2Entries, async () => {
     await db.v2Entries.bulkPut(entries.map((entry) => ({ ...entry, schemaVersion: 1 })));
+  });
+}
+
+export async function getAllWhoopRecords(): Promise<WhoopRecord[]> {
+  return db.whoopRecords.orderBy("start").toArray();
+}
+
+export async function importWhoopRecords(records: WhoopRecord[]): Promise<void> {
+  await db.transaction("rw", db.whoopRecords, async () => {
+    await db.whoopRecords.bulkPut(records);
   });
 }

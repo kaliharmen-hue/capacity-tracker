@@ -8,6 +8,7 @@ test("V2 entries start unanswered rather than implying no intervention", () => {
   assert.equal(entry.physicalFatigue, "");
   assert.equal(entry.cognitiveDifficulty, "");
   assert.equal(entry.functionalImpact, "");
+  assert.equal(entry.entryStatus, "draft");
   assert.equal(entry.bioLightFullSpectrum, false);
   assert.equal(entry.bioLightEffect, "");
   assert.equal(entry.vagustimDaytimeEffect, "");
@@ -19,6 +20,7 @@ test("V2 normalisation preserves explicit zero scores and unchecked protocol sta
     physicalFatigue: 0,
     cognitiveDifficulty: 0,
     functionalImpact: "No impact",
+    entryStatus: "complete",
     bioLightFullSpectrum: false,
     vagustimDaytime: true,
     vagustimDaytimeEffect: "No noticeable change"
@@ -27,6 +29,7 @@ test("V2 normalisation preserves explicit zero scores and unchecked protocol sta
   assert.equal(entry.physicalFatigue, 0);
   assert.equal(entry.cognitiveDifficulty, 0);
   assert.equal(entry.bioLightFullSpectrum, false);
+  assert.equal(entry.entryStatus, "complete");
   assert.equal(entry.vagustimDaytime, true);
   assert.equal(entry.vagustimDaytimeEffect, "No noticeable change");
 });

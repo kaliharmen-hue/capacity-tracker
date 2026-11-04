@@ -13,9 +13,24 @@ export type V2ImmediateEffect =
   | "Not sure"
   | "";
 
+export interface V2Meal {
+  id: string;
+  time: string;
+  note: string;
+  ingredients: string;
+  portions: string;
+  calories: number | "";
+  proteinGrams: number | "";
+  carbohydrateGrams: number | "";
+  fatGrams: number | "";
+  confidence: string;
+  confirmedAt: string;
+}
+
 export interface V2DailyEntry {
   schemaVersion: 1;
   date: string;
+  entryStatus: "draft" | "complete";
   physicalFatigue: number | "";
   cognitiveDifficulty: number | "";
   functionalImpact: V2FunctionalImpact;
@@ -27,6 +42,7 @@ export interface V2DailyEntry {
   vagustimDaytime: boolean;
   vagustimDaytimeEffect: V2ImmediateEffect;
   vagustimEvening: boolean;
+  meals: V2Meal[];
   updatedAt: string;
 }
 
@@ -49,6 +65,7 @@ export function createEmptyV2Entry(date: string): V2DailyEntry {
   return {
     schemaVersion: 1,
     date,
+    entryStatus: "draft",
     physicalFatigue: "",
     cognitiveDifficulty: "",
     functionalImpact: "",
@@ -60,6 +77,7 @@ export function createEmptyV2Entry(date: string): V2DailyEntry {
     vagustimDaytime: false,
     vagustimDaytimeEffect: "",
     vagustimEvening: false,
+    meals: [],
     updatedAt: ""
   };
 }
