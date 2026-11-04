@@ -24,8 +24,12 @@ try {
   const values = new Map();
   const storage = { get: async k => structuredClone(values.get(k)), put: async (k, v) => { values.set(k, structuredClone(v)); }, delete: async k => values.delete(k), list: async ({ prefix }) => new Map([...values].filter(([key]) => key.startsWith(prefix))), transaction: async fn => fn(storage) };
   const library = new PhotoLibraryStorage({ storage }, {});
+  let uploadError;
   await page.route('https://capacity-tracker.kaliharmen.workers.dev/api/meal-photos/**', async route => {
     const request = route.request(), url = new URL(request.url());
+    if (url.pathname.endsWith('/upload') && uploadError) {
+      await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: uploadError }) }); return;
+    }
     const response = await library.fetch(new Request('https://test' + (url.pathname.split('/api/meal-photos')[1] || '/list') + url.search, { method: request.method(), ...(request.postData() ? { body: request.postData() } : {}) }));
     await route.fulfill({ status: response.status, headers: Object.fromEntries(response.headers), body: Buffer.from(await response.arrayBuffer()) });
   });
@@ -97,8 +101,19 @@ try {
   await page.reload(); await page.getByRole('button', { name: 'Retry upload', exact: true }).waitFor();
   assert.equal(await page.locator('#v2-food-consent').isChecked(), false, 'Withdrawing photo permission must also persist');
   await page.getByRole('button', { name: 'Retry upload', exact: true }).click();
-  await page.getByText('Photo uploads are paused. Enable photo permission to upload.', { exact: true }).waitFor();
+  await page.locator('#v2-meal-list [role="alert"]').filter({ hasText: 'Photo uploads are paused. Enable photo permission to upload.' }).waitFor();
   assert.equal([...values.keys()].filter(key => key.startsWith('photo:')).length, 1, 'Retry must not upload without permission');
+  await page.locator('#v2-food-consent').check();
+  uploadError = 'Connect the owner WHOOP account in Capacity Building first.';
+  await page.getByRole('button', { name: 'Retry upload', exact: true }).click();
+  await page.locator('#v2-meal-list [role="alert"]').filter({ hasText: 'Reconnect WHOOP on this phone' }).waitFor();
+  await page.reload();
+  await page.locator('#v2-meal-list [role="alert"]').filter({ hasText: 'Reconnect WHOOP on this phone' }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Retry upload', exact: true }).count(), 1, 'Auth failure must keep the local photo and retry');
+  uploadError = undefined;
+  await page.getByRole('button', { name: 'Retry upload', exact: true }).click();
+  await page.waitForFunction(() => document.querySelectorAll('#v2-meal-list img').length === 2 && ![...document.querySelectorAll('button')].some(b => b.textContent === 'Retry upload'));
+  assert.equal([...values.keys()].filter(key => key.startsWith('photo:')).length, 2, 'Recovered upload should save exactly once');
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'qa/v2-desktop.png' });
   console.log('PASS: v5 history/WHOOP preserved; draft survives fast date change; real JPEG compressed/uploaded/reloaded; phone and desktop render without errors.');

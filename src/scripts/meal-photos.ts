@@ -61,9 +61,13 @@ export function initMealPhotos(getDate: () => string) {
   });
   async function api(path: string, body?: unknown) {
     const token = session();
-    if (!token) throw new Error('Connect WHOOP in Capacity Building to use private photo storage.');
+    if (!token) throw new Error('Connect WHOOP on this phone in Capacity Building, then retry. This photo stays on your phone.');
     const response = await fetch(API + path, { method: body ? 'POST' : 'GET', headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
-    if (!response.ok) { const error = await response.json().catch(() => ({})); throw new Error(error.error || 'Photo service needs retrying.'); }
+    if (!response.ok) {
+      if (response.status === 401) throw new Error('Reconnect WHOOP on this phone in Capacity Building, then retry. This photo stays on your phone.');
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'Photo service needs retrying.');
+    }
     return response;
   }
   function choose(file?: File) {
@@ -81,10 +85,16 @@ export function initMealPhotos(getDate: () => string) {
   camera.addEventListener('change', () => choose(camera.files?.[0]));
 
   async function upload(draft: MealPhotoDraft) {
-    const image = await dataUrl(draft.image);
-    if (!consent.checked) throw new Error('Photo uploads are paused. Enable photo permission to upload.');
-    await api('/upload', { id: draft.id, date: draft.date, time: draft.time, note: draft.note, image, consent: true });
-    await db.mealPhotoDrafts.delete(draft.id);
+    try {
+      const image = await dataUrl(draft.image);
+      if (!consent.checked) throw new Error('Photo uploads are paused. Enable photo permission to upload.');
+      await api('/upload', { id: draft.id, date: draft.date, time: draft.time, note: draft.note, image, consent: true });
+      await db.mealPhotoDrafts.delete(draft.id);
+    } catch (error) {
+      const lastError = error instanceof Error ? error.message : 'Upload failed. Please retry.';
+      await db.mealPhotoDrafts.update(draft.id, { lastError }).catch(() => {});
+      throw error;
+    }
   }
   async function refresh() {
     const version = ++renderVersion;
@@ -124,8 +134,18 @@ export function initMealPhotos(getDate: () => string) {
       const url = URL.createObjectURL(draft.image); photoUrls.push(url);
       const img = document.createElement('img'); img.src = url; img.alt = 'Meal awaiting upload'; article.prepend(img);
       const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'secondary-button'; retry.textContent = 'Retry upload';
-      retry.addEventListener('click', async () => { retry.disabled = true; try { await upload(draft); await refresh(); } catch (e) { message(e instanceof Error ? e.message : 'Upload failed.'); retry.disabled = false; } });
-      article.append(retry);
+      const errorLine = document.createElement('p'); errorLine.setAttribute('role', 'alert');
+      errorLine.hidden = !draft.lastError; errorLine.textContent = draft.lastError || '';
+      retry.addEventListener('click', async () => {
+        retry.disabled = true;
+        try { await upload(draft); await refresh(); }
+        catch (e) {
+          const text = e instanceof Error ? e.message : 'Upload failed.';
+          errorLine.textContent = text; errorLine.hidden = false;
+          message(text); retry.disabled = false;
+        }
+      });
+      article.append(errorLine, retry);
     }
   }
   save.addEventListener('click', async () => {
