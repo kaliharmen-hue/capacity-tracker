@@ -63,6 +63,9 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 
     <section>
       <h3>Optional meal photos</h3>
+      <p>
+        Photo upload permission is remembered on this device until I untick it or clear this site's browser storage. Unticking pauses new uploads, including retries; it does not delete existing photos or revoke the separate ChatGPT connection.
+      </p>
       <p>With my consent, meal photos are resized and re-encoded on my device to remove source metadata, then uploaded to private Cloudflare SQLite storage. Photos are never put in the public GitHub repository or a public image bucket. My authenticated app and authorised ChatGPT connection can retrieve them. OpenAI processes images retrieved during my ChatGPT reviews under the terms of that service.</p>
       <p>If an upload fails, a compressed pending copy stays in this browser until I retry successfully. Uploaded images are kept for review. If I enable automatic cleanup, images with a successful review receipt are removed from active storage after seven days. Dates, times, notes and review references stay saved. Unreviewed images are not automatically removed. Cloudflare database recovery backups may retain deleted data for the provider's recovery period; deleting here does not delete material already retrieved into ChatGPT.</p>
       <p>The photo library is capped at 250 MB and uses the Workers Free storage allowances. Uploads pause at capacity. No external AI API is called by the app.</p>

@@ -2,6 +2,7 @@ import { db, type MealPhotoDraft } from './db';
 
 const API = (import.meta.env.PUBLIC_PERSONAL_OS_API_BASE || 'https://capacity-tracker.kaliharmen.workers.dev').replace(/\/$/, '') + '/api/meal-photos';
 interface Photo { id: string; date: string; time: string; note: string; state: string; reviewedAt: string | null }
+const CONSENT_KEY = 'personal-os-meal-photo-consent-v1';
 
 export async function compressMealPhoto(file: Blob): Promise<Blob> {
   const url = URL.createObjectURL(file);
@@ -50,6 +51,14 @@ export function initMealPhotos(getDate: () => string) {
   let renderVersion = 0;
   const session = () => localStorage.getItem('personal-os-whoop-session');
   const message = (value: string) => { status.textContent = value; };
+  try { consent.checked = localStorage.getItem(CONSENT_KEY) === 'yes'; }
+  catch { message('This browser cannot remember photo permission.'); }
+  consent.addEventListener('change', () => {
+    try {
+      localStorage.setItem(CONSENT_KEY, consent.checked ? 'yes' : 'no');
+      message(consent.checked ? 'Photo permission remembered on this device.' : 'New photo uploads paused. Previously uploaded photos remain in my connected account.');
+    } catch { message('Permission applies while this page is open, but could not be remembered.'); }
+  });
   async function api(path: string, body?: unknown) {
     const token = session();
     if (!token) throw new Error('Connect WHOOP in Capacity Building to use private photo storage.');
@@ -73,6 +82,7 @@ export function initMealPhotos(getDate: () => string) {
 
   async function upload(draft: MealPhotoDraft) {
     const image = await dataUrl(draft.image);
+    if (!consent.checked) throw new Error('Photo uploads are paused. Enable photo permission to upload.');
     await api('/upload', { id: draft.id, date: draft.date, time: draft.time, note: draft.note, image, consent: true });
     await db.mealPhotoDrafts.delete(draft.id);
   }
