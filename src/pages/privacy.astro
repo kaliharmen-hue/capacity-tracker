@@ -1,0 +1,125 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Privacy Policy" active="privacy">
+  <section class="page-heading privacy-heading">
+    <div>
+      <p class="eyebrow">Privacy</p>
+      <h2>Privacy Policy</h2>
+    </div>
+    <p class="soft-copy">Effective 4 November 2026</p>
+  </section>
+
+  <article class="plain-panel privacy-policy">
+    <section>
+      <h3>About this app</h3>
+      <p>
+        Personal Operating System is a personal wellbeing and capacity-tracking application. It is designed to keep the information I enter primarily on my own device and to let me optionally connect data from services such as WHOOP.
+      </p>
+      <p>
+        This app is not a medical service and does not replace professional medical advice, diagnosis or treatment.
+      </p>
+    </section>
+
+    <section>
+      <h3>Information stored in the app</h3>
+      <p>
+        Information entered into the Personal Operating System, including daily logs, capacity-building records, experiment notes, symptom information and reflections, is stored locally in the browser using IndexedDB by default.
+      </p>
+      <p>
+        If I explicitly enable ChatGPT access in the app, a joined analysis mirror of selected Personal Operating System records is also stored in private Cloudflare database storage so that my Personal OS ChatGPT plugin can read it without manual copy and paste. This cloud mirror can include Daily Log, V2 Daily Log, Capacity Building, weekly review and locally synced WHOOP information.
+      </p>
+      <p>
+        The app may also store small pieces of technical information in the browser, such as the date of the most recent backup. The app does not currently use advertising trackers or analytics cookies.
+      </p>
+    </section>
+
+    <section>
+      <h3>Optional WHOOP connection</h3>
+      <p>
+        If I choose to connect my WHOOP account, the app requests only the permissions needed for the Personal Operating System: recovery, sleep, physiological cycles and workouts. Depending on what WHOOP makes available through those permissions, this can include Recovery score, heart-rate variability, resting heart rate, sleep duration and sleep metrics, day Strain, steps, workout activity and workout Strain.
+      </p>
+      <p>
+        WHOOP access is authorised using OAuth. WHOOP access and refresh tokens are stored in a Cloudflare Workers KV namespace so the connection can be maintained securely. The WHOOP Client Secret is stored as a Cloudflare secret and is not included in the public website code.
+      </p>
+      <p>
+        The Cloudflare bridge retrieves WHOOP data when requested. WHOOP data is not kept as a separate permanent WHOOP archive by the bridge; however, if I enable ChatGPT access, WHOOP metrics can be included in the joined Personal Operating System analysis mirror described above.
+      </p>
+    </section>
+
+    <section>
+      <h3>How information is used</h3>
+      <p>
+        Information is used to help me review patterns in sleep, recovery, energy, capacity, training, nutrition experiments and other factors I choose to track. WHOOP data may be matched to locally stored Personal Operating System records by date so that I can compare patterns in context.
+      </p>
+      <p>
+        ChatGPT access is optional and must be enabled from inside the Personal Operating System. When enabled, the private plugin can request date-scoped records and meal images. A separate optional review permission allows ChatGPT to acknowledge the exact photos used in a saved review. This schedules their removal after a seven-day grace period only when automatic cleanup is enabled. Nutritional estimates are not written back to daily logs. WHOOP can be refreshed live by the bridge when a read request is made.
+      </p>
+      <p>
+        ChatGPT connects using an OAuth browser approval flow. The ChatGPT connection is separate from the WHOOP connection and can be revoked independently. Revoking ChatGPT access invalidates existing ChatGPT access tokens and deletes the cloud analysis mirror while leaving the local browser records under my control.
+      </p>
+    </section>
+
+    <section>
+      <h3>Optional meal photos</h3>
+      <p>With my consent, meal photos are resized and re-encoded on my device to remove source metadata, then uploaded to private Cloudflare SQLite storage. Photos are never put in the public GitHub repository or a public image bucket. My authenticated app and authorised ChatGPT connection can retrieve them. OpenAI processes images retrieved during my ChatGPT reviews under the terms of that service.</p>
+      <p>If an upload fails, a compressed pending copy stays in this browser until I retry successfully. Uploaded images are kept for review. If I enable automatic cleanup, images with a successful review receipt are removed from active storage after seven days. Dates, times, notes and review references stay saved. Unreviewed images are not automatically removed. Cloudflare database recovery backups may retain deleted data for the provider's recovery period; deleting here does not delete material already retrieved into ChatGPT.</p>
+      <p>The photo library is capped at 250 MB and uses the Workers Free storage allowances. Uploads pause at capacity. No external AI API is called by the app.</p>
+    </section>
+
+    <section>
+      <h3>Sharing and sale of data</h3>
+      <p>
+        Personal Operating System data and WHOOP data are not sold, rented or used for advertising. Data is shared only with infrastructure providers needed to operate the app and connection, or when I explicitly choose to export or share information myself.
+      </p>
+    </section>
+
+    <section>
+      <h3>Service providers</h3>
+      <ul>
+        <li><strong>GitHub Pages</strong> hosts the static Personal Operating System website.</li>
+        <li><strong>Cloudflare Workers and Workers KV</strong> provide the secure server-side bridge, WHOOP token storage and, when ChatGPT access is enabled, the Personal Operating System analysis mirror and OAuth access tokens.</li>
+        <li><strong>WHOOP</strong> provides the wearable data I choose to authorise through its API.</li>
+      </ul>
+      <p>
+        These providers may process technical information such as IP addresses, request metadata and security logs in accordance with their own privacy policies and terms.
+      </p>
+    </section>
+
+    <section>
+      <h3>Security</h3>
+      <p>
+        Connections use HTTPS. Private credentials are kept out of the public GitHub Pages code. WHOOP OAuth tokens are stored server-side in Cloudflare KV, and the WHOOP Client Secret is stored using Cloudflare's secret-management mechanism.
+      </p>
+      <p>
+        No internet-connected system can guarantee absolute security, but the app is designed to minimise the amount of sensitive information held outside my own browser.
+      </p>
+    </section>
+
+    <section>
+      <h3>Retention, access and deletion</h3>
+      <p>
+        Local Personal Operating System records remain in the browser until I delete the site's browser storage, replace/import data, or otherwise remove them. I can export my locally stored records using the app's Export page. If ChatGPT access is enabled, revoking that access deletes the cloud analysis mirror.
+      </p>
+      <p>
+        I can disconnect WHOOP access at any time. Disconnecting revokes the app's WHOOP access and removes the stored OAuth session from the bridge. I can also revoke an authorised application through WHOOP where that control is available.
+      </p>
+    </section>
+
+    <section>
+      <h3>Changes to this policy</h3>
+      <p>
+        This policy may be updated when the Personal Operating System changes, particularly if new data sources or sharing features are added. The effective date at the top of this page will be updated when material changes are made.
+      </p>
+    </section>
+
+    <section>
+      <h3>Contact</h3>
+      <p>
+        Questions about this app or this privacy policy can be raised through the application's public GitHub repository:
+        <a href="https://github.com/kaliharmen-hue/capacity-tracker" rel="noreferrer">kaliharmen-hue/capacity-tracker</a>.
+      </p>
+    </section>
+  </article>
+</BaseLayout>

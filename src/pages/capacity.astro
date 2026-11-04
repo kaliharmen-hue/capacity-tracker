@@ -1,0 +1,329 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Capacity Building" active="capacity">
+  <section id="chatgpt-oauth-approval" class="plain-panel oauth-approval-panel" hidden aria-live="polite">
+    <div>
+      <p class="eyebrow">Personal OS connection</p>
+      <h2>Allow read-only access?</h2>
+      <p>The private Personal OS bridge is asking to read your mirrored Daily Log, Capacity Building and WHOOP data. It cannot edit your tracker.</p>
+    </div>
+    <div class="oauth-approval-actions">
+      <button id="chatgpt-oauth-allow" type="button" class="primary-button">Allow read-only access</button>
+      <button id="chatgpt-oauth-cancel" type="button" class="secondary-button">Cancel</button>
+    </div>
+    <p id="chatgpt-oauth-status" class="autosave-status"></p>
+  </section>
+
+  <section class="page-heading">
+    <div>
+      <p class="eyebrow">Capacity Building & Life Design</p>
+      <h2>Build the conditions that make life easier to carry.</h2>
+    </div>
+    <p class="soft-copy">
+      This is the change side of the Operating System: a small set of practices to build capacity, not another long list to complete.
+    </p>
+  </section>
+
+  <section class="capacity-stage-panel">
+    <div>
+      <p class="eyebrow">Current stage</p>
+      <h3>Stage 1 · Foundation</h3>
+      <p>Predictability, self-contact, deliberate downshifting and enough nutritional support to stop asking an under-fuelled body to recover.</p>
+    </div>
+    <div class="capacity-stage-rule">
+      <strong>Progression rule</strong>
+      <p>Aim for roughly 70–80% consistency for a couple of weeks, but only add the next skill when this stage feels useful and reasonably established — not because a score says I should.</p>
+    </div>
+  </section>
+
+  <section class="capacity-builder-grid">
+    <form id="capacity-form" class="plain-panel capacity-daily-panel">
+      <div class="capacity-section-heading">
+        <div>
+          <p class="eyebrow">Today</p>
+          <h3>Foundation practices</h3>
+        </div>
+        <label class="date-control compact-date">
+          <span>Date</span>
+          <input id="capacity-date" name="date" type="date" />
+        </label>
+      </div>
+
+      <label class="field-label">
+        What state am I in?
+        <select id="capacity-state" name="state">
+          <option value="">Not answered</option>
+          <option value="Settled">Settled</option>
+          <option value="Activated">Activated</option>
+          <option value="Stretched">Stretched</option>
+          <option value="Overloaded">Overloaded</option>
+        </select>
+      </label>
+
+      <label class="field-label">
+        What would help today?
+        <textarea id="capacity-need" name="needToday" rows="2" placeholder="Warmth, food, movement, quiet, company, help, less pressure..."></textarea>
+      </label>
+
+      <fieldset class="capacity-check-group">
+        <legend>Today's capacity builders</legend>
+        <p class="field-helper">The minimum version counts. Two minutes can be enough on a low-capacity day.</p>
+        <div class="capacity-check-grid">
+          <label class="capacity-check"><input id="checked-in" type="checkbox" /><span><strong>Arrive before I perform</strong><small>I checked in with myself before disappearing into demands.</small></span></label>
+          <label class="capacity-check"><input id="downshifted" type="checkbox" /><span><strong>One deliberate downshift</strong><small>Breathing, Vagustim, bath, walk, music, mobility, stillness — whatever actually fitted my state.</small></span></label>
+          <label class="capacity-check"><input id="work-closed" type="checkbox" /><span><strong>Close the working day</strong><small>I externalised what is unfinished and identified tomorrow's first step.</small></span></label>
+          <label class="capacity-check"><input id="something-for-me" type="checkbox" /><span><strong>Something purely for me</strong><small>Something with no productivity requirement and no need to justify its usefulness.</small></span></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="capacity-check-group nutrition-foundation">
+        <legend>14-day breakfast reset</legend>
+        <p class="field-helper">
+          This is an experiment, not a diet. For 14 days, use a quick protein-centred breakfast without yoghurt or porridge, then judge it by what happens to energy, hunger and bloating rather than by whether it sounds healthy.
+        </p>
+
+        <div class="breakfast-experiment-card">
+          <p><strong>Why these options?</strong> They are quick, protein-forward, lower-carb and nutrient-dense, with portions that can be repeated without weighing food every morning. The first three are the main defaults; the others give enough variety to keep the experiment realistic.</p>
+          <div class="breakfast-options">
+            <span>2 eggs + smoked salmon + veg</span>
+            <span>3-egg vegetable scramble</span>
+            <span>Protein-chia berry shake</span>
+            <span>2 boiled eggs + sardines + veg</span>
+            <span>Tofu scramble + 1 egg</span>
+            <span>Leftover chicken + 2 eggs + veg</span>
+            <span>Protein shake + 2 boiled eggs</span>
+          </div>
+        </div>
+
+        <label class="field-label">
+          What did I have for breakfast?
+          <select id="breakfast-choice">
+            <option value="">Not answered</option>
+            <option value="2 eggs + smoked salmon + veg">2 eggs + smoked salmon + veg</option>
+            <option value="3-egg vegetable scramble">3-egg vegetable scramble</option>
+            <option value="Protein-chia berry shake">Protein-chia berry shake</option>
+            <option value="2 boiled eggs + sardines + veg">2 boiled eggs + sardines + veg</option>
+            <option value="Tofu scramble + 1 egg">Tofu scramble + 1 egg</option>
+            <option value="Leftover chicken + 2 eggs + veg">Leftover chicken + 2 eggs + veg</option>
+            <option value="Protein shake + 2 boiled eggs">Protein shake + 2 boiled eggs</option>
+            <option value="Other quick protein breakfast">Other quick protein breakfast</option>
+            <option value="No breakfast">No breakfast</option>
+          </select>
+        </label>
+
+        <label class="field-label">
+          If other, what was it?
+          <input id="breakfast-other" type="text" placeholder="Optional" />
+        </label>
+
+        <div class="capacity-check-grid">
+          <label class="capacity-check"><input id="yoghurt-free" type="checkbox" /><span><strong>Yoghurt-free today</strong><small>A clean yes/no variable, so we can actually test whether removing it changes anything.</small></span></label>
+          <label class="capacity-check"><input id="porridge-free" type="checkbox" /><span><strong>No porridge at breakfast</strong><small>The reset uses other breakfasts first. If things improve, yoghurt and porridge can be challenged separately later.</small></span></label>
+        </div>
+
+        <div class="breakfast-outcome-grid">
+          <label class="field-label">
+            Morning energy / steadiness · 0 poor → 4 excellent
+            <select id="breakfast-energy-score">
+              <option value="">Not rated</option>
+              <option value="0">0 · Poor</option><option value="1">1</option><option value="2">2 · Okay</option><option value="3">3</option><option value="4">4 · Excellent</option>
+            </select>
+          </label>
+          <label class="field-label">
+            Hunger before lunch · 0 none → 4 very hungry
+            <select id="breakfast-hunger-score">
+              <option value="">Not rated</option>
+              <option value="0">0 · None</option><option value="1">1</option><option value="2">2 · Moderate</option><option value="3">3</option><option value="4">4 · Very hungry</option>
+            </select>
+          </label>
+          <label class="field-label">
+            Bloating / digestive discomfort · 0 none → 4 marked
+            <select id="breakfast-bloating-score">
+              <option value="">Not rated</option>
+              <option value="0">0 · None</option><option value="1">1</option><option value="2">2 · Noticeable</option><option value="3">3</option><option value="4">4 · Marked</option>
+            </select>
+          </label>
+        </div>
+
+        <p class="capacity-note">This does not assume yoghurt or porridge is a problem. The point is to give the suspicion a fair test, then reintroduce one variable at a time if the reset clearly helps.</p>
+      </fieldset>
+
+      <div class="capacity-rating-grid">
+        <label class="field-label">
+          How supported did I feel today? · 0 none → 4 very
+          <select id="supported-score">
+            <option value="">Not answered</option>
+            <option value="0">0 · None</option>
+            <option value="1">1</option>
+            <option value="2">2 · Some</option>
+            <option value="3">3</option>
+            <option value="4">4 · Very</option>
+          </select>
+        </label>
+        <label class="field-label">
+          How much did life feel like something I had to carry alone? · 0 not at all → 4 completely
+          <select id="carried-alone-score">
+            <option value="">Not answered</option>
+            <option value="0">0 · Not at all</option>
+            <option value="1">1</option>
+            <option value="2">2 · Somewhat</option>
+            <option value="3">3</option>
+            <option value="4">4 · Completely</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="field-label">
+        Anything worth remembering?
+        <textarea id="capacity-notes" rows="3" placeholder="Optional. A sentence is enough."></textarea>
+      </label>
+
+      <div class="capacity-save-line">
+        <strong id="today-progress">0 / 5 active practices</strong>
+        <span id="capacity-save-status" class="autosave-status" aria-live="polite">Autosaves as I go</span>
+      </div>
+    </form>
+
+    <aside class="plain-panel capacity-progress-panel">
+      <p class="eyebrow">Pattern, not perfection</p>
+      <h3>How the base is forming</h3>
+      <div class="capacity-progress-card">
+        <span>Last 14 days</span>
+        <strong id="foundation-percentage">No data yet</strong>
+        <div class="capacity-progress-track" aria-hidden="true"><span id="foundation-progress-bar"></span></div>
+        <p id="foundation-progress-copy">Log a few days first. The useful signal is whether these behaviours are becoming easier and whether they actually improve capacity.</p>
+      </div>
+
+      <div class="capacity-progress-card">
+        <span>Breakfast reset</span>
+        <strong id="breakfast-adherence">No data yet</strong>
+        <p id="breakfast-outcomes">Energy, hunger and bloating averages will appear once there are enough ratings to compare.</p>
+      </div>
+
+      <div class="capacity-progress-card whoop-card">
+        <div class="whoop-card-heading">
+          <span>WHOOP</span>
+          <strong id="whoop-status">Not connected</strong>
+        </div>
+        <div id="whoop-day-summary" class="whoop-day-summary">
+          <p>Connect WHOOP to pull recovery, sleep, HRV, resting heart rate, strain, steps and workouts into the Personal OS.</p>
+        </div>
+        <div class="whoop-actions">
+          <button id="whoop-connect" type="button" class="secondary-button">Connect WHOOP</button>
+          <button id="whoop-sync" type="button" class="secondary-button" hidden>Sync 30 days</button>
+          <button id="whoop-disconnect" type="button" class="secondary-button" hidden>Disconnect</button>
+        </div>
+        <p id="whoop-sync-status" class="autosave-status" aria-live="polite"></p>
+      </div>
+
+      <div class="capacity-progress-card chatgpt-card">
+        <div class="whoop-card-heading">
+          <span>ChatGPT analysis</span>
+          <strong id="chatgpt-access-status">Not enabled</strong>
+        </div>
+        <p id="chatgpt-access-copy">
+          Optional read-only access lets the private Personal OS plugin query the joined Daily Log, Capacity and WHOOP data without copy/paste. ChatGPT connects through a browser approval flow — there is no key to paste.
+        </p>
+        <div class="whoop-actions">
+          <button id="chatgpt-enable" type="button" class="secondary-button">Enable cloud mirror</button>
+          <button id="chatgpt-sync" type="button" class="secondary-button" hidden>Sync now</button>
+          <button id="chatgpt-revoke" type="button" class="secondary-button" hidden>Revoke access</button>
+        </div>
+        <p id="chatgpt-local-counts" class="autosave-status"></p>
+        <p id="chatgpt-sync-status" class="autosave-status" aria-live="polite"></p>
+      </div>
+
+      <div class="capacity-minimum-card">
+        <strong>Low-capacity mode still counts</strong>
+        <p>Check in for 30 seconds. Downshift for 2 minutes. Write tomorrow's first task. Choose one of the simple breakfast anchors. Choose five minutes that belong to you.</p>
+      </div>
+
+      <div class="capacity-principle-card">
+        <strong>The question behind this page</strong>
+        <p>What conditions let me function as my best self — and which of those conditions can I deliberately build more often?</p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="plain-panel capacity-interpretation-panel">
+    <div class="capacity-section-heading">
+      <div>
+        <p class="eyebrow">Interpretation</p>
+        <h3>What is the breakfast data showing?</h3>
+      </div>
+      <button id="copy-capacity-data" type="button" class="secondary-button">Copy last 14 days for ChatGPT</button>
+    </div>
+    <p class="soft-copy">These comparisons use the ratings you record after each breakfast. They are descriptive, not proof of cause; several repeats of a breakfast are more useful than a one-off result.</p>
+    <div id="breakfast-comparison" class="breakfast-comparison">
+      <p class="empty-state">Breakfast comparisons will appear after you have logged them.</p>
+    </div>
+    <p id="capacity-copy-status" class="autosave-status" aria-live="polite"></p>
+  </section>
+
+  <section class="plain-panel capacity-weekly-panel">
+    <div class="capacity-section-heading">
+      <div>
+        <p class="eyebrow">Weekly Capacity Review</p>
+        <h3>Turn the week into learning</h3>
+      </div>
+      <label class="date-control compact-date">
+        <span>Week starting</span>
+        <input id="capacity-week-start" type="date" />
+      </label>
+    </div>
+
+    <form id="capacity-weekly-form" class="capacity-weekly-grid">
+      <label class="field-label">What gave me capacity this week?<textarea id="capacity-givers" rows="3"></textarea></label>
+      <label class="field-label">What took more capacity than it was worth?<textarea id="capacity-drains" rows="3"></textarea></label>
+      <label class="field-label">Where did I feel supported or able to receive?<textarea id="received-support" rows="3"></textarea></label>
+      <label class="field-label">Where did I carry something alone that could have been shared, simplified or put down?<textarea id="carried-alone" rows="3"></textarea></label>
+      <label class="field-label capacity-weekly-adjustment">What is the ONE adjustment for next week?<textarea id="one-adjustment" rows="2"></textarea></label>
+    </form>
+    <p id="weekly-save-status" class="autosave-status" aria-live="polite">Autosaves as I go</p>
+  </section>
+
+  <section class="capacity-roadmap">
+    <div class="page-heading capacity-roadmap-heading">
+      <div>
+        <p class="eyebrow">Life plan</p>
+        <h2>The progression</h2>
+      </div>
+      <p class="soft-copy">Only Stage 1 is active. The rest stays visible so I know where this is going without trying to do it all now.</p>
+    </div>
+
+    <div class="capacity-roadmap-grid">
+      <details open class="capacity-roadmap-stage active-stage">
+        <summary><span>1</span><strong>Foundation: containment + nourishment</strong></summary>
+        <p>Self-contact, one daily downshift, work closure, non-productive time, plus a measurable 14-day breakfast experiment rather than vague nutrition scoring.</p>
+      </details>
+      <details class="capacity-roadmap-stage">
+        <summary><span>2</span><strong>Regulation + sleep skill-building</strong></summary>
+        <p>Build state-specific regulation skills and a personalised early-waking protocol instead of adding generic sleep-hygiene rules.</p>
+      </details>
+      <details class="capacity-roadmap-stage">
+        <summary><span>3</span><strong>Physical reserve + enjoyable food systems</strong></summary>
+        <p>Progress strength and conditioning while building an affordable meal repertoire that supports training, energy and pleasure.</p>
+      </details>
+      <details class="capacity-roadmap-stage">
+        <summary><span>4</span><strong>Reduce unnecessary load</strong></summary>
+        <p>Each week identify what can be deleted, automated, delegated, shared, paid for or done less perfectly.</p>
+      </details>
+      <details class="capacity-roadmap-stage">
+        <summary><span>5</span><strong>Receiving + distributed support</strong></summary>
+        <p>Practise accepting help, asking directly, allowing others to contribute and noticing which relationships leave me more settled.</p>
+      </details>
+      <details class="capacity-roadmap-stage">
+        <summary><span>6</span><strong>Relationship security + rescue awareness</strong></summary>
+        <p>Name the need underneath rescue urges and build enough support elsewhere that a partner can be chosen for who he is, not as an emergency exit.</p>
+      </details>
+      <details class="capacity-roadmap-stage">
+        <summary><span>7</span><strong>Expansion</strong></summary>
+        <p>More strength, conditioning, creativity, travel, sexuality, friendship, love and adventure. Optional body-composition work belongs here, once recovery is supported rather than competed with.</p>
+      </details>
+    </div>
+  </section>
+
+  <script src="../scripts/capacity.ts"></script>
+</BaseLayout>

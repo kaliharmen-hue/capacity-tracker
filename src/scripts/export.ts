@@ -1,5 +1,6 @@
-import { db, getAllEntries, getAllV2Entries, getClusterDecisions, getPostExertionalResponses, importClusterDecisions, importEntries, importV2Entries, type PostExertionalResponse } from "./db";
 import type { V2DailyEntry } from "./v2-schema";
+import { getAllV2Entries, importV2Entries, getWhoopDays, saveWhoopDays, db, getAllEntries, getCapacityPractices, getCapacityReviews, getClusterDecisions, getPostExertionalResponses, importCapacityPractices, importCapacityReviews, importClusterDecisions, importEntries, type CapacityPracticeEntry, type CapacityWeeklyReview, type PostExertionalResponse } from "./db";
+
 import { loadExperiment, saveExperiment, type Experiment } from "./experiment-model";
 import { createEmptyEntry, sections, todayIso, type DailyEntry } from "./schema";
 import type { ClusterDecision } from "./timeline-model";
@@ -16,12 +17,15 @@ const backupKey = "personal-operating-system-last-json-backup";
 let latestPreviewText = "";
 
 interface PersonalOperatingSystemBackup {
-  version: 2 | 3 | 4;
+  version: 2 | 3 | 4 | 5 | 6;
   entries: DailyEntry[];
   clusterDecisions: ClusterDecision[];
   postExertionalResponses?: PostExertionalResponse[];
+  capacityPractices?: CapacityPracticeEntry[];
+  capacityReviews?: CapacityWeeklyReview[];
   activeExperiment?: Experiment;
   v2Entries?: V2DailyEntry[];
+  whoopDays?: import("./db").WhoopDay[];
 }
 
 dateInput!.value = new URLSearchParams(window.location.search).get("date") || todayIso();
@@ -203,12 +207,27 @@ document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) =
     if (action === "json") {
       const clusterDecisions = await getClusterDecisions();
       const postExertionalResponses = await getPostExertionalResponses();
+      const capacityPractices = await getCapacityPractices();
+      const capacityReviews = await getCapacityReviews();
       const activeExperiment = loadExperiment();
       const v2Entries = await getAllV2Entries();
-      const backup: PersonalOperatingSystemBackup = { version: 4, entries, clusterDecisions, postExertionalResponses, activeExperiment, v2Entries };
+      const whoopDays = await getWhoopDays();
+      const backup: PersonalOperatingSystemBackup = {
+        version: 6,
+        v2Entries,
+        whoopDays,
+        entries,
+        clusterDecisions,
+        postExertionalResponses,
+        capacityPractices,
+        capacityReviews,
+        activeExperiment
+      };
+
       const content = JSON.stringify(backup, null, 2);
-      setPreview(entries.length ? content : showEmptyState("any date"));
-      if (entries.length) {
+      const hasBackupData = v2Entries.length || whoopDays.length || entries.length || clusterDecisions.length || postExertionalResponses.length || capacityPractices.length || capacityReviews.length || activeExperiment;
+      setPreview(hasBackupData ? content : showEmptyState("any date"));
+      if (hasBackupData) {
         download("personal-operating-system-backup.json", content, "application/json");
         localStorage.setItem(backupKey, new Date().toISOString());
         renderBackupStatus();
@@ -225,14 +244,20 @@ importInput?.addEventListener("change", async () => {
   const entries = Array.isArray(parsed) ? parsed : parsed.entries;
   const clusterDecisions = Array.isArray(parsed) ? [] : parsed.clusterDecisions ?? [];
   const postExertionalResponses = Array.isArray(parsed) ? [] : parsed.postExertionalResponses ?? [];
+  const capacityPractices = Array.isArray(parsed) ? [] : parsed.capacityPractices ?? [];
+  const capacityReviews = Array.isArray(parsed) ? [] : parsed.capacityReviews ?? [];
   const activeExperiment = Array.isArray(parsed) ? undefined : parsed.activeExperiment;
   const v2Entries = Array.isArray(parsed) ? [] : parsed.v2Entries ?? [];
   await importEntries(entries);
   if (clusterDecisions.length) await importClusterDecisions(clusterDecisions);
   if (postExertionalResponses.length) await db.postExertionalResponses.bulkPut(postExertionalResponses);
-  if (activeExperiment) saveExperiment(activeExperiment);
+  if (capacityPractices.length) await importCapacityPractices(capacityPractices);
+  if (capacityReviews.length) await importCapacityReviews(capacityReviews);
   if (v2Entries.length) await importV2Entries(v2Entries);
-  setPreview(`Imported ${entries.length} entries${v2Entries.length ? ` and ${v2Entries.length} V2 entries` : ""}${clusterDecisions.length ? `, ${clusterDecisions.length} cluster decisions` : ""}${postExertionalResponses.length ? ` and ${postExertionalResponses.length} post-exertional responses` : ""}${activeExperiment ? " and the active experiment" : ""}.`);
+  if (!Array.isArray(parsed) && parsed.whoopDays?.length) await saveWhoopDays(parsed.whoopDays);
+  if (activeExperiment) saveExperiment(activeExperiment);
+  setPreview(`Imported ${entries.length} entries${clusterDecisions.length ? `, ${clusterDecisions.length} cluster decisions` : ""}${postExertionalResponses.length ? `, ${postExertionalResponses.length} post-exertional responses` : ""}${capacityPractices.length ? `, ${capacityPractices.length} capacity-building days` : ""}${capacityReviews.length ? ` and ${capacityReviews.length} capacity reviews` : ""}${activeExperiment ? " plus the active experiment" : ""}.`);
+
 });
 
 sharePreviewButton?.addEventListener("click", () => {

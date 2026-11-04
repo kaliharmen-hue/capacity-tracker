@@ -1,0 +1,109 @@
+# Personal OS WHOOP bridge
+
+Secure OAuth bridge between WHOOP and the local-first Capacity Tracker.
+
+## Privacy model
+
+- The WHOOP Client Secret never goes into the GitHub Pages app.
+- WHOOP access/refresh tokens are stored in Cloudflare KV.
+- WHOOP health history is not persisted in the bridge; it is fetched from WHOOP when requested.
+- The static app continues to store its own Personal OS data locally in IndexedDB.
+- A future private ChatGPT connector can call the same bridge with a separate server-side API key.
+
+## WHOOP scopes
+
+The bridge requests only:
+
+- `offline`
+- `read:recovery`
+- `read:sleep`
+- `read:cycles`
+- `read:workout`
+
+## Cloudflare setup
+
+1. Create a Cloudflare Worker named `personal-os-whoop`.
+2. Create a Workers KV namespace for OAuth state and tokens.
+3. Put that namespace ID into `wrangler.jsonc`.
+4. Set the Worker public URL as `PUBLIC_BASE_URL`.
+5. Add these as **Secrets** in Cloudflare, never as committed values:
+   - `WHOOP_CLIENT_ID`
+   - `WHOOP_CLIENT_SECRET`
+   - `CHATGPT_API_KEY` (later, when the private ChatGPT connector is created)
+6. Deploy the Worker.
+
+Cloudflare should also have the non-secret variable:
+
+`APP_ORIGIN=https://kaliharmen-hue.github.io/capacity-tracker/`
+
+## WHOOP Developer Dashboard setup
+
+Create a WHOOP app and register the redirect URI:
+
+`<PUBLIC_BASE_URL>/oauth/callback`
+
+Select the scopes listed above.
+
+After WHOOP provides the Client ID and Client Secret, store them in the Cloudflare Worker Secrets.
+
+## Endpoints
+
+- `GET /health` — bridge health check.
+- `GET /oauth/start` — starts WHOOP OAuth.
+- `GET /oauth/callback` — completes OAuth and redirects back to the Capacity Tracker.
+- `GET /api/whoop?days=30` — returns a normalised 1–90 day WHOOP window when called with an authorised Bearer token.
+- `POST /api/disconnect` — revokes WHOOP access and clears the stored token.
+
+## Normalised WHOOP record
+
+Each main sleep is assigned to the local date on which that sleep ended (the waking day). The returned record can contain:
+
+- Recovery score
+- HRV (RMSSD)
+- Resting heart rate
+- SpO2
+- Skin temperature
+- Sleep duration
+- Sleep performance, efficiency and consistency
+- Disturbance count and respiratory rate
+- Cycle strain
+- Steps
+- Cycle heart rate / energy
+- Workouts and workout strain
+
+This date-normalised shape is what the Capacity Tracker will join to its existing Daily Log and Capacity Building records.
+
+
+## Workers Builds settings
+
+If the GitHub repository is connected in Cloudflare, configure **Settings > Build** as follows:
+
+- Git repository: `kaliharmen-hue/capacity-tracker`
+- Production branch: `main`
+- Root directory: `integrations/whoop-worker`
+- Build command: leave blank
+- Deploy command: `npx wrangler deploy`
+
+Cloudflare's integrated build system will install the project dependencies and use the Wrangler version pinned in this folder.
+
+The existing deployed Worker is `capacity-tracker`, matching `wrangler.jsonc`.
+
+## Private V2 photo storage
+
+Keep this account on Workers Free. `PHOTO_LIBRARY` is a SQLite Durable Object,
+not R2. No R2 bucket or paid AI API is required. The application caps live images
+at 250 MB and each JPEG at 750 KB. At capacity uploads fail safely; unreviewed
+photos are never automatically evicted. Free-plan platform limits fail requests
+rather than billing overages. Upgrading the account changes that protection.
+
+`/api/meal-photos` requires the existing owner session. MCP photo reads require
+`personal_os:read`; review receipts additionally require `personal_os:review`.
+Older connections retain read access and need reconnecting to grant receipts.
+The owner must enable cleanup in V2. A daily cron removes only images with a
+successful receipt older than seven days; metadata survives. Provider recovery
+backups may outlive live-image deletion. No new WHOOP authorization is needed
+when the existing browser owner session is still valid.
+
+<!-- Cloudflare deployment trigger: 2026-10-22 -->
+
+<!-- Cloudflare build-settings retry: 2026-10-23 -->

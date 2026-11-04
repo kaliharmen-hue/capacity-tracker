@@ -1,8 +1,80 @@
+import type { V2DailyEntry } from "./v2-schema";
+export interface MealPhotoDraft { id: string; date: string; time: string; note: string; image: Blob; createdAt: string }
 import Dexie, { type Table } from "dexie";
 import type { DailyEntry } from "./schema";
 import type { ClusterDecision } from "./timeline-model";
-import type { V2DailyEntry } from "./v2-schema";
-import type { WhoopRecord } from "./whoop-schema";
+import { buildMirrorBatches, type MirrorCounts } from './personal-os-sync';
+
+export interface CapacityPracticeEntry {
+  date: string;
+  state: "" | "Settled" | "Activated" | "Stretched" | "Overloaded";
+  needToday: string;
+  checkedIn: boolean;
+  downshifted: boolean;
+  workClosed: boolean;
+  somethingForMe: boolean;
+  ateEnough?: boolean;
+  proteinSupport?: boolean;
+  carbSupport?: boolean;
+  hydration?: boolean;
+  breakfastChoice: "" | "2 eggs + smoked salmon + veg" | "3-egg vegetable scramble" | "Protein-chia berry shake" | "2 boiled eggs + sardines + veg" | "Tofu scramble + 1 egg" | "Leftover chicken + 2 eggs + veg" | "Protein shake + 2 boiled eggs" | "Other quick protein breakfast" | "No breakfast";
+  breakfastOther: string;
+  yoghurtFree: boolean;
+  porridgeFree: boolean;
+  breakfastEnergyScore: number | "";
+  breakfastHungerScore: number | "";
+  breakfastBloatingScore: number | "";
+  supportedScore: number | "";
+  carriedAloneScore: number | "";
+  notes: string;
+  updatedAt: string;
+}
+
+export interface CapacityWeeklyReview {
+  weekStart: string;
+  capacityGivers: string;
+  capacityDrains: string;
+  receivedSupport: string;
+  carriedAlone: string;
+  oneAdjustment: string;
+  updatedAt: string;
+}
+
+export interface WhoopWorkout {
+  id: string | number;
+  sportName: string | null;
+  start: string | null;
+  end: string | null;
+  strain: number | null;
+  averageHeartRate: number | null;
+  maxHeartRate: number | null;
+}
+
+export interface WhoopDay {
+  date: string;
+  sleepId: string | number | null;
+  cycleId: string | number | null;
+  recoveryScore: number | null;
+  hrvRmssdMs: number | null;
+  restingHeartRate: number | null;
+  spo2Percentage: number | null;
+  skinTempCelsius: number | null;
+  sleepHours: number | null;
+  sleepStart: string | null;
+  sleepEnd: string | null;
+  sleepPerformancePercentage: number | null;
+  sleepEfficiencyPercentage: number | null;
+  sleepConsistencyPercentage: number | null;
+  disturbanceCount: number | null;
+  respiratoryRate: number | null;
+  cycleStrain: number | null;
+  cycleKilojoule: number | null;
+  averageHeartRate: number | null;
+  maxHeartRate: number | null;
+  stepCount: number | null;
+  workouts: WhoopWorkout[];
+  syncedAt: string;
+}
 
 export interface PostExertionalResponse {
   exposureDate: string;
@@ -14,11 +86,14 @@ export interface PostExertionalResponse {
 }
 
 class CapacityDatabase extends Dexie {
+  v2Entries!: Table<V2DailyEntry, string>;
+  mealPhotoDrafts!: Table<MealPhotoDraft, string>;
   entries!: Table<DailyEntry, string>;
   clusterDecisions!: Table<ClusterDecision, string>;
   postExertionalResponses!: Table<PostExertionalResponse, string>;
-  v2Entries!: Table<V2DailyEntry, string>;
-  whoopRecords!: Table<WhoopRecord, string>;
+  capacityPractices!: Table<CapacityPracticeEntry, string>;
+  capacityReviews!: Table<CapacityWeeklyReview, string>;
+  whoopDays!: Table<WhoopDay, string>;
 
   constructor() {
     super("capacity-tracker");
@@ -38,14 +113,26 @@ class CapacityDatabase extends Dexie {
       entries: "date, updatedAt",
       clusterDecisions: "id, status, startDate, endDate, updatedAt",
       postExertionalResponses: "exposureDate, updatedAt",
-      v2Entries: "date, updatedAt"
+      capacityPractices: "date, updatedAt",
+      capacityReviews: "weekStart, updatedAt"
     });
     this.version(5).stores({
       entries: "date, updatedAt",
       clusterDecisions: "id, status, startDate, endDate, updatedAt",
       postExertionalResponses: "exposureDate, updatedAt",
+      capacityPractices: "date, updatedAt",
+      capacityReviews: "weekStart, updatedAt",
+      whoopDays: "date, syncedAt"
+    });
+    this.version(6).stores({
+      entries: "date, updatedAt",
+      clusterDecisions: "id, status, startDate, endDate, updatedAt",
+      postExertionalResponses: "exposureDate, updatedAt",
+      capacityPractices: "date, updatedAt",
+      capacityReviews: "weekStart, updatedAt",
+      whoopDays: "date, syncedAt",
       v2Entries: "date, updatedAt",
-      whoopRecords: "recordKey, recordType, date, start, syncedAt"
+      mealPhotoDrafts: "id, date, createdAt"
     });
   }
 }
@@ -54,6 +141,7 @@ export const db = new CapacityDatabase();
 
 export async function saveEntry(entry: DailyEntry): Promise<void> {
   await db.entries.put({ ...entry, updatedAt: new Date().toISOString() });
+  schedulePersonalOsCloudSync();
 }
 
 export async function getEntry(date: string): Promise<DailyEntry | undefined> {
@@ -76,6 +164,7 @@ export async function getClusterDecisions(): Promise<ClusterDecision[]> {
 
 export async function saveClusterDecision(decision: ClusterDecision): Promise<void> {
   await db.clusterDecisions.put(decision);
+  schedulePersonalOsCloudSync();
 }
 
 export async function importClusterDecisions(decisions: ClusterDecision[]): Promise<void> {
@@ -88,32 +177,168 @@ export async function getPostExertionalResponses(): Promise<PostExertionalRespon
 
 export async function savePostExertionalResponse(response: PostExertionalResponse): Promise<void> {
   await db.postExertionalResponses.put({ ...response, updatedAt: new Date().toISOString() });
+  schedulePersonalOsCloudSync();
 }
+
+
+export async function getCapacityPractice(date: string): Promise<CapacityPracticeEntry | undefined> {
+  return db.capacityPractices.get(date);
+}
+
+export async function saveCapacityPractice(entry: CapacityPracticeEntry): Promise<void> {
+  await db.capacityPractices.put({ ...entry, updatedAt: new Date().toISOString() });
+  schedulePersonalOsCloudSync();
+}
+
+export async function getCapacityPractices(): Promise<CapacityPracticeEntry[]> {
+  return db.capacityPractices.orderBy("date").toArray();
+}
+
+export async function importCapacityPractices(entries: CapacityPracticeEntry[]): Promise<void> {
+  await db.capacityPractices.bulkPut(entries);
+}
+
+export async function getCapacityReview(weekStart: string): Promise<CapacityWeeklyReview | undefined> {
+  return db.capacityReviews.get(weekStart);
+}
+
+export async function saveCapacityReview(review: CapacityWeeklyReview): Promise<void> {
+  await db.capacityReviews.put({ ...review, updatedAt: new Date().toISOString() });
+  schedulePersonalOsCloudSync();
+}
+
+export async function getCapacityReviews(): Promise<CapacityWeeklyReview[]> {
+  return db.capacityReviews.orderBy("weekStart").toArray();
+}
+
+export async function importCapacityReviews(reviews: CapacityWeeklyReview[]): Promise<void> {
+  await db.capacityReviews.bulkPut(reviews);
+}
+
+
+export async function saveWhoopDays(records: Array<Omit<WhoopDay, "syncedAt"> | WhoopDay>): Promise<void> {
+  const syncedAt = new Date().toISOString();
+  await db.whoopDays.bulkPut(records.map((record) => ({ ...record, syncedAt })));
+  schedulePersonalOsCloudSync();
+}
+
+export async function getWhoopDay(date: string): Promise<WhoopDay | undefined> {
+  return db.whoopDays.get(date);
+}
+
+export async function getWhoopDays(): Promise<WhoopDay[]> {
+  return db.whoopDays.orderBy("date").toArray();
+}
+
+export async function clearWhoopDays(): Promise<void> {
+  await db.whoopDays.clear();
+}
+
+
+const PERSONAL_OS_BRIDGE = "https://capacity-tracker.kaliharmen.workers.dev";
+const WHOOP_SESSION_KEY = "personal-os-whoop-session";
+const CLOUD_SYNC_ENABLED_KEY = "personal-os-chatgpt-sync-enabled";
+let personalOsSyncTimer = 0;
+
+export function isPersonalOsCloudSyncEnabled(): boolean {
+  return typeof window !== "undefined" && localStorage.getItem(CLOUD_SYNC_ENABLED_KEY) === "true";
+}
+
+export function setPersonalOsCloudSyncEnabled(enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  if (enabled) localStorage.setItem(CLOUD_SYNC_ENABLED_KEY, "true");
+  else localStorage.removeItem(CLOUD_SYNC_ENABLED_KEY);
+}
+
+export function schedulePersonalOsCloudSync(delay = 900): void {
+  if (typeof window === "undefined" || !isPersonalOsCloudSyncEnabled()) return;
+  window.clearTimeout(personalOsSyncTimer);
+  personalOsSyncTimer = window.setTimeout(() => {
+    void syncPersonalOsCloudMirror();
+  }, delay);
+}
+
+export interface CloudMirrorSyncResult {
+  ok: boolean;
+  syncedAt?: string;
+  recordCount?: number;
+  rangeStart?: string | null;
+  rangeEnd?: string | null;
+  error?: string;
+  localCounts?: MirrorCounts;
+  uploadedCounts?: MirrorCounts;
+  counts?: MirrorCounts;
+  clientId?: string;
+}
+export async function getPersonalOsLocalCounts(): Promise<MirrorCounts> {
+  const [entries, capacity, whoop] = await Promise.all([db.entries.toArray(), db.capacityPractices.toArray(), db.whoopDays.toArray()]);
+  return buildMirrorBatches(entries, capacity, whoop).counts;
+}
+let syncInFlight: Promise<CloudMirrorSyncResult> | null = null;
+let syncRequestedAgain = false;
+export function syncPersonalOsCloudMirror(): Promise<CloudMirrorSyncResult> {
+  if (syncInFlight) { syncRequestedAgain = true; return syncInFlight; }
+  syncInFlight = performPersonalOsCloudSync().finally(() => {
+    syncInFlight = null;
+    if (syncRequestedAgain) { syncRequestedAgain = false; schedulePersonalOsCloudSync(); }
+  });
+  return syncInFlight;
+}
+async function performPersonalOsCloudSync(): Promise<CloudMirrorSyncResult> {
+  if (typeof window === "undefined" || !isPersonalOsCloudSyncEnabled()) {
+    return { ok: false, error: "Cloud sync is not enabled." };
+  }
+
+  const session = localStorage.getItem(WHOOP_SESSION_KEY);
+  if (!session) return { ok: false, error: "WHOOP connection is required to authorise Personal OS cloud sync." };
+
+  try {
+  const clientKey = 'personal-os-sync-client-id';
+  const clientId = localStorage.getItem(clientKey) || crypto.randomUUID();
+  localStorage.setItem(clientKey, clientId);
+  const [entries, capacityPractices, whoopDays, weeklyReviews, postExertionalResponses, clusterDecisions, v2Entries] = await db.transaction('r', [db.entries, db.capacityPractices, db.whoopDays, db.capacityReviews, db.postExertionalResponses, db.clusterDecisions, db.v2Entries], () => Promise.all([
+    db.entries.orderBy("date").toArray(),
+    db.capacityPractices.orderBy("date").toArray(),
+    db.whoopDays.orderBy("date").toArray(),
+    db.capacityReviews.orderBy("weekStart").toArray(),
+    db.postExertionalResponses.orderBy("exposureDate").toArray(),
+    db.clusterDecisions.toArray(),
+    db.v2Entries.toArray()
+  ]));
+  const { batches, counts: localCounts } = buildMirrorBatches(entries, capacityPractices, whoopDays);
+  let payload: Partial<CloudMirrorSyncResult> = {};
+  for (const records of batches) {
+    const response = await fetch(`${PERSONAL_OS_BRIDGE}/api/personal-os/sync`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${session}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        records,
+        client: { id: clientId, origin: window.location.origin, database: 'capacity-tracker' },
+        weeklyReviews,
+        postExertionalResponses,
+        clusterDecisions,
+        v2Entries
+      })
+    });
+    payload = await response.json();
+    if (!response.ok) return { ok: false, error: payload?.error || "Personal OS cloud sync failed." };
+  }
+  const result = { ...payload, ok: true, localCounts, uploadedCounts: localCounts, clientId } as CloudMirrorSyncResult;
+  window.dispatchEvent(new CustomEvent('personal-os-cloud-sync', { detail: result }));
+  return result;
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Personal OS cloud sync failed." };
+  }
+}
+
 
 export async function saveV2Entry(entry: V2DailyEntry): Promise<void> {
   await db.v2Entries.put({ ...entry, schemaVersion: 1, updatedAt: new Date().toISOString() });
+  schedulePersonalOsCloudSync();
 }
-
-export async function getV2Entry(date: string): Promise<V2DailyEntry | undefined> {
-  return db.v2Entries.get(date);
-}
-
-export async function getAllV2Entries(): Promise<V2DailyEntry[]> {
-  return db.v2Entries.orderBy("date").toArray();
-}
-
-export async function importV2Entries(entries: V2DailyEntry[]): Promise<void> {
-  await db.transaction("rw", db.v2Entries, async () => {
-    await db.v2Entries.bulkPut(entries.map((entry) => ({ ...entry, schemaVersion: 1 })));
-  });
-}
-
-export async function getAllWhoopRecords(): Promise<WhoopRecord[]> {
-  return db.whoopRecords.orderBy("start").toArray();
-}
-
-export async function importWhoopRecords(records: WhoopRecord[]): Promise<void> {
-  await db.transaction("rw", db.whoopRecords, async () => {
-    await db.whoopRecords.bulkPut(records);
-  });
-}
+export async function getV2Entry(date: string): Promise<V2DailyEntry | undefined> { return db.v2Entries.get(date); }
+export async function getAllV2Entries(): Promise<V2DailyEntry[]> { return db.v2Entries.orderBy("date").toArray(); }
+export async function importV2Entries(entries: V2DailyEntry[]): Promise<void> { await db.v2Entries.bulkPut(entries); }
