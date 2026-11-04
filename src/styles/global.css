@@ -250,6 +250,40 @@ main {
   font-weight: 800;
 }
 
+.check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.check-row input {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.check-row span {
+  display: grid;
+  gap: 4px;
+}
+
+.check-row small {
+  color: var(--muted);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.compact-field {
+  margin-top: -8px;
+}
+
 .score-field {
   display: grid;
   gap: 10px;

@@ -1,6 +1,7 @@
 import Dexie, { type Table } from "dexie";
 import type { DailyEntry } from "./schema";
 import type { ClusterDecision } from "./timeline-model";
+import type { V2DailyEntry } from "./v2-schema";
 
 export interface PostExertionalResponse {
   exposureDate: string;
@@ -15,6 +16,7 @@ class CapacityDatabase extends Dexie {
   entries!: Table<DailyEntry, string>;
   clusterDecisions!: Table<ClusterDecision, string>;
   postExertionalResponses!: Table<PostExertionalResponse, string>;
+  v2Entries!: Table<V2DailyEntry, string>;
 
   constructor() {
     super("capacity-tracker");
@@ -29,6 +31,12 @@ class CapacityDatabase extends Dexie {
       entries: "date, updatedAt",
       clusterDecisions: "id, status, startDate, endDate, updatedAt",
       postExertionalResponses: "exposureDate, updatedAt"
+    });
+    this.version(4).stores({
+      entries: "date, updatedAt",
+      clusterDecisions: "id, status, startDate, endDate, updatedAt",
+      postExertionalResponses: "exposureDate, updatedAt",
+      v2Entries: "date, updatedAt"
     });
   }
 }
@@ -71,4 +79,22 @@ export async function getPostExertionalResponses(): Promise<PostExertionalRespon
 
 export async function savePostExertionalResponse(response: PostExertionalResponse): Promise<void> {
   await db.postExertionalResponses.put({ ...response, updatedAt: new Date().toISOString() });
+}
+
+export async function saveV2Entry(entry: V2DailyEntry): Promise<void> {
+  await db.v2Entries.put({ ...entry, schemaVersion: 1, updatedAt: new Date().toISOString() });
+}
+
+export async function getV2Entry(date: string): Promise<V2DailyEntry | undefined> {
+  return db.v2Entries.get(date);
+}
+
+export async function getAllV2Entries(): Promise<V2DailyEntry[]> {
+  return db.v2Entries.orderBy("date").toArray();
+}
+
+export async function importV2Entries(entries: V2DailyEntry[]): Promise<void> {
+  await db.transaction("rw", db.v2Entries, async () => {
+    await db.v2Entries.bulkPut(entries.map((entry) => ({ ...entry, schemaVersion: 1 })));
+  });
 }

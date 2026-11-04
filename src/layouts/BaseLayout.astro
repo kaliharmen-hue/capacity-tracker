@@ -3,7 +3,7 @@ import "../styles/global.css";
 
 interface Props {
   title: string;
-  active: "daily" | "timeline" | "weekly" | "monthly" | "pmdd" | "clinical" | "experiments" | "export";
+  active: "daily" | "v2" | "timeline" | "weekly" | "monthly" | "pmdd" | "clinical" | "experiments" | "export";
 }
 
 const { title, active } = Astro.props;
@@ -13,6 +13,7 @@ const icon192 = `${base}icons/icon-192.svg`;
 
 const links = [
   { href: base, label: "Daily Log", key: "daily" },
+  { href: `${base}v2/`, label: "Personal OS V2", key: "v2" },
   { href: `${base}timeline/`, label: "Capacity Timeline", key: "timeline" },
   { href: `${base}history/`, label: "Weekly Review", key: "weekly" },
   { href: `${base}insights/`, label: "Monthly Insights", key: "monthly" },

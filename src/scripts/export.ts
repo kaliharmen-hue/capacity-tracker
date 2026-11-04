@@ -1,4 +1,5 @@
-import { db, getAllEntries, getClusterDecisions, getPostExertionalResponses, importClusterDecisions, importEntries, type PostExertionalResponse } from "./db";
+import { db, getAllEntries, getAllV2Entries, getClusterDecisions, getPostExertionalResponses, importClusterDecisions, importEntries, importV2Entries, type PostExertionalResponse } from "./db";
+import type { V2DailyEntry } from "./v2-schema";
 import { loadExperiment, saveExperiment, type Experiment } from "./experiment-model";
 import { createEmptyEntry, sections, todayIso, type DailyEntry } from "./schema";
 import type { ClusterDecision } from "./timeline-model";
@@ -20,6 +21,7 @@ interface PersonalOperatingSystemBackup {
   clusterDecisions: ClusterDecision[];
   postExertionalResponses?: PostExertionalResponse[];
   activeExperiment?: Experiment;
+  v2Entries?: V2DailyEntry[];
 }
 
 dateInput!.value = new URLSearchParams(window.location.search).get("date") || todayIso();
@@ -202,7 +204,8 @@ document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((button) =
       const clusterDecisions = await getClusterDecisions();
       const postExertionalResponses = await getPostExertionalResponses();
       const activeExperiment = loadExperiment();
-      const backup: PersonalOperatingSystemBackup = { version: 4, entries, clusterDecisions, postExertionalResponses, activeExperiment };
+      const v2Entries = await getAllV2Entries();
+      const backup: PersonalOperatingSystemBackup = { version: 4, entries, clusterDecisions, postExertionalResponses, activeExperiment, v2Entries };
       const content = JSON.stringify(backup, null, 2);
       setPreview(entries.length ? content : showEmptyState("any date"));
       if (entries.length) {
@@ -223,11 +226,13 @@ importInput?.addEventListener("change", async () => {
   const clusterDecisions = Array.isArray(parsed) ? [] : parsed.clusterDecisions ?? [];
   const postExertionalResponses = Array.isArray(parsed) ? [] : parsed.postExertionalResponses ?? [];
   const activeExperiment = Array.isArray(parsed) ? undefined : parsed.activeExperiment;
+  const v2Entries = Array.isArray(parsed) ? [] : parsed.v2Entries ?? [];
   await importEntries(entries);
   if (clusterDecisions.length) await importClusterDecisions(clusterDecisions);
   if (postExertionalResponses.length) await db.postExertionalResponses.bulkPut(postExertionalResponses);
   if (activeExperiment) saveExperiment(activeExperiment);
-  setPreview(`Imported ${entries.length} entries${clusterDecisions.length ? `, ${clusterDecisions.length} cluster decisions` : ""}${postExertionalResponses.length ? ` and ${postExertionalResponses.length} post-exertional responses` : ""}${activeExperiment ? " and the active experiment" : ""}.`);
+  if (v2Entries.length) await importV2Entries(v2Entries);
+  setPreview(`Imported ${entries.length} entries${v2Entries.length ? ` and ${v2Entries.length} V2 entries` : ""}${clusterDecisions.length ? `, ${clusterDecisions.length} cluster decisions` : ""}${postExertionalResponses.length ? ` and ${postExertionalResponses.length} post-exertional responses` : ""}${activeExperiment ? " and the active experiment" : ""}.`);
 });
 
 sharePreviewButton?.addEventListener("click", () => {

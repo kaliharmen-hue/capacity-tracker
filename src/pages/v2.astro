@@ -1,0 +1,46 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Personal OS V2" active="v2">
+  <section class="page-heading">
+    <div>
+      <p class="eyebrow">Personal OS V2</p>
+      <h2>A smaller daily check-in</h2>
+    </div>
+    <p class="soft-copy">This is being developed alongside the original tracker. Your historical records remain in the existing Daily Log.</p>
+  </section>
+
+  <form id="v2-entry-form" class="tracker-form">
+    <div class="sticky-actions">
+      <label class="date-control">
+        <span>Date</span>
+        <input id="v2-entry-date" name="date" type="date" />
+      </label>
+      <p id="v2-autosave-status" class="autosave-status" aria-live="polite">Autosaves as I go</p>
+    </div>
+
+    <section class="form-section">
+      <h3>Daily measures</h3>
+      <p class="section-prompt">These new V2 scores are separate from the original tracker: 0 means none and 10 means worst.</p>
+      <label class="field-label">Physical fatigue (0-10)<span class="field-helper">How physically fatigued did I feel today? 0 = none, 10 = extreme fatigue.</span><input name="physicalFatigue" type="number" min="0" max="10" step="1" /></label>
+      <label class="field-label">Cognitive difficulty (0-10)<span class="field-helper">How difficult did thinking feel today, including brain fog or a swimming-head sensation? 0 = none, 10 = severe difficulty.</span><input name="cognitiveDifficulty" type="number" min="0" max="10" step="1" /></label>
+      <label class="field-label">How much did this affect what I could manage today?<select name="functionalImpact"><option value="">Not answered</option><option>No impact</option><option>Managed with extra effort</option><option>Reduced or postponed activities</option><option>Unable to manage essential activities</option></select></label>
+      <label class="field-label">Optional notes<textarea name="notes" rows="3"></textarea></label>
+    </section>
+
+    <section class="form-section">
+      <h3>Protocols</h3>
+      <p class="section-prompt">Only tick a session when I completed it. A day with no V2 log remains unknown, not a missed session.</p>
+      <label class="check-row"><input name="bioLightFullSpectrum" type="checkbox" /><span><strong>BioLight full-spectrum light therapy</strong><small>07:00 for 60 minutes, approximately 44 cm from the panel.</small></span></label>
+      <label class="field-label compact-field">Brightness setting (optional)<input name="bioLightBrightness" type="text" placeholder="For example, setting 8" /></label>
+      <label class="field-label" data-effect-for="bioLightFullSpectrum">Any noticeable effect afterwards?<select name="bioLightEffect"><option value="">Not answered</option><option>Noticeably better</option><option>Slightly better</option><option>No noticeable change</option><option>Felt worse</option><option>Not sure</option></select></label>
+      <label class="check-row"><input name="bioLightInfrared" type="checkbox" /><span><strong>BioLight infrared session</strong><small>Following full-spectrum exposure.</small></span></label>
+      <label class="check-row"><input name="vagustimDaytime" type="checkbox" /><span><strong>Vagustim V2 Standard cognitive programme</strong><small>Approximately 15 minutes during the day, with flexible timing.</small></span></label>
+      <label class="field-label" data-effect-for="vagustimDaytime">Any noticeable effect afterwards?<select name="vagustimDaytimeEffect"><option value="">Not answered</option><option>Noticeably better</option><option>Slightly better</option><option>No noticeable change</option><option>Felt worse</option><option>Not sure</option></select></label>
+      <label class="check-row"><input name="vagustimEvening" type="checkbox" /><span><strong>Vagustim V2 Standard AI programme</strong><small>Approximately 15 minutes before sleep. The important outcome is the subsequent night's sleep.</small></span></label>
+    </section>
+  </form>
+
+  <script src="../scripts/v2.ts"></script>
+</BaseLayout>
