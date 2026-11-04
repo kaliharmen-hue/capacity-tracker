@@ -90,6 +90,14 @@ The existing deployed Worker is `capacity-tracker`, matching `wrangler.jsonc`.
 
 ## Private V2 photo storage
 
+When iOS keeps Safari sign-in separate from the installed app, the signed-in
+owner can issue a 128-bit random temporary code. Only the current owner session
+can issue it; the server stores its SHA-256 hash for ten minutes. The user copies
+it into their own home-screen app, never a chat or navigation URL. Redemption is
+same-origin and no-store, and rechecks that the underlying session is still the
+current owner. Existing photo access checks remain unchanged. No new paid
+service or WHOOP scope is introduced.
+
 Keep this account on Workers Free. `PHOTO_LIBRARY` is a SQLite Durable Object,
 not R2. No R2 bucket or paid AI API is required. The application caps live images
 at 250 MB and each JPEG at 750 KB. At capacity uploads fail safely; unreviewed
