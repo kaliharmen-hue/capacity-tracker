@@ -290,6 +290,8 @@ main {
 .meal-card { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); }
 .meal-card p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 #v2-food-section { margin-top: 20px; }
+.meal-photo-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+#v2-food-selected { overflow-wrap: anywhere; }
 
 .score-field {
   display: grid;

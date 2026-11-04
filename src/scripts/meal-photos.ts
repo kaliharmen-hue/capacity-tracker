@@ -34,6 +34,7 @@ export function initMealPhotos(getDate: () => string) {
   const root = document.querySelector<HTMLElement>('#v2-food-section')!;
   const input = root.querySelector<HTMLInputElement>('#v2-food-image')!;
   const camera = root.querySelector<HTMLInputElement>('#v2-food-camera')!;
+  const selectedName = root.querySelector<HTMLElement>('#v2-food-selected')!;
   const time = root.querySelector<HTMLInputElement>('#v2-food-time')!;
   const note = root.querySelector<HTMLTextAreaElement>('#v2-food-note')!;
   const consent = root.querySelector<HTMLInputElement>('#v2-food-consent')!;
@@ -61,8 +62,12 @@ export function initMealPhotos(getDate: () => string) {
     if (selectedUrl) URL.revokeObjectURL(selectedUrl);
     selectedUrl = file ? URL.createObjectURL(file) : '';
     preview.hidden = !file;
+    selectedName.hidden = !file;
+    selectedName.textContent = file?.name || '';
     if (file) preview.src = selectedUrl;
   }
+  root.querySelector('#v2-food-library')!.addEventListener('click', () => input.click());
+  root.querySelector('#v2-food-take')!.addEventListener('click', () => camera.click());
   input.addEventListener('change', () => choose(input.files?.[0]));
   camera.addEventListener('change', () => choose(camera.files?.[0]));
 

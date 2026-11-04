@@ -59,7 +59,16 @@ try {
   assert.equal(records[0].notes, 'Fast date-change draft'); assert.equal(records[0].entryStatus, 'draft');
   assert.equal(records[1].energyScore, 7); assert.equal(records[2].recoveryScore, 80);
   const jpeg = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 1800; c.height = 1200; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 1800, 1200); x.fillStyle = '#3f6f63'; x.fillRect(200, 200, 1400, 800); x.fillStyle = '#fff'; x.font = '80px sans-serif'; x.fillText('Synthetic meal photo', 400, 600); return c.toDataURL('image/jpeg'); });
-  await page.locator('#v2-food-image').setInputFiles({ name: 'synthetic.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(jpeg.split(',')[1], 'base64') });
+  assert.equal(await page.locator('#v2-food-image').getAttribute('capture'), null, 'Existing-photo picker must not request camera capture');
+  const cameraPicker = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Take new photo', exact: true }).click();
+  assert.equal(await (await cameraPicker).element().getAttribute('id'), 'v2-food-camera');
+  const libraryPicker = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose existing photo', exact: true }).click();
+  const chooser = await libraryPicker;
+  assert.equal(await chooser.element().getAttribute('id'), 'v2-food-image');
+  await chooser.setFiles({ name: 'synthetic.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(jpeg.split(',')[1], 'base64') });
+  assert.equal(await page.locator('#v2-food-selected').textContent(), 'synthetic.jpg');
   await page.locator('#v2-food-note').fill('Synthetic picture for testing');
   await page.locator('#v2-food-time').fill('12:30');
   await page.locator('#v2-food-consent').check();
