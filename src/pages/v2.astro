@@ -48,8 +48,13 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 
   <section class="form-section" id="v2-food-section">
     <h3>Meal photos</h3>
-    <label class="field-label">Take a photo<input id="v2-food-camera" type="file" accept="image/*" capture="environment" /></label>
-    <label class="field-label">Choose a photo<input id="v2-food-image" type="file" accept="image/*" /></label>
+    <div class="meal-photo-actions">
+      <button id="v2-food-library" type="button" class="secondary-button" aria-controls="v2-food-image">Choose existing photo</button>
+      <button id="v2-food-take" type="button" class="secondary-button" aria-controls="v2-food-camera">Take new photo</button>
+    </div>
+    <input id="v2-food-image" type="file" accept="image/*" aria-label="Existing meal photo" hidden />
+    <input id="v2-food-camera" type="file" accept="image/*" capture="environment" aria-label="New meal photo" hidden />
+    <p id="v2-food-selected" class="field-helper" hidden></p>
     <img id="v2-food-preview" class="meal-preview" alt="Selected meal" hidden />
     <label class="field-label">Meal time<input id="v2-food-time" type="time" /></label>
     <label class="field-label">Optional meal note<textarea id="v2-food-note" rows="2" maxlength="2000" placeholder="For example, ingredients or portion details"></textarea></label>
