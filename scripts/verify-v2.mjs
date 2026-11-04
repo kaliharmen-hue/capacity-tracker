@@ -83,6 +83,22 @@ try {
   assert.equal(overflow, false); assert.deepEqual(errors, []);
   await page.reload(); await page.locator('#v2-meal-list img').waitFor();
   assert.equal(await page.locator('#v2-meal-list img').count(), 1);
+  assert.equal(await page.locator('#v2-food-consent').isChecked(), true, 'Photo permission must survive reopening the page');
+  await page.locator('#v2-food-consent').uncheck();
+  await page.evaluate(async jpeg => {
+    const db = await new Promise(resolve => { const r = indexedDB.open('capacity-tracker'); r.onsuccess = () => resolve(r.result); });
+    const image = new Blob([Uint8Array.from(atob(jpeg.split(',')[1]), c => c.charCodeAt(0))], { type: 'image/jpeg' });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('mealPhotoDrafts', 'readwrite');
+      tx.objectStore('mealPhotoDrafts').put({ id: '11111111-1111-4111-8111-111111111111', date: '2026-11-05', time: '', note: 'Pending consent test', image, createdAt: new Date().toISOString() });
+      tx.oncomplete = resolve; tx.onerror = reject;
+    }); db.close();
+  }, jpeg);
+  await page.reload(); await page.getByRole('button', { name: 'Retry upload', exact: true }).waitFor();
+  assert.equal(await page.locator('#v2-food-consent').isChecked(), false, 'Withdrawing photo permission must also persist');
+  await page.getByRole('button', { name: 'Retry upload', exact: true }).click();
+  await page.getByText('Photo uploads are paused. Enable photo permission to upload.', { exact: true }).waitFor();
+  assert.equal([...values.keys()].filter(key => key.startsWith('photo:')).length, 1, 'Retry must not upload without permission');
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'qa/v2-desktop.png' });
   console.log('PASS: v5 history/WHOOP preserved; draft survives fast date change; real JPEG compressed/uploaded/reloaded; phone and desktop render without errors.');
