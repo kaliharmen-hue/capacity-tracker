@@ -1,4 +1,5 @@
 import { db, type MealPhotoDraft } from './db';
+import { redeemPhoneConnectionCode } from './whoop-connection';
 
 const API = (import.meta.env.PUBLIC_PERSONAL_OS_API_BASE || 'https://capacity-tracker.kaliharmen.workers.dev').replace(/\/$/, '') + '/api/meal-photos';
 interface Photo { id: string; date: string; time: string; note: string; state: string; reviewedAt: string | null }
@@ -61,10 +62,16 @@ export function initMealPhotos(getDate: () => string) {
   });
   async function api(path: string, body?: unknown) {
     const token = session();
-    if (!token) throw new Error('Connect WHOOP on this phone in Capacity Building, then retry. This photo stays on your phone.');
+    if (!token) {
+      root.querySelector<HTMLDetailsElement>('#v2-phone-connection')!.open = true;
+      throw new Error('Photo connection needs renewing. Use Connect this phone. Your saved photo stays here.');
+    }
     const response = await fetch(API + path, { method: body ? 'POST' : 'GET', headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
     if (!response.ok) {
-      if (response.status === 401) throw new Error('Reconnect WHOOP on this phone in Capacity Building, then retry. This photo stays on your phone.');
+      if (response.status === 401) {
+        root.querySelector<HTMLDetailsElement>('#v2-phone-connection')!.open = true;
+        throw new Error('Photo connection needs renewing. Use Connect this phone. Your saved photo stays here.');
+      }
       const error = await response.json().catch(() => ({}));
       throw new Error(error.error || 'Photo service needs retrying.');
     }
@@ -169,6 +176,24 @@ export function initMealPhotos(getDate: () => string) {
     try { await api('/settings', { enabled }); message(enabled ? 'Reviewed photos will be removed after seven days.' : 'Automatic cleanup paused.'); }
     catch (error) { cleanup.checked = !enabled; message(error instanceof Error ? error.message : 'Could not save cleanup setting.'); }
     finally { cleanup.disabled = false; }
+  });
+  root.querySelector<HTMLFormElement>('#v2-phone-connect-form')!.addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const code = form.querySelector<HTMLInputElement>('#v2-phone-code')!;
+    const button = form.querySelector<HTMLButtonElement>('button')!;
+    button.disabled = true;
+    try {
+      const token = await redeemPhoneConnectionCode(API.replace(/\/api\/meal-photos$/, ''), code.value);
+      localStorage.setItem('personal-os-whoop-session', token);
+      code.value = '';
+      for (const draft of await db.mealPhotoDrafts.where('date').equals(getDate()).toArray()) {
+        if (draft.lastError?.startsWith('Reconnect WHOOP') || draft.lastError?.startsWith('Photo connection needs renewing')) await db.mealPhotoDrafts.update(draft.id, { lastError: undefined });
+      }
+      message('Phone connection is ready. Retry the saved photo below.');
+      await refresh();
+    } catch (error) { message(error instanceof Error ? error.message : 'Could not connect this phone.'); }
+    finally { button.disabled = false; }
   });
   return { refresh };
 }

@@ -44,6 +44,9 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         WHOOP access is authorised using OAuth. WHOOP access and refresh tokens are stored in a Cloudflare Workers KV namespace so the connection can be maintained securely. The WHOOP Client Secret is stored as a Cloudflare secret and is not included in the public website code.
       </p>
       <p>
+        If sign-in opens Safari separately from my installed phone app, I can copy a temporary connection code from that signed-in browser into my app. It expires after ten minutes and is not put in navigation URLs or sent to ChatGPT. This connects the app without moving or clearing my local journal or pending photos.
+      </p>
+      <p>
         The Cloudflare bridge retrieves WHOOP data when requested. WHOOP data is not kept as a separate permanent WHOOP archive by the bridge; however, if I enable ChatGPT access, WHOOP metrics can be included in the joined Personal Operating System analysis mirror described above.
       </p>
     </section>

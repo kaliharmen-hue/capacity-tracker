@@ -25,8 +25,14 @@ try {
   const storage = { get: async k => structuredClone(values.get(k)), put: async (k, v) => { values.set(k, structuredClone(v)); }, delete: async k => values.delete(k), list: async ({ prefix }) => new Map([...values].filter(([key]) => key.startsWith(prefix))), transaction: async fn => fn(storage) };
   const library = new PhotoLibraryStorage({ storage }, {});
   let uploadError;
+  const recoveredSession = 'a'.repeat(64);
+  let recoveredSessionSeen = false;
+  await page.route('https://capacity-tracker.kaliharmen.workers.dev/api/whoop-connection/connect', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ session: recoveredSession })
+  }));
   await page.route('https://capacity-tracker.kaliharmen.workers.dev/api/meal-photos/**', async route => {
     const request = route.request(), url = new URL(request.url());
+    if (request.headers().authorization === 'Bearer ' + recoveredSession) recoveredSessionSeen = true;
     if (url.pathname.endsWith('/upload') && uploadError) {
       await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: uploadError }) }); return;
     }
@@ -106,15 +112,50 @@ try {
   await page.locator('#v2-food-consent').check();
   uploadError = 'Connect the owner WHOOP account in Capacity Building first.';
   await page.getByRole('button', { name: 'Retry upload', exact: true }).click();
-  await page.locator('#v2-meal-list [role="alert"]').filter({ hasText: 'Reconnect WHOOP on this phone' }).waitFor();
+  await page.locator('#v2-meal-list [role="alert"]').filter({ hasText: 'Photo connection needs renewing' }).waitFor();
   await page.reload();
-  await page.locator('#v2-meal-list [role="alert"]').filter({ hasText: 'Reconnect WHOOP on this phone' }).waitFor();
+  await page.locator('#v2-meal-list [role="alert"]').filter({ hasText: 'Photo connection needs renewing' }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'Retry upload', exact: true }).count(), 1, 'Auth failure must keep the local photo and retry');
   uploadError = undefined;
   await page.getByRole('button', { name: 'Retry upload', exact: true }).click();
   await page.waitForFunction(() => document.querySelectorAll('#v2-meal-list img').length === 2 && ![...document.querySelectorAll('button')].some(b => b.textContent === 'Retry upload'));
   assert.equal([...values.keys()].filter(key => key.startsWith('photo:')).length, 2, 'Recovered upload should save exactly once');
+  const recoveredRead = page.waitForResponse(response => response.url().includes('/api/meal-photos/list') && response.request().headers().authorization === 'Bearer ' + recoveredSession);
+  await page.locator('#v2-phone-connection').evaluate(element => { element.open = true; });
+  await page.locator('#v2-phone-code').fill('12345678-12345678-12345678-12345678');
+  await page.getByRole('button', { name: 'Connect phone', exact: true }).click();
+  await page.waitForFunction(() => localStorage.getItem('personal-os-whoop-session') === 'a'.repeat(64));
+  await page.locator('#v2-food-status').filter({ hasText: 'Phone connection is ready' }).waitFor();
+  assert.equal(await page.locator('#v2-phone-code').inputValue(), '', 'Temporary code must be cleared after connecting');
+  await recoveredRead;
+  assert(recoveredSessionSeen, 'Home-screen app must use its own recovered connection for private photo access');
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'qa/v2-desktop.png' });
-  console.log('PASS: v5 history/WHOOP preserved; draft survives fast date change; real JPEG compressed/uploaded/reloaded; phone and desktop render without errors.');
+  await page.route('https://capacity-tracker.kaliharmen.workers.dev/**', route => route.fulfill({
+    status: route.request().url().endsWith('/api/whoop-connection/code') ? 200 : 401,
+    contentType: 'application/json', body: JSON.stringify({ code: 'b'.repeat(32), error: 'Synthetic connection test' })
+  }));
+  await page.goto(origin + '/capacity/');
+  await page.getByRole('button', { name: 'Reconnect WHOOP', exact: true }).waitFor();
+  await page.getByText('Connect my home-screen app', { exact: true }).click();
+  await page.getByRole('button', { name: 'Create connection code', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('#whoop-phone-code').value === 'b'.repeat(32));
+  assert.equal(await page.getByRole('button', { name: 'Copy connection code', exact: true }).isVisible(), true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('#whoop-phone-code').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'qa/phone-connection-code.png' });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  assert.deepEqual(errors, []);
+  const capacityDate = await page.locator('#capacity-date').inputValue();
+  await page.locator('#capacity-notes').fill('Reconnect must preserve this pending edit');
+  await page.getByRole('button', { name: 'Reconnect WHOOP', exact: true }).click();
+  await page.waitForURL('https://capacity-tracker.kaliharmen.workers.dev/oauth/start');
+  await page.goto(origin + '/fixture');
+  const capacitySaved = await page.evaluate(async date => {
+    const db = await new Promise(resolve => { const request = indexedDB.open('capacity-tracker'); request.onsuccess = () => resolve(request.result); });
+    const record = await new Promise(resolve => { const request = db.transaction('capacityPractices').objectStore('capacityPractices').get(date); request.onsuccess = () => resolve(request.result); });
+    db.close(); return record;
+  }, capacityDate);
+  assert.equal(capacitySaved.notes, 'Reconnect must preserve this pending edit');
+  console.log('PASS: history/WHOOP preserved; autosave and JPEG retries pass; temporary phone connection is applied; code controls render without errors.');
 } finally { await browser.close(); server.close(); }

@@ -18,6 +18,7 @@ import {
   type WhoopDay
 } from "./db";
 import { formatMirrorSync } from './personal-os-sync';
+import { issuePhoneConnectionCode } from './whoop-connection';
 import { todayIso, type DailyEntry } from "./schema";
 
 const dateInput = document.querySelector<HTMLInputElement>("#capacity-date");
@@ -371,7 +372,10 @@ async function renderWhoopDay(date: string): Promise<void> {
   const session = localStorage.getItem(WHOOP_SESSION_KEY);
   const day = await getWhoopDay(date);
   if (whoopStatus) whoopStatus.textContent = session ? "Connected" : "Not connected";
-  if (whoopConnectButton) whoopConnectButton.hidden = Boolean(session);
+  if (whoopConnectButton) {
+    whoopConnectButton.hidden = false;
+    whoopConnectButton.textContent = session ? 'Reconnect WHOOP' : 'Connect WHOOP';
+  }
   if (whoopSyncButton) whoopSyncButton.hidden = !session;
   if (whoopDisconnectButton) whoopDisconnectButton.hidden = !session;
 
@@ -688,8 +692,36 @@ copyCapacityDataButton?.addEventListener("click", () => {
   void copyCapacityData();
 });
 
-whoopConnectButton?.addEventListener("click", () => {
+whoopConnectButton?.addEventListener("click", async () => {
+  if (loadingDaily) { if (whoopSyncStatus) whoopSyncStatus.textContent = 'Please wait for this date to finish loading.'; return; }
+  if (dailySaveTimer !== undefined) {
+    window.clearTimeout(dailySaveTimer);
+    dailySaveTimer = undefined;
+    try { await saveCapacityPractice(collectPractice()); }
+    catch { if (whoopSyncStatus) whoopSyncStatus.textContent = 'Could not save this edit yet. Please keep this page open and retry.'; return; }
+  }
   window.location.href = `${WHOOP_BRIDGE}/oauth/start`;
+});
+
+const phoneCode = document.querySelector<HTMLInputElement>('#whoop-phone-code');
+const phoneCodeStatus = document.querySelector<HTMLElement>('#whoop-phone-code-status');
+document.querySelector<HTMLButtonElement>('#whoop-phone-code-create')?.addEventListener('click', async event => {
+  const button = event.currentTarget as HTMLButtonElement;
+  button.disabled = true;
+  try {
+    const session = localStorage.getItem(WHOOP_SESSION_KEY);
+    if (!session) throw new Error('Open this page in Safari where WHOOP sign-in finished.');
+    const code = await issuePhoneConnectionCode(WHOOP_BRIDGE, session);
+    phoneCode!.value = code;
+    document.querySelector<HTMLElement>('#whoop-phone-code-field')!.hidden = false;
+    document.querySelector<HTMLElement>('#whoop-phone-code-copy')!.hidden = false;
+    phoneCodeStatus!.textContent = 'This private connection code expires in 10 minutes.';
+  } catch (error) { phoneCodeStatus!.textContent = error instanceof Error ? error.message : 'Could not create connection code.'; }
+  finally { button.disabled = false; }
+});
+document.querySelector('#whoop-phone-code-copy')?.addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(phoneCode!.value); phoneCodeStatus!.textContent = 'Connection code copied.'; }
+  catch { phoneCode!.focus(); phoneCode!.select(); phoneCodeStatus!.textContent = 'Select and copy the connection code from the field.'; }
 });
 
 whoopSyncButton?.addEventListener("click", () => {

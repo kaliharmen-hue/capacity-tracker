@@ -1,6 +1,7 @@
 import { mirrorCounts, validateUpload } from './mirror-merge.js';
 import { mirrorStore } from './mirror-store.js';
 import { photoLibrary } from './photos.js';
+import { phoneConnection } from './whoop-handoff.js';
 const WHOOP_AUTH_URL = "https://api.prod.whoop.com/oauth/oauth2/auth";
 const WHOOP_TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token";
 const WHOOP_API = "https://api.prod.whoop.com/developer/v2";
@@ -991,6 +992,10 @@ export default {
     }
 
     try {
+      if (['/api/whoop-connection/code', '/api/whoop-connection/connect'].includes(url.pathname) && request.method === 'POST') {
+        const response = await phoneConnection(request, env);
+        return new Response(response.body, { status: response.status, headers: { ...Object.fromEntries(response.headers), ...corsHeaders(request, env) } });
+      }
       if (url.pathname.startsWith('/api/meal-photos')) {
         const owner = await loadOwnerSession(request, env);
         const ownerId = await env.WHOOP_AUTH.get('owner-session');

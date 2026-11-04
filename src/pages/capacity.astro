@@ -216,6 +216,13 @@ import BaseLayout from "../layouts/BaseLayout.astro";
           <button id="whoop-disconnect" type="button" class="secondary-button" hidden>Disconnect</button>
         </div>
         <p id="whoop-sync-status" class="autosave-status" aria-live="polite"></p>
+        <details>
+          <summary>Connect my home-screen app</summary>
+          <button id="whoop-phone-code-create" type="button" class="secondary-button">Create connection code</button>
+          <label id="whoop-phone-code-field" class="field-label" hidden>Temporary connection code<input id="whoop-phone-code" type="text" readonly autocomplete="off" spellcheck="false" /></label>
+          <button id="whoop-phone-code-copy" type="button" class="secondary-button" hidden>Copy connection code</button>
+          <p id="whoop-phone-code-status" role="status" aria-live="polite"></p>
+        </details>
       </div>
 
       <div class="capacity-progress-card chatgpt-card">

@@ -62,6 +62,13 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     <button id="v2-food-save" type="button" class="primary-button">Save meal photo</button>
     <p id="v2-food-status" role="status" aria-live="polite"></p>
     <p id="v2-photo-usage" class="field-helper"></p>
+    <details id="v2-phone-connection">
+      <summary>Connect this phone</summary>
+      <form id="v2-phone-connect-form">
+        <label class="field-label">Temporary connection code<input id="v2-phone-code" type="password" autocomplete="off" spellcheck="false" required maxlength="80" /></label>
+        <button type="submit" class="secondary-button">Connect phone</button>
+      </form>
+    </details>
     <label class="check-row"><input id="v2-photo-cleanup" type="checkbox" /><span>Automatically remove photos seven days after a successful review receipt. Dates, times and notes stay saved. Unreviewed photos stay available; uploads pause if storage is full.</span></label>
     <div id="v2-meal-list" class="meal-list"></div>
   </section>
