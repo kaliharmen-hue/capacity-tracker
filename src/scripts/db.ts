@@ -1,5 +1,5 @@
 import type { V2DailyEntry } from "./v2-schema";
-export interface MealPhotoDraft { id: string; date: string; time: string; note: string; image: Blob; createdAt: string }
+export interface MealPhotoDraft { id: string; date: string; time: string; note: string; image: Blob; createdAt: string; lastError?: string }
 import Dexie, { type Table } from "dexie";
 import type { DailyEntry } from "./schema";
 import type { ClusterDecision } from "./timeline-model";
