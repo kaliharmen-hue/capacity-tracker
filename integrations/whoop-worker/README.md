@@ -86,7 +86,23 @@ If the GitHub repository is connected in Cloudflare, configure **Settings > Buil
 
 Cloudflare's integrated build system will install the project dependencies and use the Wrangler version pinned in this folder.
 
-The Cloudflare Worker project itself must be named `personal-os-whoop` so it matches `wrangler.jsonc`.
+The existing deployed Worker is `capacity-tracker`, matching `wrangler.jsonc`.
+
+## Private V2 photo storage
+
+Keep this account on Workers Free. `PHOTO_LIBRARY` is a SQLite Durable Object,
+not R2. No R2 bucket or paid AI API is required. The application caps live images
+at 250 MB and each JPEG at 750 KB. At capacity uploads fail safely; unreviewed
+photos are never automatically evicted. Free-plan platform limits fail requests
+rather than billing overages. Upgrading the account changes that protection.
+
+`/api/meal-photos` requires the existing owner session. MCP photo reads require
+`personal_os:read`; review receipts additionally require `personal_os:review`.
+Older connections retain read access and need reconnecting to grant receipts.
+The owner must enable cleanup in V2. A daily cron removes only images with a
+successful receipt older than seven days; metadata survives. Provider recovery
+backups may outlive live-image deletion. No new WHOOP authorization is needed
+when the existing browser owner session is still valid.
 
 <!-- Cloudflare deployment trigger: 2026-10-22 -->
 

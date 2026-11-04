@@ -15,6 +15,7 @@
     }
   ],
   "keep_vars": true,
-  "durable_objects": { "bindings": [{ "name": "PERSONAL_OS_MIRROR", "class_name": "PersonalOsMirror" }] },
-  "migrations": [{ "tag": "personal-os-mirror-v1", "new_sqlite_classes": ["PersonalOsMirror"] }]
+  "durable_objects": { "bindings": [{ "name": "PERSONAL_OS_MIRROR", "class_name": "PersonalOsMirror" }, { "name": "PHOTO_LIBRARY", "class_name": "PhotoLibrary" }] },
+  "migrations": [{ "tag": "personal-os-mirror-v1", "new_sqlite_classes": ["PersonalOsMirror"] }, { "tag": "meal-photos-v1", "new_sqlite_classes": ["PhotoLibrary"] }],
+  "triggers": { "crons": ["15 3 * * *"] }
 }

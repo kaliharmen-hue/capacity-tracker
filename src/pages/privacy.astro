@@ -8,7 +8,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       <p class="eyebrow">Privacy</p>
       <h2>Privacy Policy</h2>
     </div>
-    <p class="soft-copy">Effective 23 October 2026</p>
+    <p class="soft-copy">Effective 4 November 2026</p>
   </section>
 
   <article class="plain-panel privacy-policy">
@@ -28,7 +28,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         Information entered into the Personal Operating System, including daily logs, capacity-building records, experiment notes, symptom information and reflections, is stored locally in the browser using IndexedDB by default.
       </p>
       <p>
-        If I explicitly enable ChatGPT access in the app, a joined analysis mirror of selected Personal Operating System records is also stored in Cloudflare Workers KV so that my private Personal OS ChatGPT plugin can read it without manual copy and paste. This cloud mirror can include Daily Log, Capacity Building, weekly review and locally synced WHOOP information.
+        If I explicitly enable ChatGPT access in the app, a joined analysis mirror of selected Personal Operating System records is also stored in private Cloudflare database storage so that my Personal OS ChatGPT plugin can read it without manual copy and paste. This cloud mirror can include Daily Log, V2 Daily Log, Capacity Building, weekly review and locally synced WHOOP information.
       </p>
       <p>
         The app may also store small pieces of technical information in the browser, such as the date of the most recent backup. The app does not currently use advertising trackers or analytics cookies.
@@ -54,11 +54,18 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         Information is used to help me review patterns in sleep, recovery, energy, capacity, training, nutrition experiments and other factors I choose to track. WHOOP data may be matched to locally stored Personal Operating System records by date so that I can compare patterns in context.
       </p>
       <p>
-        ChatGPT access is optional and must be enabled from inside the Personal Operating System. When enabled, a private read-only plugin can request date-scoped Personal Operating System records from the Cloudflare bridge. ChatGPT cannot write to the tracker through this connection. WHOOP can be refreshed live by the bridge when a read request is made.
+        ChatGPT access is optional and must be enabled from inside the Personal Operating System. When enabled, the private plugin can request date-scoped records and meal images. A separate optional review permission allows ChatGPT to acknowledge the exact photos used in a saved review. This schedules their removal after a seven-day grace period only when automatic cleanup is enabled. Nutritional estimates are not written back to daily logs. WHOOP can be refreshed live by the bridge when a read request is made.
       </p>
       <p>
         ChatGPT connects using an OAuth browser approval flow. The ChatGPT connection is separate from the WHOOP connection and can be revoked independently. Revoking ChatGPT access invalidates existing ChatGPT access tokens and deletes the cloud analysis mirror while leaving the local browser records under my control.
       </p>
+    </section>
+
+    <section>
+      <h3>Optional meal photos</h3>
+      <p>With my consent, meal photos are resized and re-encoded on my device to remove source metadata, then uploaded to private Cloudflare SQLite storage. Photos are never put in the public GitHub repository or a public image bucket. My authenticated app and authorised ChatGPT connection can retrieve them. OpenAI processes images retrieved during my ChatGPT reviews under the terms of that service.</p>
+      <p>If an upload fails, a compressed pending copy stays in this browser until I retry successfully. Uploaded images are kept for review. If I enable automatic cleanup, images with a successful review receipt are removed from active storage after seven days. Dates, times, notes and review references stay saved. Unreviewed images are not automatically removed. Cloudflare database recovery backups may retain deleted data for the provider's recovery period; deleting here does not delete material already retrieved into ChatGPT.</p>
+      <p>The photo library is capped at 250 MB and uses the Workers Free storage allowances. Uploads pause at capacity. No external AI API is called by the app.</p>
     </section>
 
     <section>

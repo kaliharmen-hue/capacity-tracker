@@ -38,7 +38,7 @@ export function validateUpload(payload) {
       if (entry !== undefined && entry !== null && (!object(entry) || entry.date !== row.date)) throw new Error('Joined record dates must match.');
     }
   }
-  for (const [field, key] of [['weeklyReviews', 'weekStart'], ['postExertionalResponses', 'exposureDate'], ['clusterDecisions', 'id']]) {
+  for (const [field, key] of [['weeklyReviews', 'weekStart'], ['postExertionalResponses', 'exposureDate'], ['clusterDecisions', 'id'], ['v2Entries', 'date']]) {
     if (payload[field] !== undefined && (!Array.isArray(payload[field]) || payload[field].some(r => !object(r) || typeof r[key] !== 'string' || !r[key]))) throw new Error('Invalid '+field+' collection.');
   }
 }
@@ -60,6 +60,17 @@ export function mergeMirror(previous, payload, now = new Date().toISOString()) {
     weeklyReviews: mergeCollection(previous?.weeklyReviews, payload.weeklyReviews, 'weekStart'),
     postExertionalResponses: mergeCollection(previous?.postExertionalResponses, payload.postExertionalResponses, 'exposureDate'),
     clusterDecisions: mergeCollection(previous?.clusterDecisions, payload.clusterDecisions, 'id'),
+    v2Entries: mergeV2(previous?.v2Entries, payload.v2Entries),
     counts, lastSync: { uploaded: mirrorCounts(payload.records), stored: counts, source: { browserId: typeof payload.client?.id === 'string' && /^[a-zA-Z0-9-]{1,64}$/.test(payload.client.id) ? payload.client.id : null, database: 'capacity-tracker', origin: payload.client?.origin === 'https://kaliharmen-hue.github.io' ? payload.client.origin : null }, preservedDaily: records.filter(row => row.daily && !payload.records.some(r => r.date === row.date && r.daily)).length }
   };
+}
+
+function mergeV2(old = [], incoming = []) {
+  const rows = new Map(old.map(row => [row.date, row]));
+  for (const row of incoming) {
+    if (!validDate(row.date) || row.schemaVersion !== 1 || !['draft', 'complete'].includes(row.entryStatus)) throw new Error('Invalid V2 record.');
+    const prior = rows.get(row.date);
+    if (!prior || Date.parse(row.updatedAt) > Date.parse(prior.updatedAt)) rows.set(row.date, row);
+  }
+  return [...rows.values()].sort((a, b) => a.date.localeCompare(b.date));
 }

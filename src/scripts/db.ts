@@ -1,3 +1,5 @@
+import type { V2DailyEntry } from "./v2-schema";
+export interface MealPhotoDraft { id: string; date: string; time: string; note: string; image: Blob; createdAt: string }
 import Dexie, { type Table } from "dexie";
 import type { DailyEntry } from "./schema";
 import type { ClusterDecision } from "./timeline-model";
@@ -84,6 +86,8 @@ export interface PostExertionalResponse {
 }
 
 class CapacityDatabase extends Dexie {
+  v2Entries!: Table<V2DailyEntry, string>;
+  mealPhotoDrafts!: Table<MealPhotoDraft, string>;
   entries!: Table<DailyEntry, string>;
   clusterDecisions!: Table<ClusterDecision, string>;
   postExertionalResponses!: Table<PostExertionalResponse, string>;
@@ -119,6 +123,16 @@ class CapacityDatabase extends Dexie {
       capacityPractices: "date, updatedAt",
       capacityReviews: "weekStart, updatedAt",
       whoopDays: "date, syncedAt"
+    });
+    this.version(6).stores({
+      entries: "date, updatedAt",
+      clusterDecisions: "id, status, startDate, endDate, updatedAt",
+      postExertionalResponses: "exposureDate, updatedAt",
+      capacityPractices: "date, updatedAt",
+      capacityReviews: "weekStart, updatedAt",
+      whoopDays: "date, syncedAt",
+      v2Entries: "date, updatedAt",
+      mealPhotoDrafts: "id, date, createdAt"
     });
   }
 }
@@ -282,13 +296,14 @@ async function performPersonalOsCloudSync(): Promise<CloudMirrorSyncResult> {
   const clientKey = 'personal-os-sync-client-id';
   const clientId = localStorage.getItem(clientKey) || crypto.randomUUID();
   localStorage.setItem(clientKey, clientId);
-  const [entries, capacityPractices, whoopDays, weeklyReviews, postExertionalResponses, clusterDecisions] = await db.transaction('r', [db.entries, db.capacityPractices, db.whoopDays, db.capacityReviews, db.postExertionalResponses, db.clusterDecisions], () => Promise.all([
+  const [entries, capacityPractices, whoopDays, weeklyReviews, postExertionalResponses, clusterDecisions, v2Entries] = await db.transaction('r', [db.entries, db.capacityPractices, db.whoopDays, db.capacityReviews, db.postExertionalResponses, db.clusterDecisions, db.v2Entries], () => Promise.all([
     db.entries.orderBy("date").toArray(),
     db.capacityPractices.orderBy("date").toArray(),
     db.whoopDays.orderBy("date").toArray(),
     db.capacityReviews.orderBy("weekStart").toArray(),
     db.postExertionalResponses.orderBy("exposureDate").toArray(),
-    db.clusterDecisions.toArray()
+    db.clusterDecisions.toArray(),
+    db.v2Entries.toArray()
   ]));
   const { batches, counts: localCounts } = buildMirrorBatches(entries, capacityPractices, whoopDays);
   let payload: Partial<CloudMirrorSyncResult> = {};
@@ -304,7 +319,8 @@ async function performPersonalOsCloudSync(): Promise<CloudMirrorSyncResult> {
         client: { id: clientId, origin: window.location.origin, database: 'capacity-tracker' },
         weeklyReviews,
         postExertionalResponses,
-        clusterDecisions
+        clusterDecisions,
+        v2Entries
       })
     });
     payload = await response.json();
@@ -317,3 +333,12 @@ async function performPersonalOsCloudSync(): Promise<CloudMirrorSyncResult> {
     return { ok: false, error: error instanceof Error ? error.message : "Personal OS cloud sync failed." };
   }
 }
+
+
+export async function saveV2Entry(entry: V2DailyEntry): Promise<void> {
+  await db.v2Entries.put({ ...entry, schemaVersion: 1, updatedAt: new Date().toISOString() });
+  schedulePersonalOsCloudSync();
+}
+export async function getV2Entry(date: string): Promise<V2DailyEntry | undefined> { return db.v2Entries.get(date); }
+export async function getAllV2Entries(): Promise<V2DailyEntry[]> { return db.v2Entries.orderBy("date").toArray(); }
+export async function importV2Entries(entries: V2DailyEntry[]): Promise<void> { await db.v2Entries.bulkPut(entries); }

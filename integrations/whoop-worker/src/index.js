@@ -1,5 +1,6 @@
 import { mirrorCounts, validateUpload } from './mirror-merge.js';
 import { mirrorStore } from './mirror-store.js';
+import { photoLibrary } from './photos.js';
 const WHOOP_AUTH_URL = "https://api.prod.whoop.com/oauth/oauth2/auth";
 const WHOOP_TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token";
 const WHOOP_API = "https://api.prod.whoop.com/developer/v2";
@@ -379,7 +380,7 @@ function oauthMetadata(env) {
     grant_types_supported: ["authorization_code", "refresh_token"],
     token_endpoint_auth_methods_supported: ["none"],
     code_challenge_methods_supported: ["S256"],
-    scopes_supported: ["personal_os:read"],
+    scopes_supported: ["personal_os:read", "personal_os:review"],
     client_id_metadata_document_supported: true
   };
 }
@@ -389,7 +390,7 @@ function protectedResourceMetadata(env) {
   return {
     resource: personalOsResource(env),
     authorization_servers: [base],
-    scopes_supported: ["personal_os:read"],
+    scopes_supported: ["personal_os:read", "personal_os:review"],
     resource_documentation: `${env.APP_ORIGIN.replace(/\/$/, "")}/privacy/`
   };
 }
@@ -423,7 +424,7 @@ async function handleChatGPTAuthorize(request, env) {
   await env.WHOOP_AUTH.put(`chatgpt-oauth-request:${requestId}`, JSON.stringify({
     clientId,
     redirectUri,
-    scope: "personal_os:read",
+    scope: scope.split(/\s+/).includes("personal_os:review") ? "personal_os:read personal_os:review" : "personal_os:read",
     state,
     codeChallenge,
     resource,
@@ -434,6 +435,7 @@ async function handleChatGPTAuthorize(request, env) {
   const target = new URL("capacity/", env.APP_ORIGIN);
   target.searchParams.set("chatgpt_oauth", requestId);
   target.searchParams.set("chatgpt_approval", approvalToken);
+  if (scope.split(/\s+/).includes('personal_os:review')) target.searchParams.set('chatgpt_review', '1');
   return Response.redirect(target.toString(), 302);
 }
 
@@ -686,6 +688,27 @@ function rpcError(id, code, message) {
 
 const MCP_TOOLS = [
   {
+    name: 'list_meal_photos',
+    description: 'List private dated meal photos including notes and review status. Retrieve each image with get_meal_photo; do not infer image contents from metadata.',
+    securitySchemes: [{ type: 'oauth2', scopes: ['personal_os:read'] }],
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+    inputSchema: { type: 'object', properties: { start_date: { type: 'string' }, end_date: { type: 'string' } }, required: ['start_date', 'end_date'], additionalProperties: false }
+  },
+  {
+    name: 'get_meal_photo',
+    description: 'Return the actual private meal photo as image content for visual review. Include its date, time and note when interpreting it.',
+    securitySchemes: [{ type: 'oauth2', scopes: ['personal_os:read'] }],
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+    inputSchema: { type: 'object', properties: { photo_id: { type: 'string' } }, required: ['photo_id'], additionalProperties: false }
+  },
+  {
+    name: 'complete_meal_photo_review',
+    description: 'After producing and saving a complete weekly review, record the exact photo IDs visually reviewed and its reference. This starts a seven-day deletion grace period when the owner has enabled cleanup. Never acknowledge unseen photos or an unsuccessful review.',
+    securitySchemes: [{ type: 'oauth2', scopes: ['personal_os:read', 'personal_os:review'] }],
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    inputSchema: { type: 'object', properties: { photo_ids: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 100 }, review_reference: { type: 'string' } }, required: ['photo_ids', 'review_reference'], additionalProperties: false }
+  },
+  {
     name: "get_personal_os_status",
     description: "Get the sync status and available date range for the user's Personal Operating System data.",
     securitySchemes: [{ type: "oauth2", scopes: ["personal_os:read"] }],
@@ -778,6 +801,26 @@ async function enrichedRecords(request, env, records) {
 }
 
 async function callPersonalOsTool(request, env, name, args = {}) {
+  if (['list_meal_photos', 'get_meal_photo', 'complete_meal_photo_review'].includes(name)) {
+    const library = photoLibrary(env);
+    if (name === 'get_meal_photo') {
+      const response = await library.fetch(`https://photos.internal/image?id=${encodeURIComponent(args.photo_id)}&review=true`);
+      if (!response.ok) return { content: [{ type: 'text', text: await response.text() }], isError: true };
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+      return { content: [{ type: 'image', mimeType: 'image/jpeg', data: btoa(binary) }] };
+    }
+    if (name === 'complete_meal_photo_review') {
+      const token = await loadChatGPTOAuthToken(bearerToken(request), env);
+      if (!String(token?.scope || '').split(/\s+/).includes('personal_os:review')) return { content: [{ type: 'text', text: 'Reconnect with personal_os:review permission to record review completion. No photos were marked reviewed.' }], isError: true };
+      const response = await library.fetch('https://photos.internal/receipt', { method: 'POST', body: JSON.stringify(args) });
+      return { content: [{ type: 'text', text: await response.text() }], isError: !response.ok };
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(args.start_date || '') || !/^\d{4}-\d{2}-\d{2}$/.test(args.end_date || '') || dateDiffDays(args.start_date, args.end_date) < 1 || dateDiffDays(args.start_date, args.end_date) > 60) return { content: [{ type: 'text', text: 'Choose a date window of 1 to 60 days.' }], isError: true };
+    const response = await library.fetch(`https://photos.internal/list?start=${args.start_date}&end=${args.end_date}`);
+    return { content: [{ type: 'text', text: await response.text() }], isError: !response.ok };
+  }
   const mirror = await loadMirror(env);
   if (!mirror) {
     return {
@@ -808,12 +851,13 @@ async function callPersonalOsTool(request, env, name, args = {}) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return { content: [{ type: "text", text: "date must be YYYY-MM-DD" }], isError: true };
     }
-    const record = records.find((item) => item.date === date);
+    const v2Record = (mirror.v2Entries || []).find(row => row.date === date);
+    const record = records.find((item) => item.date === date) ?? (v2Record ? { date, daily: null, capacity: null, whoop: null } : undefined);
     if (!record) {
       return { content: [{ type: "text", text: `No Personal OS record is available for ${date}.` }], isError: true };
     }
     const enriched = await enrichedRecords(request, env, [record]);
-    return { content: [{ type: "text", text: JSON.stringify(enriched[0]) }] };
+    return { content: [{ type: "text", text: JSON.stringify({ ...enriched[0], v2: (mirror.v2Entries || []).find(row => row.date === date) ?? null }) }] };
   }
 
   if (name === "get_recent_personal_os") {
@@ -823,6 +867,7 @@ async function callPersonalOsTool(request, env, name, args = {}) {
     const result = {
       syncedAt: mirror.syncedAt,
       records: enriched,
+      v2Entries: (mirror.v2Entries || []).slice(-days),
       weeklyReviews: Array.isArray(mirror.weeklyReviews) ? mirror.weeklyReviews.slice(-10) : [],
       postExertionalResponses: Array.isArray(mirror.postExertionalResponses) ? mirror.postExertionalResponses.slice(-20) : []
     };
@@ -844,6 +889,7 @@ async function callPersonalOsTool(request, env, name, args = {}) {
     const result = {
       startDate,
       endDate,
+      v2Entries: (mirror.v2Entries || []).filter(row => row.date >= startDate && row.date <= endDate),
       syncedAt: mirror.syncedAt,
       records: enriched,
       weeklyReviews: Array.isArray(mirror.weeklyReviews)
@@ -877,7 +923,7 @@ async function handleMcp(request, env) {
       protocolVersion: "2025-06-18",
       capabilities: { tools: {} },
       serverInfo: { name: "personal-operating-system", version: "0.2.0" },
-      instructions: "Read-only access to the user's Personal Operating System data. Use date-scoped tools and interpret patterns cautiously."
+      instructions: "Use date-scoped tools and interpret patterns cautiously. For food reviews, list and retrieve actual images; describe uncertain portions and ingredients. Only after saving a successful review may complete_meal_photo_review acknowledge the exact images reviewed. That tool requires separate review permission and schedules deletion after a grace period."
     }));
   }
 
@@ -934,6 +980,9 @@ async function handleDisconnect(request, env) {
 }
 
 export default {
+  async scheduled(_event, env, ctx) {
+    if (env.PHOTO_LIBRARY) ctx.waitUntil(photoLibrary(env).fetch('https://photos.internal/cleanup'));
+  },
   async fetch(request, env) {
     const url = new URL(request.url);
 
@@ -942,6 +991,19 @@ export default {
     }
 
     try {
+      if (url.pathname.startsWith('/api/meal-photos')) {
+        const owner = await loadOwnerSession(request, env);
+        const ownerId = await env.WHOOP_AUTH.get('owner-session');
+        if (!owner || owner.sessionId !== ownerId) return json({ error: 'Connect the owner WHOOP account in Capacity Building first.' }, 401, corsHeaders(request, env));
+        if (request.method === 'POST' && request.headers.get('Origin') !== appOrigin(env)) return json({ error: 'Invalid origin' }, 403, corsHeaders(request, env));
+        const path = url.pathname.slice('/api/meal-photos'.length) || '/list';
+        if (!['/list', '/upload', '/image', '/settings'].includes(path) || (['/list', '/image'].includes(path) ? request.method !== 'GET' : request.method !== 'POST')) return json({ error: 'Method not allowed' }, 405, corsHeaders(request, env));
+        if (Number(request.headers.get('Content-Length') || 0) > 1_100_000) return json({ error: 'Photo upload too large' }, 413, corsHeaders(request, env));
+        const text = request.method === 'POST' ? await request.text() : undefined;
+        if (text && text.length > 1_100_000) return json({ error: 'Photo upload too large' }, 413, corsHeaders(request, env));
+        const response = await photoLibrary(env).fetch(`https://photos.internal${path}${url.search}`, { method: request.method, ...(text ? { body: text } : {}) });
+        return new Response(response.body, { status: response.status, headers: { ...Object.fromEntries(response.headers), ...corsHeaders(request, env), 'Cache-Control': 'no-store' } });
+      }
       if (url.pathname === "/health") {
         const clientId = String(env.WHOOP_CLIENT_ID || "").trim();
         return json({

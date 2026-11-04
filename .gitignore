@@ -6,6 +6,9 @@ dist/
 *.err
 .wrangler-dry-run/
 .wrangler/
+.wrangler-build/
+qa/
+bridge-source/
 CONTEXT_,md/
 
 .dev.vars

@@ -21,6 +21,38 @@ This can be hosted for free as a static site later, including GitHub Pages. If o
 - `Experiments`: one active experiment at a time, with Daily Log adherence/effect check-ins and a cautious before/during readout
 - `Export`: Markdown, CSV, JSON backup, and JSON import
 
+## V2 meal photos and zero-cost hosting
+
+The additive `/v2/` page uses the existing WHOOP owner session and private
+Cloudflare Worker. Existing Daily Log records and all historical database stores
+remain intact. V2 logs have explicit draft/complete status: protocol checkboxes on
+a draft are unknown, not missed sessions. Per-date recovery journals protect
+pending edits when switching dates or leaving the page.
+
+Photos are resized locally to at most 1280 pixels and 750 KB JPEG, stripping EXIF
+and GPS metadata. Uploads require consent. Offline uploads remain in IndexedDB
+until retried successfully. This is a private photo journal for visual review in
+ChatGPT, not an in-app nutrition estimation API. Nutrition interpretation stays
+in the review conversation; no paid AI API is called.
+
+The Worker uses SQLite Durable Objects on **Workers Free**, not R2. It refuses
+uploads at 250 MB rather than evicting unreviewed photos. Do not upgrade Workers
+to a paid plan or add an R2 binding. Free-plan service limits can interrupt
+requests instead of generating overage charges. This safeguard does not govern
+unrelated products used elsewhere in the Cloudflare account.
+
+The bridge exposes authenticated photo listing and actual image retrieval.
+Only a separate `personal_os:review` permission can acknowledge exact retrieved
+images after a review is saved. With owner-enabled cleanup, these images are
+removed after a seven-day grace period by the daily 03:15 UTC cleanup job. Dates,
+times and notes stay. A failed or missed review never authorizes deletion.
+Standard JSON backups include V2 records but not private image binaries.
+
+Verification: `npm test`, `npm run build`, then `node scripts/verify-v2.mjs`.
+The browser test uses isolated synthetic data, tests the real IndexedDB upgrade,
+date-switch autosave and compressed photo upload/reload, and saves screenshots
+under ignored `qa/`. Set `PLAYWRIGHT_PATH` and `BROWSER_PATH` on other machines.
+
 ## Local Commands
 
 ```bash

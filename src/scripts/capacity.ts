@@ -713,7 +713,7 @@ chatgptRevokeButton?.addEventListener("click", () => {
 });
 
 async function completeChatGPTOAuthDecision(requestId: string, approvalToken: string, approved: boolean): Promise<void> {
-  if (chatgptOauthStatus) chatgptOauthStatus.textContent = approved ? "Approving read-only access..." : "Cancelling connection...";
+  if (chatgptOauthStatus) chatgptOauthStatus.textContent = approved ? "Approving Personal OS access..." : "Cancelling connection...";
 
   try {
     const response = await fetch(`${WHOOP_BRIDGE}/api/chatgpt-oauth/decision`, {
@@ -734,12 +734,21 @@ async function handleChatGPTOAuthRequest(): Promise<void> {
   const requestId = params.get("chatgpt_oauth");
   const approvalToken = params.get("chatgpt_approval");
   if (!requestId || !approvalToken) return;
+  if (params.get('chatgpt_review') === '1' && chatgptOauthApproval) {
+    const heading = chatgptOauthApproval.querySelector('h2');
+    const description = chatgptOauthApproval.querySelector('div > p:last-child');
+    if (heading) heading.textContent = 'Allow reading and photo review receipts?';
+    if (description) description.textContent = 'ChatGPT can read your logs and private meal photos, and acknowledge photos used in a saved review. If automatic cleanup is enabled, those photos are removed after seven days. It cannot edit your daily answers.';
+    if (chatgptOauthAllowButton) chatgptOauthAllowButton.textContent = 'Allow access and review receipts';
+  }
 
   if (chatgptOauthApproval) {
     chatgptOauthApproval.hidden = false;
     chatgptOauthApproval.scrollIntoView({ behavior: "smooth", block: "start" });
   }
-  if (chatgptOauthStatus) chatgptOauthStatus.textContent = "Choose whether to allow read-only Personal OS access.";
+  if (chatgptOauthStatus) chatgptOauthStatus.textContent = params.get('chatgpt_review') === '1'
+    ? "Choose whether to allow private reads and completed-photo-review receipts."
+    : "Choose whether to allow read-only Personal OS access.";
 
   chatgptOauthAllowButton?.addEventListener("click", () => {
     void completeChatGPTOAuthDecision(requestId, approvalToken, true);
