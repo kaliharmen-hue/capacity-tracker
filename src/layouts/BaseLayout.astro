@@ -3,7 +3,7 @@ import "../styles/global.css";
 
 interface Props {
   title: string;
-  active: "daily" | "v2" | "capacity" | "timeline" | "weekly" | "monthly" | "pmdd" | "clinical" | "experiments" | "export" | "privacy";
+  active: "daily" | "capacity" | "timeline" | "weekly" | "monthly" | "pmdd" | "clinical" | "experiments" | "export" | "privacy";
 
 }
 
@@ -14,7 +14,6 @@ const icon192 = `${base}icons/icon-192.svg`;
 
 const links = [
   { href: base, label: "Daily Log", key: "daily" },
-  { href: `${base}v2/`, label: "Personal OS V2", key: "v2" },
   { href: `${base}capacity/`, label: "Capacity Building", key: "capacity" },
 
   { href: `${base}timeline/`, label: "Capacity Timeline", key: "timeline" },

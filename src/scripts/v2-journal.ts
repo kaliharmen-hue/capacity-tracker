@@ -1,31 +1,35 @@
-import type { V2DailyEntry } from "./v2-schema.ts";
-
-export class DraftJournal {
+export class DraftJournal<T> {
   private staged = new Map<string, string>();
   private tail = Promise.resolve();
   private storage: Pick<Storage, "getItem" | "setItem" | "removeItem" | "length" | "key">;
-  private save: (entry: V2DailyEntry) => Promise<void>;
-  constructor(storage: Pick<Storage, "getItem" | "setItem" | "removeItem" | "length" | "key">, save: (entry: V2DailyEntry) => Promise<void>) {
+  private save: (entry: T) => Promise<void>;
+  private prefix: string;
+  private keyOf: (entry: T) => string;
+  constructor(
+    storage: DraftJournal<T>["storage"],
+    save: (entry: T) => Promise<void>,
+    prefix: string,
+    keyOf: (entry: T) => string
+  ) {
     this.storage = storage;
     this.save = save;
-    try {
-      const legacy = storage.getItem('personal-operating-system-v2-pending-draft');
-      if (legacy) { this.stage(JSON.parse(legacy)); storage.removeItem('personal-operating-system-v2-pending-draft'); }
-    } catch { /* Preserve unreadable older drafts for manual recovery. */ }
+    this.prefix = prefix;
+    this.keyOf = keyOf;
     for (let i = 0; i < storage.length; i++) {
       const key = storage.key(i);
-      if (key?.startsWith("pos-v2-draft:")) {
+      if (key?.startsWith(prefix)) {
         const value = storage.getItem(key);
-        if (value) this.staged.set(key.slice("pos-v2-draft:".length), value);
+        if (value) this.staged.set(key.slice(prefix.length), value);
       }
     }
   }
-  stage(entry: V2DailyEntry) {
+  stage(entry: T) {
     const value = JSON.stringify(entry);
-    this.staged.set(entry.date, value);
-    this.storage.setItem("pos-v2-draft:" + entry.date, value);
+    const key = this.keyOf(entry);
+    this.staged.set(key, value);
+    this.storage.setItem(this.prefix + key, value);
   }
-  read(date: string): V2DailyEntry | undefined {
+  read(date: string): T | undefined {
     try { const value = this.staged.get(date); return value ? JSON.parse(value) : undefined; } catch { return undefined; }
   }
   hasPending() { return this.staged.size > 0; }
@@ -35,7 +39,7 @@ export class DraftJournal {
         await this.save(JSON.parse(snapshot));
         if (this.staged.get(date) === snapshot) {
           this.staged.delete(date);
-          this.storage.removeItem("pos-v2-draft:" + date);
+          this.storage.removeItem(this.prefix + date);
         }
       }
     });

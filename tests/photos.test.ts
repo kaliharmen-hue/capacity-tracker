@@ -62,7 +62,7 @@ function local() {
 test('date changes and a new edit during an in-flight save cannot erase newer recovery drafts', async () => {
   const storage = local(); let release!: () => void;
   const saved: any[] = [];
-  const journal = new DraftJournal(storage, async entry => { saved.push(entry); if (saved.length === 1) await new Promise<void>(resolve => { release = resolve; }); });
+  const journal = new DraftJournal(storage, async (entry: ReturnType<typeof createEmptyV2Entry>) => { saved.push(entry); if (saved.length === 1) await new Promise<void>(resolve => { release = resolve; }); }, "pos-v2-draft:", entry => entry.date);
   const first = { ...createEmptyV2Entry('2026-11-04'), notes: 'First' };
   journal.stage(first); const work = journal.flush();
   await new Promise(resolve => setTimeout(resolve, 0));
@@ -76,10 +76,10 @@ test('date changes and a new edit during an in-flight save cannot erase newer re
 });
 test('failed saves survive a page restart and untouched journals write nothing', async () => {
   const storage = local(); let saves = 0;
-  const broken = new DraftJournal(storage, async () => { throw new Error('Offline storage failure'); });
+  const broken = new DraftJournal<ReturnType<typeof createEmptyV2Entry>>(storage, async () => { throw new Error('Offline storage failure'); }, "pos-v2-draft:", entry => entry.date);
   broken.stage(createEmptyV2Entry('2026-11-04'));
   await assert.rejects(broken.flush());
-  const restarted = new DraftJournal(storage, async () => { saves++; });
+  const restarted = new DraftJournal<ReturnType<typeof createEmptyV2Entry>>(storage, async () => { saves++; }, "pos-v2-draft:", entry => entry.date);
   await restarted.flush(); assert.equal(saves, 1);
   await restarted.flush(); assert.equal(saves, 1);
 });
