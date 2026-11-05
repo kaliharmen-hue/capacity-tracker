@@ -2214,6 +2214,68 @@ button.capacity-day:focus-visible {
   line-height: 1.45;
 }
 
+.capacity-day-controls,
+.capacity-v2-check-in,
+.capacity-v2-form {
+  display: grid;
+  gap: 14px;
+}
+
+.capacity-day-controls {
+  margin: 18px 0;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  align-items: end;
+}
+
+.capacity-day-controls nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.capacity-day-controls nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
+.capacity-day-controls > p,
+.capacity-v2-form > .capacity-section-heading {
+  grid-column: 1 / -1;
+}
+
+.capacity-v2-check-in {
+  margin-top: 28px;
+}
+
+.capacity-v2-check-in h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+#capacity-day-controls, #capacity-form, #capacity-whoop, #v2-check-in, #v2-food-section {
+  scroll-margin-top: 240px;
+}
+
+@media (min-width: 780px) {
+  .capacity-v2-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+@media (max-width: 520px) {
+  .capacity-day-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #capacity-day-controls, #capacity-form, #capacity-whoop, #v2-check-in, #v2-food-section {
+    scroll-margin-top: 16px;
+  }
+}
+
 .capacity-builder-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.7fr);

@@ -1,20 +1,29 @@
-import { getV2Entry, saveV2Entry, isPersonalOsCloudSyncEnabled, syncPersonalOsCloudMirror } from "./db";
+import { getV2Entry, saveV2Entry } from "./db";
 import { createEmptyV2Entry, normaliseV2Entry, type V2DailyEntry } from "./v2-schema";
 import { DraftJournal } from "./v2-journal";
 import { initMealPhotos } from "./meal-photos";
 
 const form = document.querySelector<HTMLFormElement>("#v2-entry-form")!;
-const dateInput = document.querySelector<HTMLInputElement>("#v2-entry-date")!;
 const status = document.querySelector<HTMLElement>("#v2-autosave-status")!;
 const complete = document.querySelector<HTMLButtonElement>("#v2-complete-button")!;
 const localToday = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 let entry = createEmptyV2Entry(localToday());
 let loading = true;
 let timer: number | undefined;
-let loadVersion = 0;
-const journal = new DraftJournal(localStorage, saveV2Entry);
+const journal = new DraftJournal(localStorage, saveV2Entry, "pos-v2-draft:", entry => entry.date);
+try {
+  const legacyKey = "personal-operating-system-v2-pending-draft";
+  const legacy = localStorage.getItem(legacyKey);
+  if (legacy) {
+    const draft = normaliseV2Entry(JSON.parse(legacy));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.date)) throw new Error("Invalid legacy draft date");
+    if (!journal.read(draft.date)) journal.stage(draft);
+    localStorage.removeItem(legacyKey);
+  }
+} catch { /* Preserve unreadable older drafts for manual recovery. */ }
 const setStatus = (text: string) => { status.textContent = text; };
-const photos = initMealPhotos(() => entry.date);
+const photos = initMealPhotos();
+export const hasPendingV2 = () => journal.hasPending();
 
 function effects() {
   form.querySelectorAll<HTMLElement>("[data-effect-for]").forEach(field => {
@@ -37,8 +46,9 @@ function collect(): V2DailyEntry {
   result.updatedAt = new Date().toISOString();
   return result;
 }
-async function flush() {
+export async function flushV2() {
   window.clearTimeout(timer);
+  if (!journal.hasPending()) return;
   try {
     await journal.flush();
     setStatus(entry.entryStatus === "complete" ? "Daily log complete" : "Draft saved");
@@ -47,16 +57,12 @@ async function flush() {
     throw new Error("Unable to finish saving yet.");
   }
 }
-async function load(date: string) {
-  const version = ++loadVersion;
+export async function loadV2(date: string) {
   loading = true;
   form.inert = true;
   try {
     const stored = await getV2Entry(date);
-    if (version !== loadVersion) return;
     entry = normaliseV2Entry(journal.read(date) ?? stored ?? createEmptyV2Entry(date));
-    dateInput.value = date;
-    const url = new URL(location.href); url.searchParams.set('date', date); history.replaceState(null, '', url);
     for (const field of form.elements) {
       if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement)) continue;
       const key = field.name as keyof V2DailyEntry;
@@ -67,30 +73,26 @@ async function load(date: string) {
     effects();
     setStatus(entry.entryStatus === "complete" ? "Daily log complete" : stored ? "Draft saved" : "No daily log saved yet");
     complete.textContent = entry.entryStatus === "complete" ? "Reopen daily log" : "Mark daily log complete";
-    await photos.refresh();
-  } catch { setStatus("Could not load this date. Please retry."); }
-  finally { if (version === loadVersion) { loading = false; form.inert = false; } }
+    photos.showDate(date);
+  } finally {
+    loading = false;
+    form.inert = false;
+  }
 }
-function changed(event: Event) {
-  if (loading || event.target === dateInput) return;
+function changed() {
+  if (loading) return;
   effects();
   entry = collect();
   // Editing a completed record reopens it, so protocols cannot silently acquire a missed status.
   entry.entryStatus = "draft";
+  complete.textContent = "Mark daily log complete";
   try { journal.stage(entry); } catch { setStatus("Browser recovery storage is full. Keep this page open while saving."); }
   window.clearTimeout(timer);
   setStatus("Saving draft...");
-  timer = window.setTimeout(() => { void flush().catch(() => {}); }, 450);
+  timer = window.setTimeout(() => { void flushV2().catch(() => {}); }, 450);
 }
 form.addEventListener("input", changed);
 form.addEventListener("change", changed);
-dateInput.addEventListener("change", async () => {
-  const date = dateInput.value;
-  if (!date) { dateInput.value = entry.date; return; }
-  form.inert = true;
-  try { await flush(); await load(date); }
-  catch { dateInput.value = entry.date; form.inert = false; }
-});
 form.addEventListener("submit", event => event.preventDefault());
 complete.addEventListener("click", async () => {
   if (!form.reportValidity()) return;
@@ -100,27 +102,8 @@ complete.addEventListener("click", async () => {
     return;
   }
   entry.entryStatus = entry.entryStatus === "complete" ? "draft" : "complete";
-  journal.stage(entry);
-  try { await flush(); await load(entry.date); } catch { /* The journal retains the draft. */ }
+  try { journal.stage(entry); } catch { /* The in-memory snapshot can still be saved. */ }
+  complete.textContent = entry.entryStatus === "complete" ? "Reopen daily log" : "Mark daily log complete";
+  try { await flushV2(); } catch { /* The journal retains the draft. */ }
 });
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden") void flush().catch(() => {});
-});
-window.addEventListener("pagehide", () => { void journal.flush().catch(() => {}); });
-document.addEventListener("click", event => {
-  const link = (event.target as Element)?.closest<HTMLAnchorElement>("a[href]");
-  if (!link || event.defaultPrevented || link.target === "_blank" || (event as MouseEvent).ctrlKey || (event as MouseEvent).metaKey) return;
-  if (!journal.hasPending()) return;
-  event.preventDefault();
-  void flush().then(() => window.location.assign(link.href)).catch(() => {});
-});
-window.addEventListener("beforeunload", event => {
-  if (journal.hasPending()) { event.preventDefault(); event.returnValue = ""; }
-});
-document.querySelector("#v2-sync")?.addEventListener("click", async () => {
-  if (!isPersonalOsCloudSyncEnabled()) { setStatus("Enable ChatGPT access in Capacity Building to sync daily logs."); return; }
-  try { await flush(); const result = await syncPersonalOsCloudMirror(); setStatus(result.ok ? "Daily logs synced for ChatGPT" : result.error || "Sync needs retrying"); } catch {}
-});
-const initialDate = new URLSearchParams(location.search).get("date");
-void load(initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate) ? initialDate : entry.date);
 

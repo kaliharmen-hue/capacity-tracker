@@ -19,9 +19,13 @@ import {
 } from "./db";
 import { formatMirrorSync } from './personal-os-sync';
 import { issuePhoneConnectionCode } from './whoop-connection';
-import { todayIso, type DailyEntry } from "./schema";
+import type { DailyEntry } from "./schema";
+import { DraftJournal } from "./v2-journal";
+import { flushV2, hasPendingV2, loadV2 } from "./v2";
 
-const dateInput = document.querySelector<HTMLInputElement>("#capacity-date");
+const dateInput = document.querySelector<HTMLInputElement>("#capacity-date")!;
+const dateStatus = document.querySelector<HTMLElement>("#capacity-date-status")!;
+const datedSections = Array.from(document.querySelectorAll<HTMLElement>("#capacity-day, #capacity-week, #v2-check-in"));
 const stateInput = document.querySelector<HTMLSelectElement>("#capacity-state");
 const needInput = document.querySelector<HTMLTextAreaElement>("#capacity-need");
 const checkedInInput = document.querySelector<HTMLInputElement>("#checked-in");
@@ -79,8 +83,50 @@ const weeklySaveStatus = document.querySelector<HTMLParagraphElement>("#weekly-s
 
 let dailySaveTimer: number | undefined;
 let weeklySaveTimer: number | undefined;
-let loadingDaily = false;
+let loadingDaily = true;
 let loadingWeekly = false;
+let activeDate = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+let activeWeek = mondayFor(activeDate);
+const practices = new DraftJournal(localStorage, saveCapacityPractice, "pos-capacity-draft:", entry => entry.date);
+const reviews = new DraftJournal(localStorage, saveCapacityReview, "pos-capacity-week-draft:", entry => entry.weekStart);
+
+function showDateStatus(message: string) {
+  dateStatus.textContent = message;
+  dateStatus.hidden = !message;
+}
+
+function hasPendingEdits() {
+  return practices.hasPending() || reviews.hasPending() || hasPendingV2();
+}
+
+async function flushPractice() {
+  window.clearTimeout(dailySaveTimer);
+  if (!practices.hasPending()) return;
+  try {
+    await practices.flush();
+    if (saveStatus) saveStatus.textContent = "Saved";
+  } catch (error) {
+    if (saveStatus) saveStatus.textContent = "Save needs retrying.";
+    throw error;
+  }
+}
+
+async function flushReview() {
+  window.clearTimeout(weeklySaveTimer);
+  if (!reviews.hasPending()) return;
+  try {
+    await reviews.flush();
+    if (weeklySaveStatus) weeklySaveStatus.textContent = "Saved";
+  } catch (error) {
+    if (weeklySaveStatus) weeklySaveStatus.textContent = "Save needs retrying.";
+    throw error;
+  }
+}
+
+async function flushEdits() {
+  const results = await Promise.allSettled([flushPractice(), flushReview(), flushV2()]);
+  if (results.some(result => result.status === "rejected")) throw new Error("Could not save an edit yet. Please keep this page open and retry.");
+}
 
 function emptyPractice(date: string): CapacityPracticeEntry {
   return {
@@ -131,7 +177,7 @@ function numericValue(input: HTMLSelectElement | null): number | "" {
 }
 
 function collectPractice(): CapacityPracticeEntry {
-  const date = dateInput?.value || todayIso();
+  const date = activeDate;
   return {
     date,
     state: (stateInput?.value || "") as CapacityPracticeEntry["state"],
@@ -155,7 +201,6 @@ function collectPractice(): CapacityPracticeEntry {
 }
 
 function setPractice(entry: CapacityPracticeEntry): void {
-  if (dateInput) dateInput.value = entry.date;
   if (stateInput) stateInput.value = entry.state;
   if (needInput) needInput.value = entry.needToday;
   if (checkedInInput) checkedInInput.checked = entry.checkedIn;
@@ -305,7 +350,7 @@ function renderBreakfastComparison(entries: CapacityPracticeEntry[], dailyEntrie
 
 async function updateRollingProgress(): Promise<void> {
   const [entries, dailyEntries, whoopEntries] = await Promise.all([getCapacityPractices(), getAllEntries(), getWhoopDays()]);
-  const end = new Date((dateInput?.value || todayIso()) + "T12:00:00");
+  const end = new Date(activeDate + "T12:00:00");
   const start = new Date(end);
   start.setDate(start.getDate() - 13);
   const startIso = start.toISOString().slice(0, 10);
@@ -377,6 +422,7 @@ function formatSleepDuration(minutes: number | null | undefined): string {
 async function renderWhoopDay(date: string): Promise<void> {
   const session = localStorage.getItem(WHOOP_SESSION_KEY);
   const day = await getWhoopDay(date);
+  if (date !== activeDate) return;
   if (whoopStatus) whoopStatus.textContent = session ? "Connected" : "Not connected";
   if (whoopConnectButton) {
     whoopConnectButton.hidden = false;
@@ -429,7 +475,7 @@ function captureWhoopSession(): boolean {
 async function syncWhoop(days = 30): Promise<void> {
   const session = localStorage.getItem(WHOOP_SESSION_KEY);
   if (!session) {
-    await renderWhoopDay(dateInput?.value || todayIso());
+    await renderWhoopDay(activeDate);
     return;
   }
 
@@ -443,7 +489,7 @@ async function syncWhoop(days = 30): Promise<void> {
     const records = Array.isArray(payload?.records) ? payload.records : [];
     await saveWhoopDays(records);
     if (whoopSyncStatus) whoopSyncStatus.textContent = `Synced ${records.length} WHOOP day${records.length === 1 ? "" : "s"}.`;
-    await renderWhoopDay(dateInput?.value || todayIso());
+    await renderWhoopDay(activeDate);
     await updateRollingProgress();
   } catch (error) {
     if (whoopSyncStatus) whoopSyncStatus.textContent = error instanceof Error ? error.message : "WHOOP sync failed.";
@@ -465,7 +511,7 @@ async function disconnectWhoop(): Promise<void> {
   localStorage.removeItem(WHOOP_SESSION_KEY);
   await clearWhoopDays();
   if (whoopSyncStatus) whoopSyncStatus.textContent = "WHOOP disconnected and locally synced WHOOP data cleared.";
-  await renderWhoopDay(dateInput?.value || todayIso());
+  await renderWhoopDay(activeDate);
   await updateRollingProgress();
 }
 
@@ -506,6 +552,11 @@ async function enableChatGPTAccess(): Promise<void> {
 
 async function syncChatGPTMirror(): Promise<void> {
   if (chatgptSyncStatus) chatgptSyncStatus.textContent = "Syncing Personal OS cloud mirror...";
+  try { await flushEdits(); }
+  catch (error) {
+    if (chatgptSyncStatus) chatgptSyncStatus.textContent = String((error as Error).message);
+    return;
+  }
   const result = await syncPersonalOsCloudMirror();
   if (chatgptSyncStatus) {
     chatgptSyncStatus.textContent = formatMirrorSync(result);
@@ -538,13 +589,45 @@ async function revokeChatGPTAccess(): Promise<void> {
 }
 
 async function loadPractice(date: string): Promise<void> {
-  loadingDaily = true;
-  const entry = { ...emptyPractice(date), ...((await getCapacityPractice(date)) ?? {}) };
+  const entry = { ...emptyPractice(date), ...(practices.read(date) ?? await getCapacityPractice(date)) };
   setPractice(entry);
-  loadingDaily = false;
   if (saveStatus) saveStatus.textContent = "Autosaves as I go";
-  await updateRollingProgress();
-  await renderWhoopDay(date);
+}
+
+async function loadDay(date: string, saveFirst: boolean) {
+  const previouslyLocked = loadingDaily;
+  loadingDaily = true;
+  dateInput.disabled = true;
+  datedSections.forEach(section => { section.inert = true; });
+  showDateStatus("");
+  try {
+    if (saveFirst) {
+      try { await flushEdits(); }
+      catch {
+        dateInput.value = activeDate;
+        loadingDaily = previouslyLocked;
+        datedSections.forEach(section => { section.inert = previouslyLocked; });
+        showDateStatus("Could not save an edit yet. Please try changing the date again.");
+        return;
+      }
+    }
+    await loadPractice(date);
+    await loadV2(date);
+    await loadReview(mondayFor(date));
+    activeDate = date;
+    dateInput.value = date;
+    const url = new URL(location.href);
+    url.searchParams.set("date", date);
+    history.replaceState(history.state, "", url);
+    loadingDaily = false;
+    datedSections.forEach(section => { section.inert = false; });
+    void renderWhoopDay(date).catch(() => {});
+    void updateRollingProgress().catch(() => {});
+  } catch {
+    showDateStatus("Could not load this date. Choose a date to try again.");
+  } finally {
+    dateInput.disabled = false;
+  }
 }
 
 function scheduleDailySave(): void {
@@ -552,18 +635,17 @@ function scheduleDailySave(): void {
   window.clearTimeout(dailySaveTimer);
   if (saveStatus) saveStatus.textContent = "Saving...";
   const snapshot = collectPractice();
+  try { practices.stage(snapshot); }
+  catch { if (saveStatus) saveStatus.textContent = "Keep this page open while saving."; }
   updateTodayProgress(snapshot);
-  dailySaveTimer = window.setTimeout(async () => {
-    const entry = collectPractice();
-    await saveCapacityPractice(entry);
-    if (saveStatus) saveStatus.textContent = "Saved " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    await updateRollingProgress();
+  dailySaveTimer = window.setTimeout(() => {
+    void flushPractice().then(updateRollingProgress).catch(() => {});
   }, 450);
 }
 
 function collectReview(): CapacityWeeklyReview {
   return {
-    weekStart: weekStartInput?.value || mondayFor(todayIso()),
+    weekStart: activeWeek,
     capacityGivers: capacityGiversInput?.value || "",
     capacityDrains: capacityDrainsInput?.value || "",
     receivedSupport: receivedSupportInput?.value || "",
@@ -583,10 +665,9 @@ function setReview(review: CapacityWeeklyReview): void {
 }
 
 async function loadReview(weekStart: string): Promise<void> {
-  loadingWeekly = true;
-  const review = { ...emptyReview(weekStart), ...((await getCapacityReview(weekStart)) ?? {}) };
+  const review = { ...emptyReview(weekStart), ...(reviews.read(weekStart) ?? await getCapacityReview(weekStart)) };
   setReview(review);
-  loadingWeekly = false;
+  activeWeek = weekStart;
   if (weeklySaveStatus) weeklySaveStatus.textContent = "Autosaves as I go";
 }
 
@@ -594,9 +675,10 @@ function scheduleWeeklySave(): void {
   if (loadingWeekly) return;
   window.clearTimeout(weeklySaveTimer);
   if (weeklySaveStatus) weeklySaveStatus.textContent = "Saving...";
-  weeklySaveTimer = window.setTimeout(async () => {
-    await saveCapacityReview(collectReview());
-    if (weeklySaveStatus) weeklySaveStatus.textContent = "Saved " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  try { reviews.stage(collectReview()); }
+  catch { if (weeklySaveStatus) weeklySaveStatus.textContent = "Keep this page open while saving."; }
+  weeklySaveTimer = window.setTimeout(() => {
+    void flushReview().catch(() => {});
   }, 450);
 }
 
@@ -624,26 +706,54 @@ dailyControls.forEach((control) => {
   control.addEventListener("change", scheduleDailySave);
 });
 
-dateInput?.addEventListener("change", () => {
-  window.clearTimeout(dailySaveTimer);
-  const date = dateInput.value || todayIso();
-  void loadPractice(date);
-  const weekStart = mondayFor(date);
-  if (weekStartInput) weekStartInput.value = weekStart;
-  void loadReview(weekStart);
+dateInput.addEventListener("change", () => {
+  if (!dateInput.value) { dateInput.value = activeDate; return; }
+  void loadDay(dateInput.value, true);
 });
 
 weeklyForm?.addEventListener("input", scheduleWeeklySave);
 weeklyForm?.addEventListener("change", scheduleWeeklySave);
 
-weekStartInput?.addEventListener("change", () => {
-  window.clearTimeout(weeklySaveTimer);
-  void loadReview(weekStartInput.value || mondayFor(todayIso()));
+weekStartInput?.addEventListener("change", async () => {
+  loadingWeekly = true;
+  dateInput.disabled = weekStartInput.disabled = true;
+  if (weeklyForm) weeklyForm.inert = true;
+  try {
+    await flushReview();
+    await loadReview(weekStartInput.value || activeWeek);
+  } catch {
+    weekStartInput.value = activeWeek;
+    if (weeklySaveStatus) weeklySaveStatus.textContent = "Could not switch weeks. Please try again.";
+  } finally {
+    loadingWeekly = false;
+    dateInput.disabled = weekStartInput.disabled = false;
+    if (weeklyForm) weeklyForm.inert = false;
+  }
+});
+
+document.querySelector("#capacity-form")?.addEventListener("submit", event => event.preventDefault());
+weeklyForm?.addEventListener("submit", event => event.preventDefault());
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden" && hasPendingEdits()) void flushEdits().catch(() => {});
+});
+window.addEventListener("pagehide", () => {
+  if (hasPendingEdits()) void flushEdits().catch(() => {});
+});
+window.addEventListener("beforeunload", event => {
+  if (hasPendingEdits()) event.preventDefault();
+});
+document.addEventListener("click", event => {
+  const link = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]");
+  if (!link || event.defaultPrevented || link.target || link.hasAttribute("download") || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || !hasPendingEdits()) return;
+  const destination = new URL(link.href);
+  if (destination.origin === location.origin && destination.pathname === location.pathname && destination.hash) return;
+  event.preventDefault();
+  void flushEdits().then(() => location.assign(destination)).catch(() => showDateStatus("Could not save an edit yet. Please keep this page open and retry."));
 });
 
 async function copyCapacityData(): Promise<void> {
   const [entries, dailyEntries, whoopEntries] = await Promise.all([getCapacityPractices(), getAllEntries(), getWhoopDays()]);
-  const end = new Date((dateInput?.value || todayIso()) + "T12:00:00");
+  const end = new Date(activeDate + "T12:00:00");
   const start = new Date(end);
   start.setDate(start.getDate() - 13);
   const startIso = start.toISOString().slice(0, 10);
@@ -705,12 +815,8 @@ copyCapacityDataButton?.addEventListener("click", () => {
 
 whoopConnectButton?.addEventListener("click", async () => {
   if (loadingDaily) { if (whoopSyncStatus) whoopSyncStatus.textContent = 'Please wait for this date to finish loading.'; return; }
-  if (dailySaveTimer !== undefined) {
-    window.clearTimeout(dailySaveTimer);
-    dailySaveTimer = undefined;
-    try { await saveCapacityPractice(collectPractice()); }
-    catch { if (whoopSyncStatus) whoopSyncStatus.textContent = 'Could not save this edit yet. Please keep this page open and retry.'; return; }
-  }
+  try { await flushEdits(); }
+  catch { if (whoopSyncStatus) whoopSyncStatus.textContent = 'Could not save this edit yet. Please keep this page open and retry.'; return; }
   window.location.href = `${WHOOP_BRIDGE}/oauth/start`;
 });
 
@@ -759,6 +865,7 @@ async function completeChatGPTOAuthDecision(requestId: string, approvalToken: st
   if (chatgptOauthStatus) chatgptOauthStatus.textContent = approved ? "Approving Personal OS access..." : "Cancelling connection...";
 
   try {
+    await flushEdits();
     const response = await fetch(`${WHOOP_BRIDGE}/api/chatgpt-oauth/decision`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -808,11 +915,13 @@ window.addEventListener('personal-os-cloud-sync', event => {
   void renderChatGPTAccessStatus();
 });
 
-const initialDate = new URLSearchParams(window.location.search).get("date") || todayIso();
-if (dateInput) dateInput.value = initialDate;
-if (weekStartInput) weekStartInput.value = mondayFor(initialDate);
-void loadPractice(initialDate);
-void loadReview(mondayFor(initialDate));
+const initialDate = new URLSearchParams(window.location.search).get("date");
+dateInput.value = initialDate ?? activeDate;
+void loadDay(dateInput.value || activeDate, false);
+window.addEventListener("personal-os-whoop-connected", () => {
+  void renderWhoopDay(activeDate).catch(() => {});
+  void renderChatGPTAccessStatus();
+});
 void renderChatGPTAccessStatus();
 if (isPersonalOsCloudSyncEnabled()) void syncChatGPTMirror();
 void handleChatGPTOAuthRequest();

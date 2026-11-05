@@ -1,77 +1,15 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
 ---
 
-<BaseLayout title="Personal OS V2" active="v2">
-  <section class="page-heading">
-    <div>
-      <p class="eyebrow">Personal OS V2</p>
-      <h2>A smaller daily check-in</h2>
-    </div>
-    <p class="soft-copy">This is being developed alongside the original tracker. Your historical records remain in the existing Daily Log.</p>
-  </section>
-
-  <form id="v2-entry-form" class="tracker-form">
-    <div class="sticky-actions">
-      <label class="date-control">
-        <span>Date</span>
-        <input id="v2-entry-date" name="date" type="date" />
-      </label>
-      <div class="save-cluster">
-        <p id="v2-autosave-status" class="autosave-status" aria-live="polite">Autosaves as I go</p>
-        <button id="v2-sync" type="button" class="secondary-button">Sync for ChatGPT</button>
-        <button id="v2-complete-button" type="button" class="primary-button">Mark daily log complete</button>
-      </div>
-    </div>
-
-    <section class="form-section">
-      <h3>Daily measures</h3>
-      <p class="section-prompt">These new V2 scores are separate from the original tracker: 0 means none and 10 means worst.</p>
-      <label class="field-label">Physical fatigue (0-10)<span class="field-helper">How physically fatigued did I feel today? 0 = none, 10 = extreme fatigue.</span><input name="physicalFatigue" type="number" min="0" max="10" step="1" /></label>
-      <label class="field-label">Cognitive difficulty (0-10)<span class="field-helper">How difficult did thinking feel today, including brain fog or a swimming-head sensation? 0 = none, 10 = severe difficulty.</span><input name="cognitiveDifficulty" type="number" min="0" max="10" step="1" /></label>
-      <label class="field-label">How much did this affect what I could manage today?<select name="functionalImpact"><option value="">Not answered</option><option>No impact</option><option>Managed with extra effort</option><option>Reduced or postponed activities</option><option>Unable to manage essential activities</option></select></label>
-      <label class="field-label">Optional notes<textarea name="notes" rows="3"></textarea></label>
-    </section>
-
-    <section class="form-section">
-      <h3>Protocols</h3>
-      <p class="section-prompt">Only tick a session when I completed it. A day with no V2 log remains unknown, not a missed session.</p>
-      <label class="check-row"><input name="bioLightFullSpectrum" type="checkbox" /><span><strong>BioLight full-spectrum light therapy</strong><small>07:00 for 60 minutes, approximately 44 cm from the panel.</small></span></label>
-      <label class="field-label compact-field">Brightness setting (optional)<input name="bioLightBrightness" type="text" placeholder="For example, setting 8" /></label>
-      <label class="field-label" data-effect-for="bioLightFullSpectrum">Any noticeable effect afterwards?<select name="bioLightEffect"><option value="">Not answered</option><option>Noticeably better</option><option>Slightly better</option><option>No noticeable change</option><option>Felt worse</option><option>Not sure</option></select></label>
-      <label class="check-row"><input name="bioLightInfrared" type="checkbox" /><span><strong>BioLight infrared session</strong><small>Following full-spectrum exposure.</small></span></label>
-      <label class="check-row"><input name="vagustimDaytime" type="checkbox" /><span><strong>Vagustim V2 Standard cognitive programme</strong><small>Approximately 15 minutes during the day, with flexible timing.</small></span></label>
-      <label class="field-label" data-effect-for="vagustimDaytime">Any noticeable effect afterwards?<select name="vagustimDaytimeEffect"><option value="">Not answered</option><option>Noticeably better</option><option>Slightly better</option><option>No noticeable change</option><option>Felt worse</option><option>Not sure</option></select></label>
-      <label class="check-row"><input name="vagustimEvening" type="checkbox" /><span><strong>Vagustim V2 Standard AI programme</strong><small>Approximately 15 minutes before sleep. The important outcome is the subsequent night's sleep.</small></span></label>
-    </section>
-  </form>
-
-  <section class="form-section" id="v2-food-section">
-    <h3>Meal photos</h3>
-    <div class="meal-photo-actions">
-      <button id="v2-food-library" type="button" class="secondary-button" aria-controls="v2-food-image">Choose existing photo</button>
-      <button id="v2-food-take" type="button" class="secondary-button" aria-controls="v2-food-camera">Take new photo</button>
-    </div>
-    <input id="v2-food-image" type="file" accept="image/*" aria-label="Existing meal photo" hidden />
-    <input id="v2-food-camera" type="file" accept="image/*" capture="environment" aria-label="New meal photo" hidden />
-    <p id="v2-food-selected" class="field-helper" hidden></p>
-    <img id="v2-food-preview" class="meal-preview" alt="Selected meal" hidden />
-    <label class="field-label">Meal time<input id="v2-food-time" type="time" /></label>
-    <label class="field-label">Optional meal note<textarea id="v2-food-note" rows="2" maxlength="2000" placeholder="For example, ingredients or portion details"></textarea></label>
-    <label class="check-row"><input id="v2-food-consent" type="checkbox" /><span>I allow photos I save to be stored privately in Cloudflare and accessed through my connected ChatGPT reviews. Remember my choice on this device.</span></label>
-    <button id="v2-food-save" type="button" class="primary-button">Save meal photo</button>
-    <p id="v2-food-status" role="status" aria-live="polite"></p>
-    <p id="v2-photo-usage" class="field-helper"></p>
-    <details id="v2-phone-connection">
-      <summary>Connect this phone</summary>
-      <form id="v2-phone-connect-form">
-        <label class="field-label">Temporary connection code<input id="v2-phone-code" type="password" autocomplete="off" spellcheck="false" required maxlength="80" /></label>
-        <button type="submit" class="secondary-button">Connect phone</button>
-      </form>
-    </details>
-    <label class="check-row"><input id="v2-photo-cleanup" type="checkbox" /><span>Automatically remove photos seven days after a successful review receipt. Dates, times and notes stay saved. Unreviewed photos stay available; uploads pause if storage is full.</span></label>
-    <div id="v2-meal-list" class="meal-list"></div>
-  </section>
-
-  <script src="../scripts/v2.ts"></script>
+<BaseLayout title="Personal OS V2" active="capacity">
+  <p><a id="v2-moved" class="secondary-button" href={base + "capacity/#v2-check-in"}>Open Personal OS V2 in Capacity Building</a></p>
+  <script>
+    const link = document.querySelector<HTMLAnchorElement>("#v2-moved")!;
+    const destination = new URL(link.href);
+    destination.search = location.search;
+    link.href = destination.href;
+    location.replace(destination);
+  </script>
 </BaseLayout>

@@ -1,5 +1,6 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import V2CheckIn from "../components/V2CheckIn.astro";
 ---
 
 <BaseLayout title="Capacity Building" active="capacity">
@@ -26,6 +27,20 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     </p>
   </section>
 
+  <div id="capacity-day-controls" class="capacity-day-controls">
+    <label class="date-control compact-date">
+      <span>Entry date</span>
+      <input id="capacity-date" type="date" disabled />
+    </label>
+    <nav aria-label="Capacity Building sections">
+      <a href="#capacity-form">Foundation practices</a>
+      <a href="#v2-check-in">V2 check-in</a>
+      <a href="#v2-food-section">Meal photos</a>
+      <a href="#capacity-whoop">WHOOP</a>
+    </nav>
+    <p id="capacity-date-status" class="autosave-status" role="status" hidden></p>
+  </div>
+
   <section class="capacity-stage-panel">
     <div>
       <p class="eyebrow">Current stage</p>
@@ -38,17 +53,13 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     </div>
   </section>
 
-  <section class="capacity-builder-grid">
+  <section id="capacity-day" class="capacity-builder-grid" inert>
     <form id="capacity-form" class="plain-panel capacity-daily-panel">
       <div class="capacity-section-heading">
         <div>
           <p class="eyebrow">Today</p>
           <h3>Foundation practices</h3>
         </div>
-        <label class="date-control compact-date">
-          <span>Date</span>
-          <input id="capacity-date" name="date" type="date" />
-        </label>
       </div>
 
       <label class="field-label">
@@ -202,7 +213,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         <p id="breakfast-outcomes">Energy, hunger and bloating averages will appear once there are enough ratings to compare.</p>
       </div>
 
-      <div class="capacity-progress-card whoop-card">
+      <div id="capacity-whoop" class="capacity-progress-card whoop-card">
         <div class="whoop-card-heading">
           <span>WHOOP</span>
           <strong id="whoop-status">Not connected</strong>
@@ -254,6 +265,8 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     </aside>
   </section>
 
+  <V2CheckIn />
+
   <section class="plain-panel capacity-interpretation-panel">
     <div class="capacity-section-heading">
       <div>
@@ -269,7 +282,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     <p id="capacity-copy-status" class="autosave-status" aria-live="polite"></p>
   </section>
 
-  <section class="plain-panel capacity-weekly-panel">
+  <section id="capacity-week" class="plain-panel capacity-weekly-panel" inert>
     <div class="capacity-section-heading">
       <div>
         <p class="eyebrow">Weekly Capacity Review</p>

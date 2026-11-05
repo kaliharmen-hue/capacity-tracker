@@ -32,7 +32,7 @@ async function dataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(blob); });
 }
 
-export function initMealPhotos(getDate: () => string) {
+export function initMealPhotos() {
   const root = document.querySelector<HTMLElement>('#v2-food-section')!;
   const input = root.querySelector<HTMLInputElement>('#v2-food-image')!;
   const camera = root.querySelector<HTMLInputElement>('#v2-food-camera')!;
@@ -50,6 +50,8 @@ export function initMealPhotos(getDate: () => string) {
   let selectedUrl = '';
   let photoUrls: string[] = [];
   let renderVersion = 0;
+  let activeDate = '';
+  const composers = new Map<string, { file?: File; time: string; note: string }>();
   const session = () => localStorage.getItem('personal-os-whoop-session');
   const message = (value: string) => { status.textContent = value; };
   try { consent.checked = localStorage.getItem(CONSENT_KEY) === 'yes'; }
@@ -104,8 +106,9 @@ export function initMealPhotos(getDate: () => string) {
     }
   }
   async function refresh() {
+    if (!activeDate) return;
     const version = ++renderVersion;
-    const date = getDate();
+    const date = activeDate;
     const drafts = await db.mealPhotoDrafts.where('date').equals(date).toArray();
     let photos: Photo[] = [];
     try {
@@ -149,25 +152,44 @@ export function initMealPhotos(getDate: () => string) {
         catch (e) {
           const text = e instanceof Error ? e.message : 'Upload failed.';
           errorLine.textContent = text; errorLine.hidden = false;
-          message(text); retry.disabled = false;
+          if (activeDate === draft.date) message(text);
+          retry.disabled = false;
         }
       });
       article.append(errorLine, retry);
     }
   }
+  function showDate(date: string) {
+    if (date === activeDate) return;
+    if (activeDate) {
+      if (selected || time.value || note.value) composers.set(activeDate, { file: selected, time: time.value, note: note.value });
+      else composers.delete(activeDate);
+    }
+    activeDate = date;
+    const composer = composers.get(date);
+    choose(composer?.file);
+    input.value = ''; camera.value = '';
+    time.value = composer?.time ?? ''; note.value = composer?.note ?? '';
+    photoUrls.forEach(url => URL.revokeObjectURL(url)); photoUrls = [];
+    list.replaceChildren();
+    message('');
+    void refresh().catch(() => { if (activeDate === date) message('Photos could not be loaded.'); });
+  }
   save.addEventListener('click', async () => {
     if (!selected) { message('Choose or take a meal photo first.'); return; }
     if (!consent.checked) { message('Please agree to private photo storage and ChatGPT retrieval before saving.'); return; }
-    const date = getDate(), file = selected, mealTime = time.value, mealNote = note.value;
+    const date = activeDate, file = selected, mealTime = time.value, mealNote = note.value;
     save.disabled = true;
     try {
       const image = await compressMealPhoto(file);
       const draft: MealPhotoDraft = { id: crypto.randomUUID(), date, time: mealTime, note: mealNote, image, createdAt: new Date().toISOString() };
       await db.mealPhotoDrafts.put(draft);
-      choose(); input.value = ''; camera.value = ''; note.value = '';
-      try { await upload(draft); message('Meal photo saved privately for ' + date + '.'); }
-      catch (error) { message('Saved on this phone. ' + (error instanceof Error ? error.message : 'Upload needs retrying.')); }
-      await refresh();
+      if (activeDate === date && selected === file) {
+        choose(); input.value = ''; camera.value = ''; note.value = '';
+      } else if (composers.get(date)?.file === file) composers.delete(date);
+      try { await upload(draft); if (activeDate === date) message('Meal photo saved privately for ' + date + '.'); }
+      catch (error) { if (activeDate === date) message('Saved on this phone. ' + (error instanceof Error ? error.message : 'Upload needs retrying.')); }
+      if (activeDate === date) await refresh();
     } catch (error) { message(error instanceof Error ? error.message : 'Photo could not be saved.'); }
     finally { save.disabled = false; }
   });
@@ -187,7 +209,8 @@ export function initMealPhotos(getDate: () => string) {
       const token = await redeemPhoneConnectionCode(API.replace(/\/api\/meal-photos$/, ''), code.value);
       localStorage.setItem('personal-os-whoop-session', token);
       code.value = '';
-      for (const draft of await db.mealPhotoDrafts.where('date').equals(getDate()).toArray()) {
+      window.dispatchEvent(new Event('personal-os-whoop-connected'));
+      for (const draft of await db.mealPhotoDrafts.where('date').equals(activeDate).toArray()) {
         if (draft.lastError?.startsWith('Reconnect WHOOP') || draft.lastError?.startsWith('Photo connection needs renewing')) await db.mealPhotoDrafts.update(draft.id, { lastError: undefined });
       }
       message('Phone connection is ready. Retry the saved photo below.');
@@ -195,5 +218,5 @@ export function initMealPhotos(getDate: () => string) {
     } catch (error) { message(error instanceof Error ? error.message : 'Could not connect this phone.'); }
     finally { button.disabled = false; }
   });
-  return { refresh };
+  return { showDate };
 }

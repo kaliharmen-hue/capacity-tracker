@@ -56,18 +56,39 @@ try {
     });
   });
   await page.goto(origin + '/v2/?date=2026-11-04');
-  await page.locator('#v2-entry-form').evaluate(async f => { while (f.inert) await new Promise(r => setTimeout(r, 30)); });
-  await page.locator('[name="notes"]').fill('Fast date-change draft');
-  await page.locator('#v2-entry-date').fill('2026-11-05');
-  await page.locator('#v2-entry-date').press('Tab');
-  await page.waitForTimeout(700);
+  await page.waitForURL(origin + '/capacity/?date=2026-11-04#v2-check-in');
+  const selectDate = async date => {
+    await page.locator('#capacity-date').fill(date);
+    await page.waitForFunction(date => new URL(location.href).searchParams.get('date') === date && !document.querySelector('#capacity-date').disabled, date);
+  };
+  assert.equal(await page.locator('nav[aria-label="Main navigation"] a').filter({ hasText: 'Personal OS V2' }).count(), 0);
+  await page.locator('#capacity-notes').fill('Foundation edit before changing dates');
+  await page.locator('#capacity-givers').fill('Weekly edit before changing dates');
+  await page.locator('#v2-entry-form [name="notes"]').fill('Fast date-change draft');
+  await selectDate('2026-11-05');
   const records = await page.evaluate(async () => {
     const db = await new Promise(resolve => { const r = indexedDB.open('capacity-tracker'); r.onsuccess = () => resolve(r.result); });
     const read = (table, key) => new Promise(resolve => { const r = db.transaction(table).objectStore(table).get(key); r.onsuccess = () => resolve(r.result); });
-    return [await read('v2Entries', '2026-11-04'), await read('entries', '2026-10-01'), await read('whoopDays', '2026-10-01')];
+    return [await read('v2Entries', '2026-11-04'), await read('entries', '2026-10-01'), await read('whoopDays', '2026-10-01'),
+      await read('capacityPractices', '2026-11-04'), await read('capacityReviews', '2026-11-02'), await read('v2Entries', '2026-11-05')];
   });
   assert.equal(records[0].notes, 'Fast date-change draft'); assert.equal(records[0].entryStatus, 'draft');
   assert.equal(records[1].energyScore, 7); assert.equal(records[2].recoveryScore, 80);
+  assert.equal(records[3].notes, 'Foundation edit before changing dates');
+  assert.equal(records[4].capacityGivers, 'Weekly edit before changing dates');
+  assert.equal(records[5], undefined, 'Opening a day must not create a V2 record');
+  assert.equal(await page.locator('#capacity-notes').inputValue(), '');
+  await selectDate('2026-11-04');
+  assert.equal(await page.locator('#capacity-notes').inputValue(), 'Foundation edit before changing dates');
+  assert.equal(await page.locator('#v2-entry-form [name="notes"]').inputValue(), 'Fast date-change draft');
+  await selectDate('2026-11-05');
+  await page.getByRole('button', { name: 'Mark daily log complete', exact: true }).click();
+  assert.match(await page.locator('#v2-autosave-status').textContent(), /Answer the three daily measures/);
+  await page.locator('[name="physicalFatigue"]').fill('0');
+  await page.locator('[name="cognitiveDifficulty"]').fill('2');
+  await page.locator('[name="functionalImpact"]').selectOption('No impact');
+  await page.getByRole('button', { name: 'Mark daily log complete', exact: true }).click();
+  await page.locator('#v2-autosave-status').filter({ hasText: 'Daily log complete' }).waitFor();
   const jpeg = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 1800; c.height = 1200; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 1800, 1200); x.fillStyle = '#3f6f63'; x.fillRect(200, 200, 1400, 800); x.fillStyle = '#fff'; x.font = '80px sans-serif'; x.fillText('Synthetic meal photo', 400, 600); return c.toDataURL('image/jpeg'); });
   assert.equal(await page.locator('#v2-food-image').getAttribute('capture'), null, 'Existing-photo picker must not request camera capture');
   const cameraPicker = page.waitForEvent('filechooser');
@@ -81,6 +102,12 @@ try {
   assert.equal(await page.locator('#v2-food-selected').textContent(), 'synthetic.jpg');
   await page.locator('#v2-food-note').fill('Synthetic picture for testing');
   await page.locator('#v2-food-time').fill('12:30');
+  await selectDate('2026-11-04');
+  assert.equal(await page.locator('#v2-food-note').inputValue(), '');
+  assert.equal(await page.locator('#v2-food-preview').isVisible(), false);
+  await selectDate('2026-11-05');
+  assert.equal(await page.locator('#v2-food-note').inputValue(), 'Synthetic picture for testing');
+  assert.equal(await page.locator('#v2-food-preview').isVisible(), true);
   await page.locator('#v2-food-consent').check();
   await page.locator('#v2-food-save').click();
   await page.locator('#v2-meal-list img').waitFor();
@@ -89,6 +116,8 @@ try {
   await page.locator('#v2-food-section').scrollIntoViewIfNeeded();
   await mkdir('qa', { recursive: true });
   await page.screenshot({ path: 'qa/v2-mobile.png' });
+  await page.locator('nav[aria-label="Capacity Building sections"]').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'qa/combined-capacity-mobile.png' });
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
   assert.equal(overflow, false); assert.deepEqual(errors, []);
   await page.reload(); await page.locator('#v2-meal-list img').waitFor();
@@ -130,6 +159,8 @@ try {
   await recoveredRead;
   assert(recoveredSessionSeen, 'Home-screen app must use its own recovered connection for private photo access');
   await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.locator('nav[aria-label="Capacity Building sections"] a[href="#v2-check-in"]').click();
+  await page.locator('#v2-heading').scrollIntoViewIfNeeded();
   await page.screenshot({ path: 'qa/v2-desktop.png' });
   await page.route('https://capacity-tracker.kaliharmen.workers.dev/**', route => route.fulfill({
     status: route.request().url().endsWith('/api/whoop-connection/code') ? 200 : 401,
@@ -166,14 +197,29 @@ try {
   await page.screenshot({ path: 'qa/whoop-sleep-desktop.png' });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   await page.locator('#capacity-notes').fill('Reconnect must preserve this pending edit');
+  await page.locator('#v2-entry-form [name="notes"]').fill('Reconnect must preserve this V2 draft too');
   await page.getByRole('button', { name: 'Reconnect WHOOP', exact: true }).click();
   await page.waitForURL('https://capacity-tracker.kaliharmen.workers.dev/oauth/start');
   await page.goto(origin + '/fixture');
-  const capacitySaved = await page.evaluate(async date => {
+  const [capacitySaved, v2Saved] = await page.evaluate(async date => {
     const db = await new Promise(resolve => { const request = indexedDB.open('capacity-tracker'); request.onsuccess = () => resolve(request.result); });
-    const record = await new Promise(resolve => { const request = db.transaction('capacityPractices').objectStore('capacityPractices').get(date); request.onsuccess = () => resolve(request.result); });
-    db.close(); return record;
+    const read = table => new Promise(resolve => { const request = db.transaction(table).objectStore(table).get(date); request.onsuccess = () => resolve(request.result); });
+    const records = await Promise.all([read('capacityPractices'), read('v2Entries')]);
+    db.close(); return records;
   }, capacityDate);
   assert.equal(capacitySaved.notes, 'Reconnect must preserve this pending edit');
-  console.log('PASS: history/WHOOP preserved; autosave and JPEG retries pass; temporary phone connection is applied; code controls render without errors.');
+  assert.equal(v2Saved.notes, 'Reconnect must preserve this V2 draft too');
+  assert.equal(v2Saved.entryStatus, 'draft');
+
+  const offlineContext = await browser.newContext();
+  const offlinePage = await offlineContext.newPage();
+  await offlinePage.goto(origin + '/capacity/');
+  await offlinePage.waitForFunction(() => navigator.serviceWorker.controller !== null);
+  await offlinePage.reload();
+  await offlinePage.locator('#capacity-date').isEnabled();
+  await offlineContext.setOffline(true);
+  await offlinePage.goto(origin + '/capacity/?date=2026-11-03');
+  await offlinePage.waitForFunction(() => document.querySelector('#capacity-date')?.value === '2026-11-03' && !document.querySelector('#capacity-date').disabled);
+  await offlineContext.close();
+  console.log('PASS: legacy URL, shared date, both autosaves, weekly notes, completion, dated photos, WHOOP, phone reconnect and offline access.');
 } finally { await browser.close(); server.close(); }
