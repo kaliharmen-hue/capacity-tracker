@@ -162,7 +162,9 @@ try {
   await page.screenshot({ path: 'qa/whoop-sleep-mobile.png' });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.locator('#whoop-day-summary').scrollIntoViewIfNeeded();
   await page.screenshot({ path: 'qa/whoop-sleep-desktop.png' });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   await page.locator('#capacity-notes').fill('Reconnect must preserve this pending edit');
   await page.getByRole('button', { name: 'Reconnect WHOOP', exact: true }).click();
   await page.waitForURL('https://capacity-tracker.kaliharmen.workers.dev/oauth/start');
