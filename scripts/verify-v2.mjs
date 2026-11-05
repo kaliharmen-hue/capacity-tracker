@@ -147,6 +147,24 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
   const capacityDate = await page.locator('#capacity-date').inputValue();
+  await page.route('https://capacity-tracker.kaliharmen.workers.dev/api/whoop?days=*', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ records: [{
+      date: capacityDate, recoveryScore: 80, sleepHours: 7.5,
+      remSleepMinutes: 90, deepSleepMinutes: 80, awakeMinutes: 0, sleepDebtMinutes: 40
+    }] })
+  }));
+  await page.getByRole('button', { name: 'Sync 30 days', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('#whoop-day-summary')?.textContent.includes('REM sleep'));
+  for (const [label, duration] of [['REM sleep', '1 h 30 min'], ['Deep sleep', '1 h 20 min'], ['Awake during sleep', '0 h 0 min'], ['Sleep debt before sleep', '0 h 40 min']]) {
+    assert.equal(await page.locator('#whoop-day-summary div').filter({ has: page.locator('dt', { hasText: label }) }).locator('dd').textContent(), duration);
+  }
+  await page.locator('#whoop-day-summary').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'qa/whoop-sleep-mobile.png' });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.locator('#whoop-day-summary').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'qa/whoop-sleep-desktop.png' });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   await page.locator('#capacity-notes').fill('Reconnect must preserve this pending edit');
   await page.getByRole('button', { name: 'Reconnect WHOOP', exact: true }).click();
   await page.waitForURL('https://capacity-tracker.kaliharmen.workers.dev/oauth/start');

@@ -2,6 +2,7 @@ import { mirrorCounts, validateUpload } from './mirror-merge.js';
 import { mirrorStore } from './mirror-store.js';
 import { photoLibrary } from './photos.js';
 import { phoneConnection } from './whoop-handoff.js';
+import { sleepDetails, workoutDetails } from './whoop-normalise.js';
 const WHOOP_AUTH_URL = "https://api.prod.whoop.com/oauth/oauth2/auth";
 const WHOOP_TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token";
 const WHOOP_API = "https://api.prod.whoop.com/developer/v2";
@@ -181,15 +182,6 @@ async function collection(path, accessToken, start, end) {
   return records;
 }
 
-function sleepHours(sleep) {
-  const stages = sleep?.score?.stage_summary;
-  if (!stages) return null;
-  const asleep = Number(stages.total_light_sleep_time_milli || 0)
-    + Number(stages.total_slow_wave_sleep_time_milli || 0)
-    + Number(stages.total_rem_sleep_time_milli || 0);
-  return asleep ? asleep / 3600000 : null;
-}
-
 async function getWhoopWindow(accessToken, days) {
   const end = new Date();
   const start = new Date(end);
@@ -216,6 +208,7 @@ async function getWhoopWindow(accessToken, days) {
       sportName: workout.sport_name,
       start: workout.start,
       end: workout.end,
+      ...workoutDetails(workout),
       strain: workout.score?.strain ?? null,
       averageHeartRate: workout.score?.average_heart_rate ?? null,
       maxHeartRate: workout.score?.max_heart_rate ?? null
@@ -238,7 +231,9 @@ async function getWhoopWindow(accessToken, days) {
         restingHeartRate: recovery?.score?.resting_heart_rate ?? null,
         spo2Percentage: recovery?.score?.spo2_percentage ?? null,
         skinTempCelsius: recovery?.score?.skin_temp_celsius ?? null,
-        sleepHours: sleepHours(sleep),
+        recoveryScoreState: recovery?.score_state ?? null,
+        userCalibrating: recovery?.score?.user_calibrating ?? null,
+        ...sleepDetails(sleep),
         sleepStart: sleep.start,
         sleepEnd: sleep.end,
         sleepPerformancePercentage: sleep.score?.sleep_performance_percentage ?? null,
@@ -789,13 +784,20 @@ async function liveWhoopByDate(request, env, days) {
   }
 }
 
-async function enrichedRecords(request, env, records) {
-  if (!records.length) return records;
-  const latest = records[records.length - 1]?.date;
+async function enrichedRecords(request, env, records, range = null) {
+  if (!records.length && !range) return records;
   const today = new Date().toISOString().slice(0, 10);
-  const daysBack = latest ? Math.min(90, Math.max(1, dateDiffDays(records[0].date, today))) : 1;
+  const start = range?.start ?? records[0].date;
+  const daysBack = Math.min(90, Math.max(1, dateDiffDays(start, today)));
   const whoopByDate = await liveWhoopByDate(request, env, daysBack);
-  return records.map((record) => ({
+  const joined = new Map(records.map(record => [record.date, record]));
+  // A wearable-only day is not a completed journal entry and is never saved here.
+  if (range) for (const [date] of whoopByDate) {
+    if (date >= range.start && date <= range.end && !joined.has(date)) {
+      joined.set(date, { date, daily: null, capacity: null, whoop: null });
+    }
+  }
+  return [...joined.values()].sort((a, b) => a.date.localeCompare(b.date)).map((record) => ({
     ...record,
     whoop: whoopByDate.get(record.date) ?? record.whoop ?? null
   }));
@@ -853,12 +855,12 @@ async function callPersonalOsTool(request, env, name, args = {}) {
       return { content: [{ type: "text", text: "date must be YYYY-MM-DD" }], isError: true };
     }
     const v2Record = (mirror.v2Entries || []).find(row => row.date === date);
-    const record = records.find((item) => item.date === date) ?? (v2Record ? { date, daily: null, capacity: null, whoop: null } : undefined);
-    if (!record) {
+    const record = records.find((item) => item.date === date);
+    const enriched = await enrichedRecords(request, env, record ? [record] : [], { start: date, end: date });
+    if (!enriched.length && !v2Record) {
       return { content: [{ type: "text", text: `No Personal OS record is available for ${date}.` }], isError: true };
     }
-    const enriched = await enrichedRecords(request, env, [record]);
-    return { content: [{ type: "text", text: JSON.stringify({ ...enriched[0], v2: (mirror.v2Entries || []).find(row => row.date === date) ?? null }) }] };
+    return { content: [{ type: "text", text: JSON.stringify({ date, daily: null, capacity: null, whoop: null, ...enriched[0], v2: v2Record ?? null }) }] };
   }
 
   if (name === "get_recent_personal_os") {
@@ -886,7 +888,7 @@ async function callPersonalOsTool(request, env, name, args = {}) {
       return { content: [{ type: "text", text: "Date range must be between 1 and 60 days." }], isError: true };
     }
     const selected = records.filter((item) => item.date >= startDate && item.date <= endDate);
-    const enriched = await enrichedRecords(request, env, selected);
+    const enriched = await enrichedRecords(request, env, selected, { start: startDate, end: endDate });
     const result = {
       startDate,
       endDate,

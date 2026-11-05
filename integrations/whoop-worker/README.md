@@ -64,14 +64,25 @@ Each main sleep is assigned to the local date on which that sleep ended (the wak
 - SpO2
 - Skin temperature
 - Sleep duration
+- REM, deep (slow-wave), light sleep, awake time, time in bed and no-data time (minutes)
+- Sleep cycle count and sleep score state
+- Sleep need and its baseline, debt, strain and nap components (minutes)
 - Sleep performance, efficiency and consistency
 - Disturbance count and respiratory rate
 - Cycle strain
 - Steps
 - Cycle heart rate / energy
 - Workouts and workout strain
+- Workout energy (kilojoules), recorded percentage, distance/elevation (metres) and heart-rate zone durations (minutes)
+- Recovery score state and calibration flag
 
 This date-normalised shape is what the Capacity Tracker will join to its existing Daily Log and Capacity Building records.
+
+`sleepDebtMinutes` is WHOOP's `sleep_needed.need_from_sleep_debt_milli` converted to minutes: the debt contribution to need **before this sleep**, not remaining debt after waking. Total sleep need sums all four components; the nap component is already negative or zero. Unavailable/unscored values are null; genuine zero values remain zero. Stage durations are nightly totals, not a hypnogram. Naps are not included as main-sleep days.
+
+Existing sleep/recovery/cycle/workout scopes cover these measurements; no reconnect or extra API service is required. Sync 30 days refreshes locally stored history; the authenticated endpoint supports up to 90 days. MCP day/window reads also include live WHOOP-only waking dates without creating journal answers or modifying saved history. Historical data outside the live window uses the saved mirror and may lack the newly added fields.
+
+Field definitions: [WHOOP API reference](https://developer.whoop.com/api/) and [sleep data model](https://developer.whoop.com/docs/developing/user-data/sleep/).
 
 
 ## Workers Builds settings
