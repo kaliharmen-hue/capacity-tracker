@@ -20,6 +20,8 @@ const browser = await chromium.launch({ executablePath: process.env.BROWSER_PATH
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
   const page = await context.newPage();
+  const manifest = JSON.parse(await readFile(join(root, 'manifest.webmanifest'), 'utf8'));
+  const launchUrl = new URL(manifest.start_url, origin + '/manifest.webmanifest').href;
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   const values = new Map();
   const storage = { get: async k => structuredClone(values.get(k)), put: async (k, v) => { values.set(k, structuredClone(v)); }, delete: async k => values.delete(k), list: async ({ prefix }) => new Map([...values].filter(([key]) => key.startsWith(prefix))), transaction: async fn => fn(storage) };
@@ -55,6 +57,18 @@ try {
       r.onsuccess = () => { r.result.close(); resolve(); }; r.onerror = reject;
     });
   });
+  await page.goto(launchUrl, { waitUntil: 'commit' });
+  await page.waitForURL(url => url.pathname === '/capacity/');
+  await page.locator('#v2-heading').waitFor();
+  const nav = page.getByRole('navigation', { name: 'Main navigation' });
+  assert.equal(await nav.getByRole('link', { name: 'Capacity Building', exact: true }).getAttribute('aria-current'), 'page');
+  await nav.getByRole('link', { name: 'Daily Log', exact: true }).click();
+  await page.waitForURL(origin + '/daily/');
+  await page.locator('#entry-form').waitFor();
+  await page.goto(origin + '/?date=2026-10-01', { waitUntil: 'commit' });
+  await page.waitForURL(origin + '/daily/?date=2026-10-01');
+  await page.waitForFunction(() => document.querySelector('#entry-date')?.value === '2026-10-01');
+
   await page.goto(origin + '/v2/?date=2026-11-04');
   await page.waitForURL(origin + '/capacity/?date=2026-11-04#v2-check-in');
   const selectDate = async date => {
@@ -218,8 +232,11 @@ try {
   await offlinePage.reload();
   await offlinePage.locator('#capacity-date').isEnabled();
   await offlineContext.setOffline(true);
+  await offlinePage.goto(launchUrl, { waitUntil: 'commit' });
+  await offlinePage.waitForURL(url => url.pathname === '/capacity/');
+  await offlinePage.locator('#v2-heading').waitFor();
   await offlinePage.goto(origin + '/capacity/?date=2026-11-03');
   await offlinePage.waitForFunction(() => document.querySelector('#capacity-date')?.value === '2026-11-03' && !document.querySelector('#capacity-date').disabled);
   await offlineContext.close();
-  console.log('PASS: legacy URL, shared date, both autosaves, weekly notes, completion, dated photos, WHOOP, phone reconnect and offline access.');
+  console.log('PASS: online/offline launch, Daily Log and legacy links, shared date, autosaves, completion, dated photos and WHOOP reconnect.');
 } finally { await browser.close(); server.close(); }

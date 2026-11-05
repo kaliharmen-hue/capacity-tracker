@@ -161,7 +161,7 @@ function render(): void {
     calendarRoot.innerHTML = recent
       .map(
         (entry) => `
-          <a class="day-tile" href="${base}?date=${entry.date}">
+          <a class="day-tile" href="${base}daily/?date=${entry.date}">
             <span>${entry.date.slice(5)}</span>
             <strong>${entry.energyScore}</strong>
           </a>
@@ -180,7 +180,7 @@ function render(): void {
             <h3>${entry.date}</h3>
             <p>Energy ${entry.energyScore}/10 - Clarity ${entry.clarityScore}/10 - Capability ${displayScore(entry.capacityRemainingScore)}/10 - ${relationalStressLevel(relationalStressScore(entry))} relational stress</p>
           </div>
-          <a class="secondary-button" href="${base}?date=${entry.date}">Edit</a>
+          <a class="secondary-button" href="${base}daily/?date=${entry.date}">Edit</a>
         </article>
       `
       )

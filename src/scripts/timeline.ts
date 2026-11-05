@@ -216,7 +216,7 @@ function showDayDetail(date: string): void {
         ["What helped", day.capacityImprovedBy]
       ])}</section>
     </div>
-    <a class="primary-button detail-entry-link" href="${base}?date=${encodeURIComponent(day.date)}">Open full daily entry</a>`;
+    <a class="primary-button detail-entry-link" href="${base}daily/?date=${encodeURIComponent(day.date)}">Open full daily entry</a>`;
   detailRoot.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 

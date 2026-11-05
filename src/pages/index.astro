@@ -1,31 +1,17 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-
-const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
 ---
 
-<BaseLayout title="Daily Log" active="daily">
-  <section class="page-heading">
-    <div>
-      <p class="eyebrow">Daily Log</p>
-      <h2>What is true today?</h2>
-    </div>
-    <p class="soft-copy">A gentle daily log for capacity, regulation, load, and recovery.</p>
-  </section>
-
-  <form id="entry-form" class="tracker-form">
-    <div class="sticky-actions">
-      <label class="date-control">
-        <span>Date</span>
-        <input id="entry-date" name="date" type="date" />
-      </label>
-      <div class="save-cluster">
-        <p id="autosave-status" class="autosave-status" aria-live="polite">Autosaves as I go</p>
-        <a id="entry-export-link" class="primary-button" href={`${base}export/`}>Export</a>
-      </div>
-    </div>
-    <div id="form-sections"></div>
-  </form>
-
-  <script src="../scripts/today.ts"></script>
+<BaseLayout title="Capacity Building" active="capacity">
+  <p><a id="app-start" class="secondary-button" href={base + "capacity/"}>Open Capacity Building</a></p>
+  <script is:inline>
+    const destination = new URL(document.getElementById("app-start").href);
+    const current = new URL(location.href);
+    // Older date links were bookmarks to the original Daily Log.
+    const target = current.searchParams.has("date") ? new URL("../daily/", destination) : destination;
+    target.search = current.search;
+    target.hash = current.hash;
+    location.replace(target);
+  </script>
 </BaseLayout>

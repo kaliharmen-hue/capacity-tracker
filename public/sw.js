@@ -1,4 +1,4 @@
-const CACHE_NAME = "personal-operating-system-v25";
+const CACHE_NAME = "personal-operating-system-v26";
 
 function appUrl(path) {
   return new URL(path, self.registration.scope).href;
@@ -6,6 +6,7 @@ function appUrl(path) {
 
 const APP_SHELL = [
   appUrl("./"),
+  appUrl("daily/"),
   appUrl("v2/"),
   appUrl("capacity/"),
   appUrl("timeline/"),
@@ -66,7 +67,8 @@ self.addEventListener("fetch", (event) => {
         if (cached) return cached;
         if (event.request.mode === "navigate") {
           const pageUrl = new URL(requestUrl.pathname, self.location.origin).href;
-          return (await caches.match(pageUrl)) || caches.match(appUrl("./"));
+          const page = (await caches.match(pageUrl)) || (await caches.match(appUrl("capacity/")));
+          if (page) return page;
         }
         return new Response("", { status: 503, statusText: "Offline" });
       })
