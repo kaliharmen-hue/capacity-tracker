@@ -48,6 +48,13 @@ export interface WhoopWorkout {
   strain: number | null;
   averageHeartRate: number | null;
   maxHeartRate: number | null;
+  scoreState?: string | null;
+  kilojoule?: number | null;
+  percentRecorded?: number | null;
+  distanceMeters?: number | null;
+  altitudeGainMeters?: number | null;
+  altitudeChangeMeters?: number | null;
+  zoneDurationMinutes?: Record<string, number | null>;
 }
 
 export interface WhoopDay {
@@ -60,6 +67,21 @@ export interface WhoopDay {
   spo2Percentage: number | null;
   skinTempCelsius: number | null;
   sleepHours: number | null;
+  sleepScoreState?: string | null;
+  recoveryScoreState?: string | null;
+  userCalibrating?: boolean | null;
+  remSleepMinutes?: number | null;
+  deepSleepMinutes?: number | null;
+  lightSleepMinutes?: number | null;
+  awakeMinutes?: number | null;
+  timeInBedMinutes?: number | null;
+  noDataMinutes?: number | null;
+  sleepCycleCount?: number | null;
+  sleepDebtMinutes?: number | null;
+  sleepNeedBaselineMinutes?: number | null;
+  sleepNeedFromStrainMinutes?: number | null;
+  sleepNeedFromNapMinutes?: number | null;
+  sleepNeededMinutes?: number | null;
   sleepStart: string | null;
   sleepEnd: string | null;
   sleepPerformancePercentage: number | null;

@@ -368,6 +368,12 @@ function formatWhoopValue(value: number | null, suffix = "", digits = 0): string
   return typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits) + suffix : "—";
 }
 
+function formatSleepDuration(minutes: number | null | undefined): string {
+  if (typeof minutes !== 'number' || !Number.isFinite(minutes)) return '-';
+  const rounded = Math.round(minutes);
+  return `${Math.floor(rounded / 60)} h ${rounded % 60} min`;
+}
+
 async function renderWhoopDay(date: string): Promise<void> {
   const session = localStorage.getItem(WHOOP_SESSION_KEY);
   const day = await getWhoopDay(date);
@@ -391,11 +397,16 @@ async function renderWhoopDay(date: string): Promise<void> {
     <dl class="whoop-summary-grid">
       <div><dt>Recovery</dt><dd>${formatWhoopValue(day.recoveryScore)}</dd></div>
       <div><dt>Sleep</dt><dd>${formatWhoopValue(day.sleepHours, " h", 1)}</dd></div>
+      <div><dt>REM sleep</dt><dd>${formatSleepDuration(day.remSleepMinutes)}</dd></div>
+      <div><dt>Deep sleep</dt><dd>${formatSleepDuration(day.deepSleepMinutes)}</dd></div>
+      <div><dt>Awake during sleep</dt><dd>${formatSleepDuration(day.awakeMinutes)}</dd></div>
+      <div><dt>Sleep debt before sleep</dt><dd>${formatSleepDuration(day.sleepDebtMinutes)}</dd></div>
       <div><dt>HRV</dt><dd>${formatWhoopValue(day.hrvRmssdMs, " ms")}</dd></div>
       <div><dt>RHR</dt><dd>${formatWhoopValue(day.restingHeartRate)}</dd></div>
       <div><dt>Strain</dt><dd>${formatWhoopValue(day.cycleStrain, "", 1)}</dd></div>
       <div><dt>Steps</dt><dd>${typeof day.stepCount === "number" ? Math.round(day.stepCount).toLocaleString() : "—"}</dd></div>
     </dl>
+    <small>Sleep debt is WHOOP's debt contribution to the sleep need before this sleep, not the remaining debt after waking.</small>
     <small>Last synced ${new Date(day.syncedAt).toLocaleString()}</small>
   `;
 }

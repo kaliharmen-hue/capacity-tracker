@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro check && astro build",
-    "test": "node --experimental-strip-types --test tests/timeline.test.ts tests/mirror.test.ts tests/v2.test.ts tests/photos.test.ts tests/whoop-handoff.test.ts",
+    "test": "node --experimental-strip-types --test tests/timeline.test.ts tests/mirror.test.ts tests/v2.test.ts tests/photos.test.ts tests/whoop-handoff.test.ts tests/whoop.test.ts",
     "preview": "astro preview",
     "serve": "node scripts/serve-dist.mjs"
   },
