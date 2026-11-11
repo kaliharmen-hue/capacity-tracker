@@ -2,6 +2,7 @@ import { getV2Entry, saveV2Entry } from "./db";
 import { createEmptyV2Entry, normaliseV2Entry, type V2DailyEntry } from "./v2-schema";
 import { DraftJournal } from "./v2-journal";
 import { initMealPhotos } from "./meal-photos";
+import { refreshOptionalFields } from "./capacity-ui";
 
 const form = document.querySelector<HTMLFormElement>("#v2-entry-form")!;
 const status = document.querySelector<HTMLElement>("#v2-autosave-status")!;
@@ -51,7 +52,7 @@ export async function flushV2() {
   if (!journal.hasPending()) return;
   try {
     await journal.flush();
-    setStatus(entry.entryStatus === "complete" ? "Daily log complete" : "Draft saved");
+    setStatus(entry.entryStatus === "complete" ? "Check-in complete" : "Saved");
   } catch {
     setStatus("Save needs retrying. This browser keeps a recovery draft.");
     throw new Error("Unable to finish saving yet.");
@@ -71,9 +72,10 @@ export async function loadV2(date: string) {
       else field.value = String(entry[key] ?? "");
     }
     effects();
-    setStatus(entry.entryStatus === "complete" ? "Daily log complete" : stored ? "Draft saved" : "No daily log saved yet");
-    complete.textContent = entry.entryStatus === "complete" ? "Reopen daily log" : "Mark daily log complete";
+    setStatus(entry.entryStatus === "complete" ? "Check-in complete" : stored ? "Saved" : "Autosaves as I go");
+    complete.textContent = entry.entryStatus === "complete" ? "Reopen check-in" : "Complete check-in";
     photos.showDate(date);
+    refreshOptionalFields();
   } finally {
     loading = false;
     form.inert = false;
@@ -85,10 +87,10 @@ function changed() {
   entry = collect();
   // Editing a completed record reopens it, so protocols cannot silently acquire a missed status.
   entry.entryStatus = "draft";
-  complete.textContent = "Mark daily log complete";
+  complete.textContent = "Complete check-in";
   try { journal.stage(entry); } catch { setStatus("Browser recovery storage is full. Keep this page open while saving."); }
   window.clearTimeout(timer);
-  setStatus("Saving draft...");
+  setStatus("Saving...");
   timer = window.setTimeout(() => { void flushV2().catch(() => {}); }, 450);
 }
 form.addEventListener("input", changed);
@@ -98,12 +100,12 @@ complete.addEventListener("click", async () => {
   if (!form.reportValidity()) return;
   entry = collect();
   if (entry.entryStatus !== "complete" && (entry.physicalFatigue === "" || entry.cognitiveDifficulty === "" || !entry.functionalImpact)) {
-    setStatus("Answer the three daily measures before completing the log.");
+    setStatus("Answer the three daily measures before completing the check-in.");
     return;
   }
   entry.entryStatus = entry.entryStatus === "complete" ? "draft" : "complete";
   try { journal.stage(entry); } catch { /* The in-memory snapshot can still be saved. */ }
-  complete.textContent = entry.entryStatus === "complete" ? "Reopen daily log" : "Mark daily log complete";
+  complete.textContent = entry.entryStatus === "complete" ? "Reopen check-in" : "Complete check-in";
   try { await flushV2(); } catch { /* The journal retains the draft. */ }
 });
 

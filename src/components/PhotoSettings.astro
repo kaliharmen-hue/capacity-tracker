@@ -1,0 +1,14 @@
+<section id="photo-settings" class="photo-settings-panel" aria-labelledby="photo-settings-title">
+<h3 id="photo-settings-title">Photo settings</h3>
+    <label class="check-row"><input id="v2-food-consent" type="checkbox" /><span>I allow photos I save to be stored privately in Cloudflare and accessed through my connected ChatGPT reviews. Remember my choice on this device.</span></label>
+    <p id="v2-photo-usage" class="field-helper"></p>
+    <details id="v2-phone-connection">
+      <summary>Connect this phone</summary>
+      <form id="v2-phone-connect-form">
+        <label class="field-label">Temporary connection code<input id="v2-phone-code" type="password" autocomplete="off" spellcheck="false" required maxlength="80" /></label>
+        <button type="submit" class="secondary-button">Connect phone</button>
+      </form>
+    </details>
+    <label class="check-row"><input id="v2-photo-cleanup" type="checkbox" /><span>Automatically remove photos seven days after a successful review receipt. Dates, times and notes stay saved. Unreviewed photos stay available; uploads pause if storage is full.</span></label>
+<p id="v2-photo-settings-status" role="status" aria-live="polite"></p>
+</section>

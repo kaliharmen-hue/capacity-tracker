@@ -1,6 +1,7 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import V2CheckIn from "../components/V2CheckIn.astro";
+import PhotoSettings from "../components/PhotoSettings.astro";
 ---
 
 <BaseLayout title="Capacity Building" active="capacity">
@@ -17,14 +18,13 @@ import V2CheckIn from "../components/V2CheckIn.astro";
     <p id="chatgpt-oauth-status" class="autosave-status"></p>
   </section>
 
-  <section class="page-heading">
-    <div>
-      <p class="eyebrow">Capacity Building & Life Design</p>
-      <h2>Build the conditions that make life easier to carry.</h2>
+  <section class="page-heading capacity-heading">
+    <h2>Today</h2>
+    <div class="capacity-tools" aria-label="Page tools">
+      <button type="button" class="secondary-button" data-open-dialog="capacity-review-dialog">Review</button>
+      <button type="button" class="secondary-button" data-open-dialog="capacity-plan-dialog">My plan</button>
+      <button type="button" class="secondary-button" data-open-dialog="capacity-settings-dialog">Settings</button>
     </div>
-    <p class="soft-copy">
-      This is the change side of the Operating System: a small set of practices to build capacity, not another long list to complete.
-    </p>
   </section>
 
   <div id="capacity-day-controls" class="capacity-day-controls">
@@ -33,25 +33,12 @@ import V2CheckIn from "../components/V2CheckIn.astro";
       <input id="capacity-date" type="date" disabled />
     </label>
     <nav aria-label="Capacity Building sections">
-      <a href="#capacity-form">Foundation practices</a>
-      <a href="#v2-check-in">V2 check-in</a>
+      <a href="#capacity-form">Practices</a>
+      <a href="#v2-check-in">Check-in</a>
       <a href="#v2-food-section">Meal photos</a>
-      <a href="#capacity-whoop">WHOOP</a>
     </nav>
     <p id="capacity-date-status" class="autosave-status" role="status" hidden></p>
   </div>
-
-  <section class="capacity-stage-panel">
-    <div>
-      <p class="eyebrow">Current stage</p>
-      <h3>Stage 1 · Foundation</h3>
-      <p>Predictability, self-contact, deliberate downshifting and enough nutritional support to stop asking an under-fuelled body to recover.</p>
-    </div>
-    <div class="capacity-stage-rule">
-      <strong>Progression rule</strong>
-      <p>Aim for roughly 70–80% consistency for a couple of weeks, but only add the next skill when this stage feels useful and reasonably established — not because a score says I should.</p>
-    </div>
-  </section>
 
   <section id="capacity-day" class="capacity-builder-grid" inert>
     <form id="capacity-form" class="plain-panel capacity-daily-panel">
@@ -73,28 +60,28 @@ import V2CheckIn from "../components/V2CheckIn.astro";
         </select>
       </label>
 
+      <details class="optional-details" data-optional-note>
+        <summary>What would help today — add a note</summary>
       <label class="field-label">
         What would help today?
         <textarea id="capacity-need" name="needToday" rows="2" placeholder="Warmth, food, movement, quiet, company, help, less pressure..."></textarea>
       </label>
+      </details>
 
       <fieldset class="capacity-check-group">
         <legend>Today's capacity builders</legend>
-        <p class="field-helper">The minimum version counts. Two minutes can be enough on a low-capacity day.</p>
         <div class="capacity-check-grid">
-          <label class="capacity-check"><input id="checked-in" type="checkbox" /><span><strong>Arrive before I perform</strong><small>I checked in with myself before disappearing into demands.</small></span></label>
-          <label class="capacity-check"><input id="downshifted" type="checkbox" /><span><strong>One deliberate downshift</strong><small>Breathing, Vagustim, bath, walk, music, mobility, stillness — whatever actually fitted my state.</small></span></label>
-          <label class="capacity-check"><input id="work-closed" type="checkbox" /><span><strong>Close the working day</strong><small>I externalised what is unfinished and identified tomorrow's first step.</small></span></label>
-          <label class="capacity-check"><input id="something-for-me" type="checkbox" /><span><strong>Something purely for me</strong><small>Something with no productivity requirement and no need to justify its usefulness.</small></span></label>
+          <label class="capacity-check"><input id="checked-in" type="checkbox" /><span><strong>Arrive before I perform</strong></span></label>
+          <label class="capacity-check"><input id="downshifted" type="checkbox" /><span><strong>One deliberate downshift</strong></span></label>
+          <label class="capacity-check"><input id="work-closed" type="checkbox" /><span><strong>Close the working day</strong></span></label>
+          <label class="capacity-check"><input id="something-for-me" type="checkbox" /><span><strong>Something purely for me</strong></span></label>
         </div>
       </fieldset>
 
       <fieldset class="capacity-check-group nutrition-foundation">
         <legend>14-day breakfast reset</legend>
-        <p class="field-helper">
-          This is an experiment, not a diet. For 14 days, use a quick protein-centred breakfast without yoghurt or porridge, then judge it by what happens to energy, hunger and bloating rather than by whether it sounds healthy.
-        </p>
-
+        <details class="optional-details breakfast-suggestions">
+          <summary class="secondary-button">Breakfast suggestions</summary>
         <div class="breakfast-experiment-card">
           <p><strong>Why these options?</strong> They are quick, protein-forward, lower-carb and nutrient-dense, with portions that can be repeated without weighing food every morning. The first three are the main defaults; the others give enough variety to keep the experiment realistic.</p>
           <div class="breakfast-options">
@@ -107,6 +94,8 @@ import V2CheckIn from "../components/V2CheckIn.astro";
             <span>Protein shake + 2 boiled eggs</span>
           </div>
         </div>
+
+        </details>
 
         <label class="field-label">
           What did I have for breakfast?
@@ -124,14 +113,14 @@ import V2CheckIn from "../components/V2CheckIn.astro";
           </select>
         </label>
 
-        <label class="field-label">
+        <label id="breakfast-other-field" class="field-label" hidden>
           If other, what was it?
           <input id="breakfast-other" type="text" placeholder="Optional" />
         </label>
 
         <div class="capacity-check-grid">
-          <label class="capacity-check"><input id="yoghurt-free" type="checkbox" /><span><strong>Yoghurt-free today</strong><small>A clean yes/no variable, so we can actually test whether removing it changes anything.</small></span></label>
-          <label class="capacity-check"><input id="porridge-free" type="checkbox" /><span><strong>No porridge at breakfast</strong><small>The reset uses other breakfasts first. If things improve, yoghurt and porridge can be challenged separately later.</small></span></label>
+          <label class="capacity-check"><input id="yoghurt-free" type="checkbox" /><span><strong>Yoghurt-free today</strong></span></label>
+          <label class="capacity-check"><input id="porridge-free" type="checkbox" /><span><strong>No porridge at breakfast</strong></span></label>
         </div>
 
         <div class="breakfast-outcome-grid">
@@ -158,7 +147,6 @@ import V2CheckIn from "../components/V2CheckIn.astro";
           </label>
         </div>
 
-        <p class="capacity-note">This does not assume yoghurt or porridge is a problem. The point is to give the suspicion a fair test, then reintroduce one variable at a time if the reset clearly helps.</p>
       </fieldset>
 
       <div class="capacity-rating-grid">
@@ -186,20 +174,26 @@ import V2CheckIn from "../components/V2CheckIn.astro";
         </label>
       </div>
 
+      <details class="optional-details" data-optional-note>
+        <summary>Anything worth remembering — add a note</summary>
       <label class="field-label">
         Anything worth remembering?
         <textarea id="capacity-notes" rows="3" placeholder="Optional. A sentence is enough."></textarea>
       </label>
+      </details>
 
       <div class="capacity-save-line">
-        <strong id="today-progress">0 / 5 active practices</strong>
+        <strong id="today-progress" hidden>0 / 5 active practices</strong>
         <span id="capacity-save-status" class="autosave-status" aria-live="polite">Autosaves as I go</span>
       </div>
     </form>
 
-    <aside class="plain-panel capacity-progress-panel">
-      <p class="eyebrow">Pattern, not perfection</p>
-      <h3>How the base is forming</h3>
+  </section>
+
+  <V2CheckIn />
+
+  <dialog id="capacity-review-dialog" class="capacity-dialog" aria-labelledby="capacity-review-title">
+    <div class="dialog-heading"><h2 id="capacity-review-title">Review</h2><button type="button" class="secondary-button" data-close-dialog>Back to today</button></div>
       <div class="capacity-progress-card">
         <span>Last 14 days</span>
         <strong id="foundation-percentage">No data yet</strong>
@@ -213,6 +207,45 @@ import V2CheckIn from "../components/V2CheckIn.astro";
         <p id="breakfast-outcomes">Energy, hunger and bloating averages will appear once there are enough ratings to compare.</p>
       </div>
 
+  <section class="plain-panel capacity-interpretation-panel">
+    <div class="capacity-section-heading">
+      <div>
+        <p class="eyebrow">Interpretation</p>
+        <h3>What is the breakfast data showing?</h3>
+      </div>
+      <button id="copy-capacity-data" type="button" class="secondary-button">Copy last 14 days for ChatGPT</button>
+    </div>
+    <p class="soft-copy">These comparisons use the ratings you record after each breakfast. They are descriptive, not proof of cause; several repeats of a breakfast are more useful than a one-off result.</p>
+    <div id="breakfast-comparison" class="breakfast-comparison">
+      <p class="empty-state">Breakfast comparisons will appear after you have logged them.</p>
+    </div>
+    <p id="capacity-copy-status" class="autosave-status" aria-live="polite"></p>
+  </section>  <section id="capacity-week" class="plain-panel capacity-weekly-panel" inert>
+    <div class="capacity-section-heading">
+      <div>
+        <p class="eyebrow">Weekly Capacity Review</p>
+        <h3>Turn the week into learning</h3>
+      </div>
+      <label class="date-control compact-date">
+        <span>Week starting</span>
+        <input id="capacity-week-start" type="date" />
+      </label>
+    </div>
+
+    <form id="capacity-weekly-form" class="capacity-weekly-grid">
+      <label class="field-label">What gave me capacity this week?<textarea id="capacity-givers" rows="3"></textarea></label>
+      <label class="field-label">What took more capacity than it was worth?<textarea id="capacity-drains" rows="3"></textarea></label>
+      <label class="field-label">Where did I feel supported or able to receive?<textarea id="received-support" rows="3"></textarea></label>
+      <label class="field-label">Where did I carry something alone that could have been shared, simplified or put down?<textarea id="carried-alone" rows="3"></textarea></label>
+      <label class="field-label capacity-weekly-adjustment">What is the ONE adjustment for next week?<textarea id="one-adjustment" rows="2"></textarea></label>
+    </form>
+    <p id="weekly-save-status" class="autosave-status" aria-live="polite">Autosaves as I go</p>
+  </section>
+  </dialog>
+
+  <dialog id="capacity-settings-dialog" class="capacity-dialog" aria-labelledby="capacity-settings-title">
+    <div class="dialog-heading"><h2 id="capacity-settings-title">Settings</h2><button type="button" class="secondary-button" data-close-dialog>Back to today</button></div>
+    <PhotoSettings />
       <div id="capacity-whoop" class="capacity-progress-card whoop-card">
         <div class="whoop-card-heading">
           <span>WHOOP</span>
@@ -253,6 +286,34 @@ import V2CheckIn from "../components/V2CheckIn.astro";
         <p id="chatgpt-sync-status" class="autosave-status" aria-live="polite"></p>
       </div>
 
+  </dialog>
+
+  <dialog id="capacity-plan-dialog" class="capacity-dialog" aria-labelledby="capacity-plan-title">
+    <div class="dialog-heading"><h2 id="capacity-plan-title">My plan</h2><button type="button" class="secondary-button" data-close-dialog>Back to today</button></div>
+  <section class="capacity-stage-panel">
+    <div>
+      <p class="eyebrow">Current stage</p>
+      <h3>Stage 1 · Foundation</h3>
+      <p>Predictability, self-contact, deliberate downshifting and enough nutritional support to stop asking an under-fuelled body to recover.</p>
+    </div>
+    <div class="capacity-stage-rule">
+      <strong>Progression rule</strong>
+      <p>Aim for roughly 70–80% consistency for a couple of weeks, but only add the next skill when this stage feels useful and reasonably established — not because a score says I should.</p>
+    </div>
+  </section>
+    <section class="plain-panel"><h3>Foundation practices</h3>
+<p><strong>Arrive before I perform</strong> — I checked in with myself before disappearing into demands.</p>
+<p><strong>One deliberate downshift</strong> — Breathing, Vagustim, bath, walk, music, mobility, stillness — whatever actually fitted my state.</p>
+<p><strong>Close the working day</strong> — I externalised what is unfinished and identified tomorrow's first step.</p>
+<p><strong>Something purely for me</strong> — Something with no productivity requirement and no need to justify its usefulness.</p>
+    </section>
+    <section class="plain-panel"><h3>Breakfast reset</h3>
+        <p class="field-helper">
+          This is an experiment, not a diet. For 14 days, use a quick protein-centred breakfast without yoghurt or porridge, then judge it by what happens to energy, hunger and bloating rather than by whether it sounds healthy.
+        </p>
+
+      <p>This does not assume yoghurt or porridge is a problem. Judge the reset by energy, hunger and bloating, then reintroduce one variable at a time if it clearly helps.</p>
+    </section>
       <div class="capacity-minimum-card">
         <strong>Low-capacity mode still counts</strong>
         <p>Check in for 30 seconds. Downshift for 2 minutes. Write tomorrow's first task. Choose one of the simple breakfast anchors. Choose five minutes that belong to you.</p>
@@ -262,48 +323,6 @@ import V2CheckIn from "../components/V2CheckIn.astro";
         <strong>The question behind this page</strong>
         <p>What conditions let me function as my best self — and which of those conditions can I deliberately build more often?</p>
       </div>
-    </aside>
-  </section>
-
-  <V2CheckIn />
-
-  <section class="plain-panel capacity-interpretation-panel">
-    <div class="capacity-section-heading">
-      <div>
-        <p class="eyebrow">Interpretation</p>
-        <h3>What is the breakfast data showing?</h3>
-      </div>
-      <button id="copy-capacity-data" type="button" class="secondary-button">Copy last 14 days for ChatGPT</button>
-    </div>
-    <p class="soft-copy">These comparisons use the ratings you record after each breakfast. They are descriptive, not proof of cause; several repeats of a breakfast are more useful than a one-off result.</p>
-    <div id="breakfast-comparison" class="breakfast-comparison">
-      <p class="empty-state">Breakfast comparisons will appear after you have logged them.</p>
-    </div>
-    <p id="capacity-copy-status" class="autosave-status" aria-live="polite"></p>
-  </section>
-
-  <section id="capacity-week" class="plain-panel capacity-weekly-panel" inert>
-    <div class="capacity-section-heading">
-      <div>
-        <p class="eyebrow">Weekly Capacity Review</p>
-        <h3>Turn the week into learning</h3>
-      </div>
-      <label class="date-control compact-date">
-        <span>Week starting</span>
-        <input id="capacity-week-start" type="date" />
-      </label>
-    </div>
-
-    <form id="capacity-weekly-form" class="capacity-weekly-grid">
-      <label class="field-label">What gave me capacity this week?<textarea id="capacity-givers" rows="3"></textarea></label>
-      <label class="field-label">What took more capacity than it was worth?<textarea id="capacity-drains" rows="3"></textarea></label>
-      <label class="field-label">Where did I feel supported or able to receive?<textarea id="received-support" rows="3"></textarea></label>
-      <label class="field-label">Where did I carry something alone that could have been shared, simplified or put down?<textarea id="carried-alone" rows="3"></textarea></label>
-      <label class="field-label capacity-weekly-adjustment">What is the ONE adjustment for next week?<textarea id="one-adjustment" rows="2"></textarea></label>
-    </form>
-    <p id="weekly-save-status" class="autosave-status" aria-live="polite">Autosaves as I go</p>
-  </section>
-
   <section class="capacity-roadmap">
     <div class="page-heading capacity-roadmap-heading">
       <div>
@@ -344,6 +363,7 @@ import V2CheckIn from "../components/V2CheckIn.astro";
       </details>
     </div>
   </section>
+  </dialog>
 
   <script src="../scripts/capacity.ts"></script>
 </BaseLayout>

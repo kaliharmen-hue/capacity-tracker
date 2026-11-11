@@ -1,5 +1,6 @@
 import { db, type MealPhotoDraft } from './db';
 import { redeemPhoneConnectionCode } from './whoop-connection';
+import { openCapacityDialog } from './capacity-ui';
 
 const API = (import.meta.env.PUBLIC_PERSONAL_OS_API_BASE || 'https://capacity-tracker.kaliharmen.workers.dev').replace(/\/$/, '') + '/api/meal-photos';
 interface Photo { id: string; date: string; time: string; note: string; state: string; reviewedAt: string | null }
@@ -39,13 +40,14 @@ export function initMealPhotos() {
   const selectedName = root.querySelector<HTMLElement>('#v2-food-selected')!;
   const time = root.querySelector<HTMLInputElement>('#v2-food-time')!;
   const note = root.querySelector<HTMLTextAreaElement>('#v2-food-note')!;
-  const consent = root.querySelector<HTMLInputElement>('#v2-food-consent')!;
-  const cleanup = root.querySelector<HTMLInputElement>('#v2-photo-cleanup')!;
+  const consent = document.querySelector<HTMLInputElement>('#v2-food-consent')!;
+  const cleanup = document.querySelector<HTMLInputElement>('#v2-photo-cleanup')!;
   const save = root.querySelector<HTMLButtonElement>('#v2-food-save')!;
   const preview = root.querySelector<HTMLImageElement>('#v2-food-preview')!;
   const list = root.querySelector<HTMLElement>('#v2-meal-list')!;
   const status = root.querySelector<HTMLElement>('#v2-food-status')!;
-  const usage = root.querySelector<HTMLElement>('#v2-photo-usage')!;
+  const usage = document.querySelector<HTMLElement>('#v2-photo-usage')!;
+  const settingsStatus = document.querySelector<HTMLElement>('#v2-photo-settings-status');
   let selected: File | undefined;
   let selectedUrl = '';
   let photoUrls: string[] = [];
@@ -53,7 +55,10 @@ export function initMealPhotos() {
   let activeDate = '';
   const composers = new Map<string, { file?: File; time: string; note: string }>();
   const session = () => localStorage.getItem('personal-os-whoop-session');
-  const message = (value: string) => { status.textContent = value; };
+  const message = (value: string) => {
+    status.textContent = value;
+    if (settingsStatus) settingsStatus.textContent = value;
+  };
   try { consent.checked = localStorage.getItem(CONSENT_KEY) === 'yes'; }
   catch { message('This browser cannot remember photo permission.'); }
   consent.addEventListener('change', () => {
@@ -65,14 +70,14 @@ export function initMealPhotos() {
   async function api(path: string, body?: unknown) {
     const token = session();
     if (!token) {
-      root.querySelector<HTMLDetailsElement>('#v2-phone-connection')!.open = true;
-      throw new Error('Photo connection needs renewing. Use Connect this phone. Your saved photo stays here.');
+      document.querySelector<HTMLDetailsElement>('#v2-phone-connection')!.open = true;
+      throw new Error('Open Photo settings to connect this phone. Your saved photo stays here.');
     }
     const response = await fetch(API + path, { method: body ? 'POST' : 'GET', headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
     if (!response.ok) {
       if (response.status === 401) {
-        root.querySelector<HTMLDetailsElement>('#v2-phone-connection')!.open = true;
-        throw new Error('Photo connection needs renewing. Use Connect this phone. Your saved photo stays here.');
+        document.querySelector<HTMLDetailsElement>('#v2-phone-connection')!.open = true;
+        throw new Error('Open Photo settings to renew the connection. Your saved photo stays here.');
       }
       const error = await response.json().catch(() => ({}));
       throw new Error(error.error || 'Photo service needs retrying.');
@@ -170,6 +175,8 @@ export function initMealPhotos() {
     choose(composer?.file);
     input.value = ''; camera.value = '';
     time.value = composer?.time ?? ''; note.value = composer?.note ?? '';
+    const noteDetails = note.closest('details');
+    if (noteDetails) noteDetails.open = Boolean(note.value.trim());
     photoUrls.forEach(url => URL.revokeObjectURL(url)); photoUrls = [];
     list.replaceChildren();
     message('');
@@ -177,7 +184,12 @@ export function initMealPhotos() {
   }
   save.addEventListener('click', async () => {
     if (!selected) { message('Choose or take a meal photo first.'); return; }
-    if (!consent.checked) { message('Please agree to private photo storage and ChatGPT retrieval before saving.'); return; }
+    if (!consent.checked) {
+      message('Please choose whether to allow private photo storage and ChatGPT reviews, then return to save your photo.');
+      openCapacityDialog('capacity-settings-dialog', 'photo-settings');
+      consent.focus();
+      return;
+    }
     const date = activeDate, file = selected, mealTime = time.value, mealNote = note.value;
     save.disabled = true;
     try {
@@ -199,7 +211,7 @@ export function initMealPhotos() {
     catch (error) { cleanup.checked = !enabled; message(error instanceof Error ? error.message : 'Could not save cleanup setting.'); }
     finally { cleanup.disabled = false; }
   });
-  root.querySelector<HTMLFormElement>('#v2-phone-connect-form')!.addEventListener('submit', async event => {
+  document.querySelector<HTMLFormElement>('#v2-phone-connect-form')!.addEventListener('submit', async event => {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
     const code = form.querySelector<HTMLInputElement>('#v2-phone-code')!;
