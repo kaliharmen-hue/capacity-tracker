@@ -37,6 +37,8 @@ export interface V2DailyEntry {
   notes: string;
   bioLightFullSpectrum: boolean;
   bioLightBrightness: string;
+  /** Actual full-spectrum session length; older records leave this unanswered. */
+  bioLightDurationMinutes: 10 | 20 | 40 | 60 | "";
   bioLightInfrared: boolean;
   bioLightEffect: V2ImmediateEffect;
   vagustimDaytime: boolean;
@@ -72,6 +74,7 @@ export function createEmptyV2Entry(date: string): V2DailyEntry {
     notes: "",
     bioLightFullSpectrum: false,
     bioLightBrightness: "",
+    bioLightDurationMinutes: "",
     bioLightInfrared: false,
     bioLightEffect: "",
     vagustimDaytime: false,

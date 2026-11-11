@@ -149,31 +149,6 @@ import PhotoSettings from "../components/PhotoSettings.astro";
 
       </fieldset>
 
-      <div class="capacity-rating-grid">
-        <label class="field-label">
-          How supported did I feel today? · 0 none → 4 very
-          <select id="supported-score">
-            <option value="">Not answered</option>
-            <option value="0">0 · None</option>
-            <option value="1">1</option>
-            <option value="2">2 · Some</option>
-            <option value="3">3</option>
-            <option value="4">4 · Very</option>
-          </select>
-        </label>
-        <label class="field-label">
-          How much did life feel like something I had to carry alone? · 0 not at all → 4 completely
-          <select id="carried-alone-score">
-            <option value="">Not answered</option>
-            <option value="0">0 · Not at all</option>
-            <option value="1">1</option>
-            <option value="2">2 · Somewhat</option>
-            <option value="3">3</option>
-            <option value="4">4 · Completely</option>
-          </select>
-        </label>
-      </div>
-
       <details class="optional-details" data-optional-note>
         <summary>Anything worth remembering — add a note</summary>
       <label class="field-label">
@@ -220,7 +195,37 @@ import PhotoSettings from "../components/PhotoSettings.astro";
       <p class="empty-state">Breakfast comparisons will appear after you have logged them.</p>
     </div>
     <p id="capacity-copy-status" class="autosave-status" aria-live="polite"></p>
-  </section>  <section id="capacity-week" class="plain-panel capacity-weekly-panel" inert>
+  </section>
+
+  <details class="optional-details"><summary>Support and shared load (optional)</summary>
+    <p class="field-helper">For the entry date selected on Today.</p>
+      <div class="capacity-rating-grid">
+        <label class="field-label">
+          How supported did I feel today? · 0 none → 4 very
+          <select id="supported-score">
+            <option value="">Not answered</option>
+            <option value="0">0 · None</option>
+            <option value="1">1</option>
+            <option value="2">2 · Some</option>
+            <option value="3">3</option>
+            <option value="4">4 · Very</option>
+          </select>
+        </label>
+        <label class="field-label">
+          How much did life feel like something I had to carry alone? · 0 not at all → 4 completely
+          <select id="carried-alone-score">
+            <option value="">Not answered</option>
+            <option value="0">0 · Not at all</option>
+            <option value="1">1</option>
+            <option value="2">2 · Somewhat</option>
+            <option value="3">3</option>
+            <option value="4">4 · Completely</option>
+          </select>
+        </label>
+      </div>
+  </details>
+
+  <section id="capacity-week" class="plain-panel capacity-weekly-panel" inert>
     <div class="capacity-section-heading">
       <div>
         <p class="eyebrow">Weekly Capacity Review</p>

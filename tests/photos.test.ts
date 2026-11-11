@@ -90,3 +90,11 @@ test('V2 cloud sync retains zeroes and intentional blank edits without modifying
   assert.equal(changed.v2Entries[0].physicalFatigue, 0); assert.equal(changed.v2Entries[0].notes, '');
   assert.deepEqual(changed.records, []);
 });
+
+test('autosaved protocol duration survives mirror sync without declaring unchecked sessions missed', () => {
+  const row = {...createEmptyV2Entry('2026-11-11'), bioLightFullSpectrum: true, bioLightDurationMinutes: 20 as const, updatedAt: '2026-11-11T10:00:00Z'};
+  const mirror = mergeMirror(null, {records: [], v2Entries: [row]});
+  assert.equal(mirror.v2Entries[0].bioLightDurationMinutes, 20);
+  assert.equal(mirror.v2Entries[0].entryStatus, 'draft');
+  assert.equal(mirror.v2Entries[0].vagustimEvening, false);
+});
