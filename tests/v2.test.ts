@@ -11,7 +11,20 @@ test("V2 entries start unanswered rather than implying no intervention", () => {
   assert.equal(entry.entryStatus, "draft");
   assert.equal(entry.bioLightFullSpectrum, false);
   assert.equal(entry.bioLightEffect, "");
+  assert.equal(entry.bioLightDurationMinutes, "");
   assert.equal(entry.vagustimDaytimeEffect, "");
+});
+
+test("short BioLight sessions retain their actual duration without inventing old durations", () => {
+  const older = normaliseV2Entry({date: "2026-11-04", bioLightFullSpectrum: true, bioLightBrightness: "8", entryStatus: "complete"});
+  assert.equal(older.bioLightDurationMinutes, "");
+  assert.equal(older.bioLightBrightness, "8");
+  assert.equal(older.entryStatus, "complete");
+  for (const minutes of [10, 20, 40, 60] as const) {
+    const saved = normaliseV2Entry({...older, bioLightDurationMinutes: minutes});
+    assert.equal(normaliseV2Entry(JSON.parse(JSON.stringify(saved))).bioLightDurationMinutes, minutes);
+    assert.equal(saved.bioLightBrightness, "8");
+  }
 });
 
 test("V2 normalisation preserves explicit zero scores and unchecked protocol states", () => {

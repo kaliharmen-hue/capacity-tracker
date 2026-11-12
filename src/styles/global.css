@@ -16,6 +16,64 @@
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+/* Today is an input flow. Reference, review and account tools open on demand. */
+.capacity-page .app-header { position: relative; padding: 12px 16px; gap: 10px; }
+.capacity-page .app-header .eyebrow { display: none; }
+.capacity-page .app-header h1 { font-size: 1.1rem; }
+.capacity-page .top-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); min-width: 0; }
+.capacity-page .top-nav a { padding: 8px; }
+.top-nav-more { position: relative; }
+.top-nav-more > summary { min-height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-weight: 700; }
+.top-nav-more > summary::after { content: " ▾"; margin-left: 6px; }
+.top-nav-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; padding: 8px; width: min(270px, 80vw); display: grid; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+.capacity-page main { max-width: 780px; }
+.capacity-page .capacity-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+.capacity-page .capacity-heading h2 { font-size: 1.6rem; }
+.capacity-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.capacity-tools button { padding: 8px 10px; min-height: 44px; }
+.capacity-page .capacity-builder-grid { grid-template-columns: minmax(0, 1fr); }
+.capacity-page .capacity-day-controls { grid-template-columns: 1fr; gap: 10px; }
+.capacity-page .capacity-day-controls nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.capacity-page .capacity-day-controls nav a { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 8px; text-decoration: none; justify-content: center; text-align: center; }
+.capacity-page .capacity-v2-form { grid-template-columns: minmax(0, 1fr); }
+.capacity-page .capacity-v2-check-in { margin-top: 18px; }
+.capacity-page .form-section, .capacity-page .capacity-daily-panel { padding: 16px; gap: 12px; }
+.capacity-page .capacity-check-grid { grid-template-columns: minmax(0, 1fr); }
+.capacity-page .capacity-check, .capacity-page .check-row { padding: 10px; min-height: 44px; }
+.capacity-page .check-row strong, .capacity-page .capacity-check strong { font-weight: 650; }
+.capacity-page .field-label { gap: 6px; }
+.capacity-page textarea { min-height: 76px; }
+.capacity-page [hidden] { display: none !important; }
+.optional-details > summary { cursor: pointer; color: var(--accent-dark); min-height: 44px; padding: 10px 0; font-weight: 650; }
+.optional-details[open] > summary { margin-bottom: 8px; }
+.optional-details > summary.secondary-button { padding: 10px 14px; width: fit-content; }
+.optional-details .field-label { margin-top: 8px; }
+.text-button { background: none; border: 0; color: var(--accent-dark); text-decoration: underline; min-height: 44px; padding: 8px 0; cursor: pointer; font-weight: 650; justify-self: start; }
+.capacity-page .field-helper { font-size: 0.85rem; line-height: 1.4; font-weight: 400; }
+.capacity-page .capacity-save-line { padding-top: 8px; }
+.capacity-page .autosave-status:empty, #v2-food-status:empty { display: none; }
+.capacity-dialog { width: min(740px, calc(100% - 24px)); max-height: 90vh; max-height: 90svh; border: 1px solid var(--line); border-radius: 12px; padding: 0 16px 16px; color: var(--ink); background: var(--bg); overflow: auto; overscroll-behavior: contain; }
+.capacity-dialog::backdrop { background: rgba(25, 35, 31, 0.45); }
+.dialog-heading { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; background: var(--bg); border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+.dialog-heading h2 { margin: 0; font-size: 1.35rem; }
+.dialog-heading button { padding: 8px 12px; }
+.capacity-dialog > section, .capacity-dialog > div:not(.dialog-heading) { margin: 12px 0; }
+.capacity-dialog .capacity-stage-panel { grid-template-columns: 1fr; }
+.capacity-dialog .plain-panel, .photo-settings-panel { padding: 14px; }
+.photo-settings-panel { display: grid; gap: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); scroll-margin-top: 88px; }
+.capacity-dialog .capacity-progress-panel { position: static; }
+.capacity-page #capacity-form, .capacity-page #v2-check-in, .capacity-page #v2-food-section { scroll-margin-top: 16px; }
+.capacity-page .meal-photo-actions { gap: 8px; }
+.capacity-page #v2-meal-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.capacity-page #v2-meal-list img { max-height: 160px; width: 100%; object-fit: cover; border-radius: 6px; }
+.capacity-page .meal-card { min-width: 0; padding: 10px; }
+@media (max-width: 420px) {
+  .capacity-page main { padding: 12px; }
+  .capacity-page .capacity-heading { flex-wrap: wrap; }
+  .capacity-page .top-nav a { font-size: 0.85rem; }
+  .capacity-page .capacity-rating-grid, .capacity-page .breakfast-outcome-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
 * {
   box-sizing: border-box;
 }

@@ -22,6 +22,9 @@ import { issuePhoneConnectionCode } from './whoop-connection';
 import type { DailyEntry } from "./schema";
 import { DraftJournal } from "./v2-journal";
 import { flushV2, hasPendingV2, loadV2 } from "./v2";
+import { initCapacityUI, refreshOptionalFields } from "./capacity-ui";
+
+initCapacityUI();
 
 const dateInput = document.querySelector<HTMLInputElement>("#capacity-date")!;
 const dateStatus = document.querySelector<HTMLElement>("#capacity-date-status")!;
@@ -591,6 +594,7 @@ async function revokeChatGPTAccess(): Promise<void> {
 async function loadPractice(date: string): Promise<void> {
   const entry = { ...emptyPractice(date), ...(practices.read(date) ?? await getCapacityPractice(date)) };
   setPractice(entry);
+  refreshOptionalFields();
   if (saveStatus) saveStatus.textContent = "Autosaves as I go";
 }
 

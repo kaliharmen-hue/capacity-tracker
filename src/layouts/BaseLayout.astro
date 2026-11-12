@@ -41,7 +41,7 @@ const links = [
     <link rel="apple-touch-icon" href={icon192} />
     <title>{title} | Personal Operating System</title>
   </head>
-  <body>
+  <body class:list={{ "capacity-page": active === "capacity" }}>
     <header class="app-header">
       <div>
         <p class="eyebrow">Private local journal</p>
@@ -49,12 +49,20 @@ const links = [
       </div>
       <nav class="top-nav" aria-label="Main navigation">
         {
-          links.map((link) => (
+          (active === "capacity" ? links.slice(0, 2) : links).map((link) => (
             <a href={link.href} aria-current={active === link.key ? "page" : undefined}>
               {link.label}
             </a>
           ))
         }
+        {active === "capacity" && (
+          <details class="top-nav-more">
+            <summary>More</summary>
+            <div class="top-nav-menu">
+              {links.slice(2).map(link => <a href={link.href}>{link.label}</a>)}
+            </div>
+          </details>
+        )}
       </nav>
     </header>
     <main>
@@ -68,7 +76,7 @@ const links = [
       if ("serviceWorker" in navigator) {
         const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
         window.addEventListener("load", () => {
-          navigator.serviceWorker.register(`${base}sw.js?v=18`).then((registration) => registration.update()).catch(() => undefined);
+          navigator.serviceWorker.register(`${base}sw.js?v=19`).then((registration) => registration.update()).catch(() => undefined);
         });
       }
     </script>
