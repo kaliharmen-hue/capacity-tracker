@@ -47,6 +47,34 @@ test("V2 normalisation preserves explicit zero scores and unchecked protocol sta
   assert.equal(entry.vagustimDaytimeEffect, "No noticeable change");
 });
 
+test("evening observations survive storage and leave historical activities unanswered", () => {
+  const older = normaliseV2Entry({date: "2026-11-04", notes: "Existing note"});
+  assert.equal(older.eveningForMyself, "");
+  assert.equal(older.eveningCompany, "");
+  assert.equal(older.eveningNotes, "");
+  assert.equal(older.eveningExperience, "");
+  // An activity is independent of being alone: company must not erase self-care.
+  const saved = normaliseV2Entry(JSON.parse(JSON.stringify({
+    ...older, eveningCompany: "Spent the evening with Keith", eveningForMyself: "Using Sensate", eveningNotes: "A quiet evening"
+  })));
+  assert.equal(saved.eveningForMyself, "Using Sensate");
+  assert.equal(saved.notes, "Existing note");
+  assert.equal(saved.eveningCompany, "Spent the evening with Keith");
+  assert.equal(saved.eveningNotes, "A quiet evening");
+  assert.equal(normaliseV2Entry({date: older.date, spentEveningAlone: true}).eveningCompany, "Spent the evening alone");
+  assert.equal(normaliseV2Entry({date: older.date, spentEveningAlone: false}).eveningCompany, "");
+  assert.equal(normaliseV2Entry({...saved, spentEveningAlone: true}).eveningCompany, "Spent the evening with Keith");
+});
+
+test("evening experience is optional and retained without company or activity answers", () => {
+  for (const eveningExperience of ["Calm", "Enjoyable / connected", "Triggered", "Argument / conflict", "Anxious", "Restless", "Draining", "Mixed", "Other"] as const) {
+    const entry = normaliseV2Entry(JSON.parse(JSON.stringify({date: "2026-11-14", eveningExperience})));
+    assert.equal(entry.eveningExperience, eveningExperience);
+    assert.equal(entry.eveningCompany, "");
+    assert.equal(entry.eveningForMyself, "");
+  }
+});
+
 test("V2 option lists match the agreed low-burden questionnaire", () => {
   assert.deepEqual(functionalImpactOptions, [
     "No impact",

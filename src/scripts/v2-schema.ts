@@ -44,6 +44,12 @@ export interface V2DailyEntry {
   vagustimDaytime: boolean;
   vagustimDaytimeEffect: V2ImmediateEffect;
   vagustimEvening: boolean;
+  /** Preserve the earlier checkbox if present; false never establishes company. */
+  spentEveningAlone?: boolean;
+  eveningCompany: "" | "Spent the evening alone" | "Spent the evening with Keith" | "Spent the evening with someone else";
+  eveningForMyself: "" | "Meditation" | "Journaling" | "Relaxing music and doing nothing" | "Reading" | "Using Sensate" | "Other";
+  eveningExperience: "" | "Calm" | "Enjoyable / connected" | "Triggered" | "Argument / conflict" | "Anxious" | "Restless" | "Draining" | "Mixed" | "Other";
+  eveningNotes: string;
   meals: V2Meal[];
   updatedAt: string;
 }
@@ -80,12 +86,19 @@ export function createEmptyV2Entry(date: string): V2DailyEntry {
     vagustimDaytime: false,
     vagustimDaytimeEffect: "",
     vagustimEvening: false,
+    eveningCompany: "",
+    eveningForMyself: "",
+    eveningExperience: "",
+    eveningNotes: "",
     meals: [],
     updatedAt: ""
   };
 }
 
 export function normaliseV2Entry(value: Partial<V2DailyEntry> & Pick<V2DailyEntry, "date">): V2DailyEntry {
-  return { ...createEmptyV2Entry(value.date), ...value, schemaVersion: 1 };
+  return {
+    ...createEmptyV2Entry(value.date), ...value, schemaVersion: 1,
+    eveningCompany: value.eveningCompany ?? (value.spentEveningAlone === true ? "Spent the evening alone" : "")
+  };
 }
 
