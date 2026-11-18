@@ -123,6 +123,27 @@ successful receipt older than seven days; metadata survives. Provider recovery
 backups may outlive live-image deletion. No new WHOOP authorization is needed
 when the existing browser owner session is still valid.
 
+### Photo corrections and removal
+
+The owner-only POST endpoints `/api/meal-photos/update` and
+`/api/meal-photos/remove` use the same session and app-origin checks as upload.
+Updates accept an exact photo ID, `time` (HH:mm or blank) and `note`.
+Correcting details clears the old review receipt/retrieval marker so it cannot
+trigger cleanup based on a review of outdated details. Original image bytes and
+the entry date are unchanged.
+
+Manual removal deletes the image and its meal details from active storage.
+Only an ID tombstone remains, excluded from owner and MCP lists, to reject late
+uploads of that ID. This differs from automatic seven-day cleanup, which keeps
+meal metadata. Already-written external ChatGPT messages and provider recovery
+backups are not erased by this operation.
+
+The phone can select several images for the same date, time and note; it saves
+and compresses each separately. Partial uploads keep their existing IDs in the
+local retry queue. Pending photos can be edited locally; removal requires a
+confirmed server response, preventing an uncertain upload from reappearing.
+No new resources, scopes, billing plan or paid AI services are introduced.
+
 <!-- Cloudflare deployment trigger: 2026-10-22 -->
 
 <!-- Cloudflare build-settings retry: 2026-10-23 -->

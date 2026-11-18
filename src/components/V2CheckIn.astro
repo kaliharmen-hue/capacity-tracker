@@ -42,10 +42,10 @@
       <button id="v2-food-library" type="button" class="secondary-button" aria-controls="v2-food-image">Choose existing photo</button>
       <button id="v2-food-take" type="button" class="secondary-button" aria-controls="v2-food-camera">Take new photo</button>
     </div>
-    <input id="v2-food-image" type="file" accept="image/*" aria-label="Existing meal photo" hidden />
+    <input id="v2-food-image" type="file" accept="image/*" multiple aria-label="Existing meal photos" hidden />
     <input id="v2-food-camera" type="file" accept="image/*" capture="environment" aria-label="New meal photo" hidden />
     <p id="v2-food-selected" class="field-helper" hidden></p>
-    <img id="v2-food-preview" class="meal-preview" alt="Selected meal" hidden />
+    <div id="v2-food-preview" class="meal-selection" hidden></div>
     <label class="field-label">Meal time<input id="v2-food-time" type="time" /></label>
     <details class="optional-details" data-optional-note><summary>Add a meal note</summary><label class="field-label">Meal note<textarea id="v2-food-note" rows="2" maxlength="2000" placeholder="Ingredients or portion details"></textarea></label></details>
     <button id="v2-food-save" type="button" class="primary-button">Save meal photo</button>

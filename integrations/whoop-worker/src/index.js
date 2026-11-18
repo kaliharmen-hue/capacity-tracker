@@ -1004,7 +1004,7 @@ export default {
         if (!owner || owner.sessionId !== ownerId) return json({ error: 'Connect the owner WHOOP account in Capacity Building first.' }, 401, corsHeaders(request, env));
         if (request.method === 'POST' && request.headers.get('Origin') !== appOrigin(env)) return json({ error: 'Invalid origin' }, 403, corsHeaders(request, env));
         const path = url.pathname.slice('/api/meal-photos'.length) || '/list';
-        if (!['/list', '/upload', '/image', '/settings'].includes(path) || (['/list', '/image'].includes(path) ? request.method !== 'GET' : request.method !== 'POST')) return json({ error: 'Method not allowed' }, 405, corsHeaders(request, env));
+        if (!['/list', '/upload', '/image', '/settings', '/update', '/remove'].includes(path) || (['/list', '/image'].includes(path) ? request.method !== 'GET' : request.method !== 'POST')) return json({ error: 'Method not allowed' }, 405, corsHeaders(request, env));
         if (Number(request.headers.get('Content-Length') || 0) > 1_100_000) return json({ error: 'Photo upload too large' }, 413, corsHeaders(request, env));
         const text = request.method === 'POST' ? await request.text() : undefined;
         if (text && text.length > 1_100_000) return json({ error: 'Photo upload too large' }, 413, corsHeaders(request, env));
