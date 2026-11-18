@@ -13,12 +13,16 @@ export function cleanupCandidates(photos, now) {
 
 export function validatePhoto(body) {
   if (!validDate(body.date) || !/^[0-9a-f-]{36}$/i.test(body.id || '')) throw new Error('Invalid photo date or ID.');
-  if (body.time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(body.time)) throw new Error('Invalid meal time.');
-  if (typeof body.note !== 'string' || body.note.length > 2000) throw new Error('Meal note is too long.');
+  validateDetails({ time: body.time ?? '', note: body.note });
   if (body.consent !== true || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(body.image || '')) throw new Error('A JPEG and consent are required.');
   const bytes = Uint8Array.from(atob(body.image.split(',')[1]), c => c.charCodeAt(0));
   if (bytes.length < 4 || bytes.length > PHOTO_LIMIT || bytes[0] !== 255 || bytes[1] !== 216 || bytes[2] !== 255) throw new Error('Photo must be a JPEG smaller than 750 KB.');
   return bytes;
+}
+
+function validateDetails(body) {
+  if (typeof body.time !== 'string' || (body.time !== '' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(body.time))) throw new Error('Invalid meal time.');
+  if (typeof body.note !== 'string' || body.note.length > 2000) throw new Error('Meal note is too long.');
 }
 
 // All mutations run through a single named object, including uploads and cleanup.
@@ -52,9 +56,9 @@ export class PhotoLibraryStorage {
       const bytes = validatePhoto(body);
       const previous = await this.state.storage.get(`photo:${body.id}`);
       if (previous?.state === 'available') return Response.json(previous);
-      if (previous?.state === 'deleted') throw new Error('This photo ID has already been deleted.');
+      if (previous) return Response.json({ error: 'This photo ID has already been deleted.' }, { status: 409 });
       await this.cleanup();
-      const total = (await this.photos()).filter(p => p.state !== 'deleted').reduce((sum, p) => sum + p.bytes, 0);
+      const total = (await this.photos()).filter(p => p.state === 'available').reduce((sum, p) => sum + p.bytes, 0);
       // Keep unreviewed images when the quota is reached. Do not silently evict them.
       if (total + (previous ? 0 : bytes.length) >= STORAGE_LIMIT) return Response.json({ error: 'Photo storage is full. Review older photos before adding more.' }, { status: 409 });
       const photo = { id: body.id, date: body.date, time: body.time || '', note: body.note, bytes: bytes.length, createdAt: new Date().toISOString(), state: 'available', reviewedAt: null };
@@ -62,6 +66,26 @@ export class PhotoLibraryStorage {
         await storage.put(`image:${photo.id}`, bytes);
         await storage.put(`photo:${photo.id}`, photo);
       });
+      return Response.json(photo);
+    }
+    if (['/update', '/remove'].includes(url.pathname) && request.method === 'POST') {
+      const body = await request.json();
+      if (!/^[0-9a-f-]{36}$/i.test(body.id || '')) throw new Error('Invalid photo ID.');
+      const previous = await this.state.storage.get(`photo:${body.id}`);
+      if (url.pathname === '/remove') {
+        // Retain only an ID tombstone so a delayed upload cannot restore a removed photo.
+        await this.state.storage.transaction(async storage => {
+          await storage.delete(`image:${body.id}`);
+          await storage.put(`photo:${body.id}`, { id: body.id, state: 'removed' });
+        });
+        return Response.json({ removed: body.id });
+      }
+      if (!previous || previous.state === 'removed') return Response.json({ error: 'Photo is unavailable or has been removed.' }, { status: 404 });
+      validateDetails(body);
+      if (body.time === previous.time && body.note === previous.note) return Response.json(previous);
+      const photo = { ...previous, time: body.time, note: body.note, updatedAt: new Date().toISOString(),
+        reviewedAt: null, retrievedAt: null, reviewReference: null };
+      await this.state.storage.put(`photo:${body.id}`, photo);
       return Response.json(photo);
     }
     if (url.pathname === '/receipt' && request.method === 'POST') {
@@ -83,8 +107,8 @@ export class PhotoLibraryStorage {
     }
     const all = await this.photos();
     const start = url.searchParams.get('start'), end = url.searchParams.get('end');
-    const selected = all.filter(p => (!start || p.date >= start) && (!end || p.date <= end)).sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt));
-    return Response.json({ photos: selected, bytesUsed: all.filter(p => p.state !== 'deleted').reduce((sum, p) => sum + p.bytes, 0), limitBytes: STORAGE_LIMIT, cleanupEnabled: Boolean(await this.state.storage.get('cleanupEnabled')) });
+    const selected = all.filter(p => p.state !== 'removed' && (!start || p.date >= start) && (!end || p.date <= end)).sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt));
+    return Response.json({ photos: selected, bytesUsed: all.filter(p => p.state === 'available').reduce((sum, p) => sum + p.bytes, 0), limitBytes: STORAGE_LIMIT, cleanupEnabled: Boolean(await this.state.storage.get('cleanupEnabled')) });
   }
 }
 

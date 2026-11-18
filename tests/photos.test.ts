@@ -23,6 +23,63 @@ test('private photos reject anonymous and non-owner access before touching stora
   const response = await worker.fetch(new Request('https://bridge.example/api/meal-photos/list'), env);
   assert.equal(response.status, 401);
 });
+
+test('photo mutations require the owner session, the app origin and POST; read-only readers cannot mutate', async () => {
+  let calls = 0;
+  const env = {
+    WHOOP_AUTH: { get: async key => key === 'owner-session' ? 'owner' : key === 'session:owner' || key === 'session:other' ? {} : null },
+    APP_ORIGIN: 'https://tracker.example/app/', PUBLIC_BASE_URL: 'https://bridge.example',
+    PHOTO_LIBRARY: { idFromName: () => 'owner-meal-photos', get: () => ({ fetch: async () => { calls++; return Response.json({ ok: true }); } }) }
+  };
+  for (const path of ['update', 'remove']) {
+    const request = (token, origin = 'https://tracker.example', method = 'POST') => new Request('https://bridge.example/api/meal-photos/' + path, { method, headers: { Authorization: 'Bearer ' + token, Origin: origin }, ...(method === 'POST' ? { body: JSON.stringify({ id: photo().id, time: '09:15', note: 'Correction' }) } : {}) });
+    for (const token of ['', 'other', 'read-only-reader']) assert.equal((await worker.fetch(request(token), env)).status, 401);
+    assert.equal((await worker.fetch(request('owner', 'https://untrusted.example'), env)).status, 403);
+    assert.equal((await worker.fetch(request('owner', 'https://tracker.example', 'GET'), env)).status, 405);
+    assert.equal(calls, path === 'update' ? 0 : 1);
+    assert.equal((await worker.fetch(request('owner'), env)).status, 200);
+  }
+  assert.equal(calls, 2);
+});
+
+test('editing time or note preserves the image and other photos, and invalidates old review receipts', async () => {
+  const f = fixture();
+  const first = photo(), other = photo('22222222-2222-4222-8222-222222222222');
+  await f.call('/upload', first); await f.call('/upload', other);
+  await f.call('/image?id=' + first.id + '&review=true');
+  await f.call('/receipt', { photo_ids: [first.id], review_reference: 'Earlier review' });
+  const original = structuredClone(f.values.get('image:' + first.id));
+  const result = await f.call('/update', { id: first.id, time: '08:45', note: 'Corrected breakfast' });
+  assert.equal(result.status, 200);
+  const updated = await result.json();
+  assert.equal(updated.time, '08:45'); assert.equal(updated.note, 'Corrected breakfast');
+  assert.equal(updated.date, first.date); assert.equal(updated.reviewedAt, null); assert.equal(updated.retrievedAt, null); assert.equal(updated.reviewReference, null);
+  assert.deepEqual(f.values.get('image:' + first.id), original);
+  assert.equal(f.values.get('photo:' + other.id).time, other.time);
+  assert.equal((await f.call('/receipt', { photo_ids: [first.id], review_reference: 'Stale review' })).status, 400);
+  for (const details of [{ time: '25:00', note: '' }, { time: '', note: 'x'.repeat(2001) }, { time: null, note: '' }]) assert.equal((await f.call('/update', { id: first.id, ...details })).status, 400);
+  assert.equal((await f.call('/update', { id: other.id, time: '', note: '' })).status, 200);
+  assert.equal((await f.call('/update', { id: '33333333-3333-4333-8333-333333333333', time: '', note: '' })).status, 404);
+});
+
+test('manual removal excludes the duplicate from reads, releases bytes, and cannot be undone by a late upload', async () => {
+  const f = fixture(); const first = photo(), other = photo('22222222-2222-4222-8222-222222222222');
+  await f.call('/upload', first); await f.call('/upload', other);
+  const before = await (await f.call('/list')).json();
+  assert.equal((await f.call('/remove', { id: first.id })).status, 200);
+  assert.equal((await f.call('/remove', { id: first.id })).status, 200, 'Delete retries are idempotent');
+  const after = await (await f.call('/list')).json();
+  assert.deepEqual(after.photos.map(p => p.id), [other.id]);
+  assert(after.bytesUsed < before.bytesUsed); assert.equal(f.objects.size, 1);
+  assert.deepEqual(f.values.get('photo:' + first.id), { id: first.id, state: 'removed' }, 'No meal details remain in the tombstone');
+  assert.equal((await f.call('/image?id=' + first.id)).status, 404);
+  assert.equal((await f.call('/upload', first)).status, 409);
+  assert.equal((await f.call('/update', { id: first.id, time: '', note: '' })).status, 404);
+  assert.equal((await f.call('/receipt', { photo_ids: [first.id], review_reference: 'Old review' })).status, 400);
+  const delayed = photo('33333333-3333-4333-8333-333333333333');
+  await f.call('/remove', { id: delayed.id });
+  assert.equal((await f.call('/upload', delayed)).status, 409, 'Deleting an uncertain pending upload prevents late restoration');
+});
 test('uploads are idempotent, metadata survives cleanup, and pending review never means reviewed', async () => {
   const f = fixture();
   assert.equal((await f.call('/upload', photo())).status, 200);
