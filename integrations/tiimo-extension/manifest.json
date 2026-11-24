@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Personal Planner – Tiimo diagnostic",
+  "version": "0.1.0",
+  "description": "Inspect visible Tiimo planner data locally, without sending it anywhere.",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
