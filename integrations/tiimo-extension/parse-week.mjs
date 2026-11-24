@@ -30,6 +30,7 @@ export function parseWeek(report) {
  const zero=ticks.find(x=>x.text==="00:00").ancestors[2].rect[1];
  const scale=(ticks.find(x=>x.text==="23:00").ancestors[2].rect[1]-zero)/23;
  if(scale<=0||ticks.some(x=>Math.abs(x.ancestors[2].rect[1]-zero-Number(x.text.slice(0,2))*scale)>2)) throw Error("Irregular hour grid");
+ const timedEntries=[];
  for(const item of items){
  const a=item.ancestors||[];
  if(a[1]?.tag!=="P"||!/[\p{L}\p{N}]/u.test(item.text)) continue;
@@ -41,7 +42,23 @@ export function parseWeek(report) {
  const raw=(rect[1]-zero-8)*60/scale;
  const minutes=Math.round(raw/5)*5;
  const start=!flexible&&minutes>=0&&minutes<1440?String(Math.floor(minutes/60)).padStart(2,"0")+":"+String(minutes%60).padStart(2,"0"):null;
- day.activities.push({title:item.text,start,flexible,timeConfidence:start?"estimated-grid":"unknown",durationMinutes:null,completed:null});
+ const activity={title:item.text,start,flexible,timeConfidence:start?"estimated-grid":"unknown",durationMinutes:null,completed:null};
+ day.activities.push(activity);
+ if(!flexible)timedEntries.push(activity);
+ }
+ // Only match explicit duration labels when the complete timed title sequence agrees.
+ const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
+ const firstHour=lines.lastIndexOf("00:00");
+ const lastHour=lines.indexOf("23:00",firstHour);
+ if(firstHour>=0&&lastHour-firstHour===23&&lines.slice(firstHour,lastHour+1).every((line,i)=>line===String(i).padStart(2,"0")+":00")){
+ const wanted=new Set(timedEntries.map(a=>a.title));
+ const labels=lines.slice(lastHour+1).map((line,i,all)=>({line,next:all[i+1]})).filter(x=>wanted.has(x.line));
+ if(labels.length===timedEntries.length&&labels.every((label,i)=>label.line===timedEntries[i].title)){
+ for(let i=0;i<labels.length;i++){
+ const duration=labels[i].next?.match(/^(?:(\d+)h(?:\s+(\d+)m)?|(\d+)m)$/);
+ if(duration){const minutes=Number(duration[1]||0)*60+Number(duration[2]||duration[3]||0);if(minutes>0&&minutes<=1440)timedEntries[i].durationMinutes=minutes;}
+ }
+ }else warnings.push("Explicit duration labels could not be matched safely");
  }
  return {source:"tiimo-week",coverage:"partial",capturedAt:report.capturedAt,days:days.map(({rect,...day})=>day),warnings};
 }
