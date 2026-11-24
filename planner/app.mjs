@@ -9,6 +9,9 @@ let signedIn = false;
 let busy = false;
 let conflict = null;
 let timer;
+let lastAttempt = 0;
+let probeAllowed = true;
+let syncRequested = false;
 
 function read() {
   const raw = localStorage.getItem(key);
@@ -41,12 +44,16 @@ async function run(action) {
   render();
   try { await locked(action); }
   catch (error) { message(error.message || 'Planner could not complete the request.'); }
-  finally { busy = false; render(); }
+  finally { busy = false; render(); if (syncRequested) { syncRequested = false; scheduleSync(); } }
 }
 
-function scheduleSync() {
+function scheduleSync(force = false) {
   clearTimeout(timer);
-  if (signedIn && !conflict) timer = setTimeout(() => run(sync), 650);
+  if ((!signedIn && !probeAllowed) || conflict || !navigator.onLine) return;
+  timer = setTimeout(() => {
+    if (busy) { syncRequested = true; return; }
+    run(sync);
+  }, force ? 650 : Math.max(650, 5000 - (Date.now() - lastAttempt)));
 }
 
 function edit(id, patch) {
@@ -64,7 +71,7 @@ async function api(path, method = 'GET', body) {
     ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   });
   const data = await response.json();
-  if (response.status === 401) signedIn = false;
+  if (response.status === 401) { signedIn = false; probeAllowed = false; }
   if (!response.ok && response.status !== 409) {
     const error = new Error(data.error ?? 'Cloud request failed.');
     error.status = response.status;
@@ -74,6 +81,9 @@ async function api(path, method = 'GET', body) {
 }
 
 async function sync() {
+  lastAttempt = Date.now();
+  // Never upload pending edits before establishing the current session.
+  if (!signedIn) { await api('tasks'); signedIn = true; probeAllowed = true; }
   const base = state.base;
   const draft = state.draft;
   const edits = changes(base, draft);
@@ -136,6 +146,7 @@ function button(label, action) {
 function render() {
   $('login').hidden = signedIn;
   $('cloud').hidden = !signedIn;
+  $('account-status').textContent = signedIn ? 'Signed in · automatic sync enabled' : 'Sign in to sync across devices';
   $('login-submit').disabled = $('capture-submit').disabled = $('sync').disabled = $('logout').disabled = busy;
   $('restore').disabled = busy;
   $('conflict').hidden = !conflict || !signedIn;
@@ -223,6 +234,7 @@ $('login').onsubmit = event => {
   run(async () => {
     await api('login', 'POST', { key: ownerKey });
     signedIn = true;
+    probeAllowed = true;
     await sync();
   });
 };
@@ -234,6 +246,9 @@ $('logout').onclick = () => run(async () => {
   }
   await api('logout', 'POST');
   signedIn = false;
+  probeAllowed = false;
+  syncRequested = false;
+  clearTimeout(timer);
   conflict = null;
   persist([], []);
   localStorage.removeItem(legacyKey);
@@ -270,14 +285,17 @@ window.addEventListener('storage', event => {
   conflict = null;
   render();
 });
-window.addEventListener('focus', () => { if (signedIn && !conflict) run(sync); });
-window.addEventListener('online', () => { if (signedIn && !conflict) run(sync); });
+function resume() { if (!document.hidden && Date.now() - lastAttempt >= 5000) scheduleSync(); }
+window.addEventListener('focus', resume);
+document.addEventListener('visibilitychange', resume);
+window.addEventListener('online', () => scheduleSync(true));
 
 try {
   state = read();
   render();
   // Probe session before uploading local changes.
   run(async () => {
+    lastAttempt = Date.now();
     try { await api('tasks'); } catch (error) {
       if (error.status === 401) message('Sign in to sync. Tasks can be saved on this device.');
       else if (error.status === 503) message(error.message + '. Tasks can be saved on this device.');
