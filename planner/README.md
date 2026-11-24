@@ -42,7 +42,7 @@ Tiimo diagnostics and parsers are local-only and represent partial observations.
 ## Private ChatGPT connector
 
 The independently hosted `/mcp` endpoint exposes `list_tasks`, `create_task` and
-`update_task`. Open the private Personal Planner plugin and choose Connect.
+`update_task`. Open [Personal Planner Bridge](https://chatgpt.com/plugins/plugin_asdk_app_6b05ce7bde8881919a86cb899d6cdc16) and choose Connect.
 Sign in on Planner if needed, then approve read-only or read/create/update access.
 ChatGPT uses OAuth authorization code + S256 PKCE with a pre-registered public
 client (`personal-planner-chatgpt`, token authentication `none`) and the exact
@@ -58,6 +58,19 @@ Owner-key rotation also invalidates generated grants, codes and pending consent.
 The original API-key ChatGPT setup was incorrect: ChatGPT has no custom API-key
 entry field. Advanced integration keys remain available for other clients, but
 are not the ChatGPT linking method. No owner key belongs in a plugin or chat.
+
+The original private package (`plugins_6b05c7be12048191b346d2271c09ab72`)
+contains the Planner skill and a remote MCP declaration for compatible clients.
+ChatGPT also needs a registered custom MCP connection, not just that package.
+The private bridge was registered through Plugins → Add → Add custom MCP server,
+using the existing Worker endpoint and the public client ID above, token auth
+method `none`, the discovered endpoints and resource, and base scopes
+`planner:read planner:write`. Its app ID is
+`asdk_app_6b05ce7bde8881919a86cb899d6cdc16`; the original package now references
+that verified app in `.app.json`. This creates no second hosted backend, data
+store or paid service. The bridge's Connect step and the owner's approval are
+still required before real task access; registering a connection is not proof
+that it is authenticated. No production task was created just to test linking.
 
 The owner key and browser cookies cannot authorize MCP calls. Creating tasks
 requires a stable UUID request_id for retry safety; updates require the last

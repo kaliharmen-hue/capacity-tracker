@@ -15,6 +15,10 @@ export async function mcp(request, env, {json, readJson, integration}) {
   try {body=await readJson(request,32768);} catch {return json({error:'Invalid request'},400);}
   if(!body || body.jsonrpc!=='2.0' || Array.isArray(body)) return json({error:'Invalid JSON-RPC'},400);
   const result=value=>json({jsonrpc:'2.0',id:body.id??null,result:value});
+  const reconnect=(required,status=401)=>{
+    const auth=`Bearer resource_metadata="${new URL(request.url).origin}/.well-known/oauth-protected-resource", scope="${required}", error="insufficient_scope", error_description="Connect Personal Planner to continue"`;
+    return json({jsonrpc:'2.0',id:body.id??null,result:{isError:true,content:[{type:'text',text:'Connect Personal Planner to continue'}],_meta:{'mcp/www_authenticate':[auth]}}},status,{'WWW-Authenticate':auth});
+  };
   if(body.method==='notifications/initialized') return new Response(null,{status:202});
   if(body.method==='initialize') return result({protocolVersion:'2025-06-18',capabilities:{tools:{}},serverInfo:{name:'personal-planner',version:'1.0.0'}});
   if(body.method==='tools/list') return result({tools:tools.map(t=>({...t,securitySchemes:[{type:'oauth2',scopes:t.name==='list_tasks'?['planner:read']:['planner:read','planner:write']}],_meta:{securitySchemes:[{type:'oauth2',scopes:t.name==='list_tasks'?['planner:read']:['planner:read','planner:write']}]}}))});
@@ -27,8 +31,7 @@ export async function mcp(request, env, {json, readJson, integration}) {
   const current=await call('GET');
   if(!current.ok) {
     const required=name==='list_tasks'?'planner:read':'planner:read planner:write';
-    const auth=`Bearer resource_metadata="${new URL(request.url).origin}/.well-known/oauth-protected-resource", scope="${required}", error="insufficient_scope", error_description="Connect Personal Planner to continue"`;
-    return json({jsonrpc:'2.0',id:body.id??null,result:{isError:true,content:[{type:'text',text:'Connect Personal Planner to continue'}],_meta:{'mcp/www_authenticate':[auth]}}},401,{'WWW-Authenticate':auth});
+    return reconnect(required);
   }
   const snapshot=await current.json();
   let response;
@@ -45,6 +48,7 @@ export async function mcp(request, env, {json, readJson, integration}) {
       change={before,after:{...before,...patch}};
     }
     const write=await call('PATCH',[change]);
+    if(write.status===403)return reconnect('planner:read planner:write',403);
     if(!write.ok) return result({isError:true,content:[{type:'text',text:write.status===403?'Write permission required':write.status===409?'Task changed. Read again before retrying.':'Task update rejected'}]});
     const updated=await write.json();
     response={task:updated.tasks.find(t=>t.id===change.after.id),revision:updated.revision};

@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "personal-planner",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Private access to your independently hosted Personal Planner tasks, with separate revocable read or write permissions.",
   "author": {
     "name": "Kali Harmen",
@@ -19,7 +19,8 @@
           "Interactive"
         ],
         "defaultPrompt": "Show my tasks and help me choose what to do next."
-      }
+      },
+      "apps": "./.app.json"
     }
   }
 }

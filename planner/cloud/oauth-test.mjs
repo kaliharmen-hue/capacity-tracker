@@ -59,7 +59,9 @@ test('ChatGPT OAuth: discovery, owner consent, PKCE, task scopes, rotation, expi
   const ro=await (await exchange({code:roCode})).json();assert.equal(ro.scope,'planner:read');
   assert.equal((await call('/oauth/token','POST',{grant_type:'refresh_token',client_id:client,resource:base+'/mcp',refresh_token:ro.refresh_token,scope:'planner:read planner:write'})).status,400,'refresh cannot elevate scope');
   assert.equal((await rpc(ro.access_token)).status,200);
-  assert((await (await rpc(ro.access_token,'create_task',{request_id:crypto.randomUUID(),title:'Must not save'})).json()).result.isError);
+  const deniedWrite=await rpc(ro.access_token,'create_task',{request_id:crypto.randomUUID(),title:'Must not save'});
+  assert.equal(deniedWrite.status,403);assert.match(deniedWrite.headers.get('WWW-Authenticate'),/planner:write/);
+  assert((await deniedWrite.json()).result._meta['mcp/www_authenticate']);
   const denied=await approve(await pending(),'read',false);assert.equal(denied.searchParams.get('error'),'access_denied');assert.equal(denied.searchParams.get('code'),null);
   const expires=await pending();now+=601000;assert.equal((await call('/api/connectors','POST',{request_id:expires,approved:true,permission:'read'},owner)).status,400);
   const expiredCode=(await approve(await pending())).searchParams.get('code');now+=301000;assert.equal((await exchange({code:expiredCode})).status,400);

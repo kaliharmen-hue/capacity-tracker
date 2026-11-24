@@ -1,6 +1,6 @@
 {
   "name": "personal-planner",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Private access to your independently hosted Personal Planner tasks, with separate revocable read or write permissions.",
   "author": {
     "name": "Kali Harmen",
@@ -19,5 +19,6 @@
   },
   "keywords": [],
   "skills": "./skills",
-  "mcpServers": "./.mcp.json"
+  "mcpServers": "./.mcp.json",
+  "apps": "./.app.json"
 }
