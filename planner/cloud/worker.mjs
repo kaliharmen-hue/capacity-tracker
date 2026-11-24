@@ -1,7 +1,9 @@
 import { maxBytes, merge, task, taskList } from '../model.mjs';
 
 const cookie = '__Host-planner';
-const lifetime = 8 * 60 * 60;
+const lifetime = 30 * 24 * 60 * 60;
+const absoluteLifetime = 180 * 24 * 60 * 60;
+const renewalInterval = 24 * 60 * 60;
 const secretPattern = /^[!-~]{32,128}$/;
 const encoder = new TextEncoder();
 const security = {
@@ -95,15 +97,25 @@ export async function handle(request, env) {
   if (!token) return json({ error: 'Sign in to sync' }, 401);
   headers.set('x-planner-session', await digest(token));
 
+  // Only the outer authenticated HTTP handler can issue the browser cookie.
+  const forward = async internal => {
+    const response = await store.fetch(internal);
+    const seconds = Number(response.headers.get('x-planner-renew') || 0);
+    const outgoing = new Headers(response.headers);
+    outgoing.delete('x-planner-renew');
+    if (seconds > 0 && seconds <= lifetime) outgoing.set('Set-Cookie', sessionCookie(token, seconds));
+    return new Response(response.body, { status: response.status, headers: outgoing });
+  };
+
   if (method === 'PATCH') {
     try {
       const body = await readJson(request, 2 * maxBytes + 65536);
-      return store.fetch(new Request(url, { method, headers, body: JSON.stringify(body) }));
+      return forward(new Request(url, { method, headers, body: JSON.stringify(body) }));
     } catch (error) {
       return json({ error: 'Invalid sync request' }, error instanceof RangeError ? 413 : 400);
     }
   }
-  return store.fetch(new Request(url, { method, headers }));
+  return forward(new Request(url, { method, headers }));
 }
 
 export default { fetch: handle };
@@ -123,7 +135,7 @@ export class PlannerStore {
       await this.storage.transaction(async tx => {
         const existing = await tx.get('sessions') ?? [];
         const active = existing.filter(session => session.expires > now && session.keyVersion === keyVersion);
-        await tx.put('sessions', [...active.slice(-31), { id, keyVersion, expires: now + lifetime }]);
+        await tx.put('sessions', [...active.slice(-31), { id, keyVersion, issued: now, renewed: now, expires: now + lifetime }]);
       });
       return json({ signedIn: true }, 200, { 'Set-Cookie': sessionCookie(token, lifetime) });
     }
@@ -149,7 +161,8 @@ export class PlannerStore {
 
     return this.storage.transaction(async tx => {
       const sessions = await tx.get('sessions') ?? [];
-      if (!sessions.some(session => session.id === id && session.keyVersion === keyVersion && session.expires > now)) {
+      const session = sessions.find(session => session.id === id && session.keyVersion === keyVersion && session.expires > now && (session.issued ?? now) + absoluteLifetime > now);
+      if (!session) {
         return json({ error: 'Session expired. Sign in again.' }, 401);
       }
       if (path === '/api/logout') {
@@ -157,17 +170,25 @@ export class PlannerStore {
         return json({ signedIn: false }, 200, { 'Set-Cookie': sessionCookie('', 0) });
       }
 
+      // Upgrade unexpired legacy sessions; otherwise renew at most once per day.
+      let renewal = {};
+      if (!session.issued || !session.renewed || now - session.renewed >= renewalInterval) {
+        const issued = session.issued ?? now;
+        const expires = Math.min(now + lifetime, issued + absoluteLifetime);
+        await tx.put('sessions', sessions.map(s => s.id === id ? { ...s, issued, renewed: now, expires } : s));
+        renewal = { 'x-planner-renew': String(expires - now) };
+      }
       const old = await tx.get('snapshot') ?? { revision: 0, tasks: [] };
-      if (!edits) return json(old);
+      if (!edits) return json(old, 200, renewal);
       const result = merge(taskList(old.tasks), edits, old.revision + 1);
-      if (result.conflicts.length) return json({ ...old, conflicts: result.conflicts }, 409);
-      if (!result.changed) return json(old);
+      if (result.conflicts.length) return json({ ...old, conflicts: result.conflicts }, 409, renewal);
+      if (!result.changed) return json(old, 200, renewal);
       let tasks;
       try { tasks = taskList(result.tasks); }
-      catch (error) { return json({ error: error.message }, 422); }
+      catch (error) { return json({ error: error.message }, 422, renewal); }
       const next = { revision: old.revision + 1, tasks };
       await tx.put('snapshot', next);
-      return json(next);
+      return json(next, 200, renewal);
     });
   }
 }
