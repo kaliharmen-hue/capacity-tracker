@@ -72,6 +72,34 @@ export async function handle(request, env) {
   }
 
   const method = request.method;
+  // Server-to-server access is separate from browser login. It stays disabled
+  // unless explicitly provisioned, and never accepts the owner password.
+  if (pathname === '/api/integration/tasks') {
+    if (!['GET', 'PATCH'].includes(method)) return json({ error: 'Method not allowed' }, 405);
+    const readKey = env.PLANNER_READ_KEY ?? '';
+    const writeKey = env.PLANNER_WRITE_KEY ?? '';
+    const owner = env.PLANNER_OWNER_KEY?.trim() ?? '';
+    const candidate = request.headers.get('Authorization')?.match(/^Bearer ([!-~]{32,128})$/)?.[1] ?? '';
+    const valid = key => secretPattern.test(key) && key !== owner && readKey !== writeKey;
+    if (!secretPattern.test(owner) || !candidate) return json({ error: 'Unauthorized' }, 401);
+    const canWrite = valid(writeKey) && await matches(candidate, writeKey);
+    const canRead = valid(readKey) && await matches(candidate, readKey);
+    if (!canWrite && !canRead) return json({ error: 'Unauthorized' }, 401);
+    if (method === 'PATCH' && !canWrite) return json({ error: 'Write permission required' }, 403);
+    const store = env.PLANNER_STORE.get(env.PLANNER_STORE.idFromName('owner'));
+    const headers = new Headers({ 'x-planner-integration': canWrite ? 'write' : 'read' });
+    const internalUrl = new URL('/api/tasks', url);
+    if (method === 'GET') return store.fetch(new Request(internalUrl, { method, headers }));
+    try {
+      const body = await readJson(request, 2 * maxBytes + 65536);
+      // Narrow the number of changes per integration call.
+      if (!Array.isArray(body.changes) || body.changes.length < 1 || body.changes.length > 25)
+        return json({ error: 'Supply 1 to 25 changes' }, 400);
+      return store.fetch(new Request(internalUrl, { method, headers, body: JSON.stringify(body) }));
+    } catch (error) {
+      return json({ error: 'Invalid integration request' }, error instanceof RangeError ? 413 : 400);
+    }
+  }
   if (method !== 'GET' && request.headers.get('Origin') !== url.origin) {
     return json({ error: 'Origin rejected' }, 403);
   }
@@ -160,9 +188,13 @@ export class PlannerStore {
     }
 
     return this.storage.transaction(async tx => {
-      const sessions = await tx.get('sessions') ?? [];
+      const integration = request.headers.get('x-planner-integration');
+      const allowedIntegration = path === '/api/tasks' && (
+        integration === 'write' || (integration === 'read' && request.method === 'GET'));
+      if (integration && !allowedIntegration) return json({ error: 'Forbidden' }, 403);
+      const sessions = allowedIntegration ? [] : await tx.get('sessions') ?? [];
       const session = sessions.find(session => session.id === id && session.keyVersion === keyVersion && session.expires > now && (session.issued ?? now) + absoluteLifetime > now);
-      if (!session) {
+      if (!session && !allowedIntegration) {
         return json({ error: 'Session expired. Sign in again.' }, 401);
       }
       if (path === '/api/logout') {
@@ -172,7 +204,7 @@ export class PlannerStore {
 
       // Upgrade unexpired legacy sessions; otherwise renew at most once per day.
       let renewal = {};
-      if (!session.issued || !session.renewed || now - session.renewed >= renewalInterval) {
+      if (session && (!session.issued || !session.renewed || now - session.renewed >= renewalInterval)) {
         const issued = session.issued ?? now;
         const expires = Math.min(now + lifetime, issued + absoluteLifetime);
         await tx.put('sessions', sessions.map(s => s.id === id ? { ...s, issued, renewed: now, expires } : s));
