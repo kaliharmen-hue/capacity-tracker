@@ -1,0 +1,33 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {handle,PlannerStore} from './worker.mjs';
+
+test('integration access is opt-in, scoped, and cannot forge browser authorization', async()=>{
+ const map=new Map();
+ const storage={get:async k=>structuredClone(map.get(k)),put:async(k,v)=>map.set(k,structuredClone(v)),transaction:async f=>f(storage)};
+ const store=new PlannerStore({storage});
+ const env={PLANNER_OWNER_KEY:'A'.repeat(43),PLANNER_STORE:{idFromName:n=>n,get:()=>store}};
+ const origin='https://planner.example';
+ const call=(path,method='GET',key,body,extra={})=>handle(new Request(origin+path,{method,headers:{Origin:origin,...(key?{Authorization:'Bearer '+key}:{}),...(body?{'Content-Type':'application/json'}:{}),...extra},...(body?{body:JSON.stringify(body)}:{})}),env);
+ const path='/api/integration/tasks', read='B'.repeat(43), write='C'.repeat(43);
+ assert.equal((await call(path)).status,401);
+ assert.equal((await call(path,'GET',read)).status,401);
+ env.PLANNER_READ_KEY=read;env.PLANNER_WRITE_KEY=write;
+ assert.equal((await call(path,'GET',env.PLANNER_OWNER_KEY)).status,401);
+ assert.equal((await call('/api/tasks','GET',write,undefined,{'x-planner-integration':'write'})).status,401);
+ assert.equal((await call(path,'GET',read)).status,200);
+ assert.equal((await call(path,'PATCH',read,{changes:[]})).status,403);
+ const after={id:'11111111-1111-4111-8111-111111111111',title:'Synthetic integration task',status:'Inbox'};
+ const body={changes:[{before:null,after}]};
+ assert.equal((await call(path,'PATCH',write,body)).status,200);
+ assert.equal((await call(path,'PATCH',write,body)).status,200);
+ const result=await (await call(path,'GET',read)).json();
+ assert.equal(result.tasks.length,1);
+ assert.equal(result.tasks[0].title,after.title);
+ assert.equal((await call(path,'PATCH',write,{changes:[{before:null,after:{...after,title:'Conflicting edit'}}]})).status,409);
+ assert.equal((await call('/api/logout','POST',write)).status,401);
+ env.PLANNER_WRITE_KEY='D'.repeat(43);
+ assert.equal((await call(path,'GET',write)).status,401);
+ delete env.PLANNER_READ_KEY;
+ assert.equal((await call(path,'GET',read)).status,401);
+});
