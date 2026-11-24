@@ -19,11 +19,14 @@ Run the Worker and the tests in separate terminals. Local sign-in uses the test 
 Deploy only the `personal-planner-private` Worker from this branch and configuration. Use an authorized Cloudflare profile for the intended account and verify the account with `whoami` before deploying. The planner requires only Workers Static Assets and a SQLite-backed Durable Object, both available on Workers Free.
 
 ```sh
-npx --yes wrangler@4.167.0 --profile personal-planner whoami
+npx --yes wrangler@4.167.0 auth activate personal-planner
+npx --yes wrangler@4.167.0 whoami
 npx --yes wrangler@4.167.0 --profile personal-planner deploy --config planner/cloud/wrangler.toml
 ```
 
 In the Cloudflare dashboard, open **Workers & Pages → personal-planner-private → Settings → Variables and Secrets**. Add a **Secret** named `PLANNER_OWNER_KEY`. Use a password manager to generate and save a random 43-character value using letters and numbers. Use that key to sign in to the planner on each device. Rotating the key revokes all existing sessions. The API returns 503 until the secret is configured.
+
+If the profile sees multiple accounts, set `CLOUDFLARE_ACCOUNT_ID` in the current terminal to select the intended one before deploying.
 
 For GitHub-connected Builds, use a separate project targeting `personal-planner-prototype` and the deploy command above without the local profile flag. The existing Personal OS Builds configuration is independent.
 
