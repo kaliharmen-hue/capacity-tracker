@@ -8,6 +8,7 @@
 <details><summary>Settings</summary>
 <form id="login"><label for="owner-key">Owner key</label><input id="owner-key" type="password" required maxlength="128" autocomplete="current-password"><button id="login-submit">Sign in</button></form>
 <div id="cloud" hidden><button id="sync">Sync now</button> <button id="logout">Sign out</button></div>
+<div id="connector-settings" hidden><h2>ChatGPT connection</h2><p>Create a separate key for ChatGPT. Your owner key stays private. Write access allows reading, creating and updating tasks.</p><select id="connector-permission" aria-label="ChatGPT permission"><option value="read">Read tasks only</option><option value="write">Read, create and update tasks</option></select> <button id="connector-create" type="button">Create connection key</button> <button id="connector-revoke" type="button">Revoke connection keys</button><p id="connector-status" role="status"></p><label id="connector-key-label" hidden>Connection key — copy into the private plugin connection, never a chat<input id="connector-key" type="password" readonly autocomplete="off" /></label><button id="connector-reveal" type="button" hidden>Show connection key</button></div>
 </details>
 <div id="conflict" hidden></div>
 <p id="notice" role="status"></p>

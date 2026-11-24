@@ -9,6 +9,7 @@ From the repository root, run these against an isolated local instance. The test
 ```sh
 npx --yes wrangler@4.167.0 dev --config planner/cloud/wrangler.toml --ip 127.0.0.1 --port 8794 --var PLANNER_LOCAL_TEST:1 --var PLANNER_OWNER_KEY:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 node --test planner/cloud/integration-test.mjs
+node --test planner/cloud/session-test.mjs planner/cloud/integration-access-test.mjs planner/cloud/connector-test.mjs
 node integrations/tiimo-extension/parser-test.mjs
 ```
 
@@ -35,3 +36,24 @@ For GitHub-connected Builds, use a separate project targeting `personal-planner-
 Use **Export backup** to download versioned JSON from any device that has the tasks. **Import backup** adds missing tasks and skips identical ones. A conflicting task ID stops the import before it makes changes. To move tasks from the prototype on a different origin, export on that origin and import on the Worker origin. Data entered on this device before sign-in is queued for upload once signed in.
 
 Tiimo diagnostics and parsers are local-only and represent partial observations. Keep captures outside the checkout and do not commit them. The planner has no Tiimo upload endpoint.
+
+## Private ChatGPT connector
+
+The independently hosted `/mcp` endpoint exposes `list_tasks`, `create_task` and
+`update_task`. Its API-key credentials are separate from the owner key. Sign in,
+open Settings → ChatGPT connection, choose read-only or read/create/update access,
+and create a connection key. Copy it only into the private plugin's secure
+connection field, never a conversation. Keys are returned once and stored only
+as hashes. Revoke connection keys in Settings without signing out or deleting
+tasks. Owner-key rotation also invalidates these generated grants.
+
+The owner key and browser cookies cannot authorize MCP calls. Creating tasks
+requires a stable UUID request_id for retry safety; updates require the last
+read task version and reject stale edits. There is no delete, bulk replacement,
+Personal OS access or Tiimo-write tool. Settings-issued keys also work with the
+restricted `/api/integration/tasks` API. Optional separately configured legacy
+PLANNER_READ_KEY/PLANNER_WRITE_KEY secrets must be rotated/deleted separately.
+
+Active browser sessions renew their 30-day expiry at most once daily, with an
+absolute 180-day reauthentication limit. Sync runs after edits, focus/visibility
+changes, reconnection and once per minute while visible and signed in.

@@ -18,6 +18,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test planner/cloud/session-test.mjs planner/cloud/integration-access-test.mjs
+      - run: node --test planner/cloud/session-test.mjs planner/cloud/integration-access-test.mjs planner/cloud/connector-test.mjs
       - run: node --check planner/app.mjs
       - run: node integrations/tiimo-extension/parser-test.mjs

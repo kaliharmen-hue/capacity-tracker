@@ -146,6 +146,8 @@ function button(label, action) {
 function render() {
   $('login').hidden = signedIn;
   $('cloud').hidden = !signedIn;
+  $('connector-settings').hidden = !signedIn;
+  if (!signedIn) { $('connector-key').value=''; $('connector-key-label').hidden=true; $('connector-reveal').hidden=true; }
   $('account-status').textContent = signedIn ? 'Signed in · automatic sync enabled' : 'Sign in to sync across devices';
   $('login-submit').disabled = $('capture-submit').disabled = $('sync').disabled = $('logout').disabled = busy;
   $('restore').disabled = busy;
@@ -239,6 +241,20 @@ $('login').onsubmit = event => {
   });
 };
 $('sync').onclick = () => run(sync);
+$('connector-create').onclick = () => run(async () => {
+  const response=await api('connectors','POST',{permission:$('connector-permission').value});
+  $('connector-key').value=response.key;
+  $('connector-key').type='password';
+  $('connector-key-label').hidden=false;
+  $('connector-reveal').hidden=false;
+  $('connector-status').textContent='Key created. Copy it into the private plugin connection. It is separate from your owner key.';
+});
+$('connector-reveal').onclick = () => { $('connector-key').type=$('connector-key').type==='password'?'text':'password'; };
+$('connector-revoke').onclick = () => run(async () => {
+  await api('connectors','DELETE');
+  $('connector-key').value=''; $('connector-key-label').hidden=true; $('connector-reveal').hidden=true;
+  $('connector-status').textContent='Connection keys revoked. Your owner login and tasks are unchanged.';
+});
 $('logout').onclick = () => run(async () => {
   if (changes(state.base, state.draft).length) {
     message('Sync your pending changes before signing out. You can also export a backup.');
@@ -289,6 +305,9 @@ function resume() { if (!document.hidden && Date.now() - lastAttempt >= 5000) sc
 window.addEventListener('focus', resume);
 document.addEventListener('visibilitychange', resume);
 window.addEventListener('online', () => scheduleSync(true));
+// Pick up assistant/other-device edits even when this tab stays open.
+// Visible signed-in tabs poll at most once a minute; existing locks serialize edits.
+setInterval(() => { if (signedIn) resume(); }, 60000);
 
 try {
   state = read();

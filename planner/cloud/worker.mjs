@@ -1,4 +1,5 @@
 import { maxBytes, merge, task, taskList } from '../model.mjs';
+import { mcp } from './mcp.mjs';
 
 const cookie = '__Host-planner';
 const lifetime = 30 * 24 * 60 * 60;
@@ -63,6 +64,7 @@ export async function handle(request, env) {
     return new Response(null, { status: 308, headers: { Location: url.href, 'Cache-Control': 'no-store' } });
   }
   const { pathname } = url;
+  if (pathname === '/mcp') return mcp(request, env, {json, readJson, integration:handle});
   if (!pathname.startsWith('/api/')) {
     if (!['GET', 'HEAD'].includes(request.method)) return json({ error: 'Method not allowed' }, 405);
     const response = await env.ASSETS.fetch(request);
@@ -84,10 +86,15 @@ export async function handle(request, env) {
     if (!secretPattern.test(owner) || !candidate) return json({ error: 'Unauthorized' }, 401);
     const canWrite = valid(writeKey) && await matches(candidate, writeKey);
     const canRead = valid(readKey) && await matches(candidate, readKey);
-    if (!canWrite && !canRead) return json({ error: 'Unauthorized' }, 401);
-    if (method === 'PATCH' && !canWrite) return json({ error: 'Write permission required' }, 403);
+    // Dynamically issued connector keys are stored hashed in the same owner object,
+    // but grant only task access and never authorize browser/account operations.
+    const dynamic = !canWrite && !canRead;
+    if (method === 'PATCH' && canRead && !canWrite) return json({ error: 'Write permission required' }, 403);
     const store = env.PLANNER_STORE.get(env.PLANNER_STORE.idFromName('owner'));
-    const headers = new Headers({ 'x-planner-integration': canWrite ? 'write' : 'read' });
+    const headers = new Headers(dynamic ? {
+      'x-planner-integration-token': await digest(candidate),
+      'x-planner-key-version': await digest(owner)
+    } : { 'x-planner-integration': canWrite ? 'write' : 'read' });
     const internalUrl = new URL('/api/tasks', url);
     if (method === 'GET') return store.fetch(new Request(internalUrl, { method, headers }));
     try {
@@ -103,7 +110,7 @@ export async function handle(request, env) {
   if (method !== 'GET' && request.headers.get('Origin') !== url.origin) {
     return json({ error: 'Origin rejected' }, 403);
   }
-  const allowed = { '/api/login': ['POST'], '/api/logout': ['POST'], '/api/tasks': ['GET', 'PATCH'] };
+  const allowed = { '/api/login': ['POST'], '/api/logout': ['POST'], '/api/tasks': ['GET', 'PATCH'], '/api/connectors': ['GET','POST','DELETE'] };
   if (!Object.hasOwn(allowed, pathname)) return json({ error: 'Not found' }, 404);
   if (!allowed[pathname].includes(method)) return json({ error: 'Method not allowed' }, 405);
   const ownerKey = env.PLANNER_OWNER_KEY?.trim() ?? '';
@@ -135,7 +142,7 @@ export async function handle(request, env) {
     return new Response(response.body, { status: response.status, headers: outgoing });
   };
 
-  if (method === 'PATCH') {
+  if (method === 'PATCH' || (pathname === '/api/connectors' && method === 'POST')) {
     try {
       const body = await readJson(request, 2 * maxBytes + 65536);
       return forward(new Request(url, { method, headers, body: JSON.stringify(body) }));
@@ -188,7 +195,11 @@ export class PlannerStore {
     }
 
     return this.storage.transaction(async tx => {
-      const integration = request.headers.get('x-planner-integration');
+      const dynamicId = request.headers.get('x-planner-integration-token');
+      const grants = await tx.get('connectorGrants') ?? [];
+      const grant = dynamicId && grants.find(g => g.id === dynamicId && g.keyVersion === keyVersion);
+      if (dynamicId && !grant) return json({ error: 'Unauthorized' }, 401);
+      const integration = grant ? grant.permission : request.headers.get('x-planner-integration');
       const allowedIntegration = path === '/api/tasks' && (
         integration === 'write' || (integration === 'read' && request.method === 'GET'));
       if (integration && !allowedIntegration) return json({ error: 'Forbidden' }, 403);
@@ -200,6 +211,21 @@ export class PlannerStore {
       if (path === '/api/logout') {
         await tx.put('sessions', sessions.filter(session => session.id !== id));
         return json({ signedIn: false }, 200, { 'Set-Cookie': sessionCookie('', 0) });
+      }
+
+      if (path === '/api/connectors') {
+        if (request.method === 'DELETE') {
+          await tx.put('connectorGrants', []);
+          return json({ revoked: true });
+        }
+        if (request.method === 'GET') return json({ grants:grants.filter(g=>g.keyVersion===keyVersion).map(({id,permission,createdAt})=>({id,permission,createdAt})) });
+        let permission;
+        try { ({permission}=await request.json()); } catch { return json({error:'Invalid connector request'},400); }
+        if (!['read','write'].includes(permission)) return json({error:'Choose read or write permission'},400);
+        if (grants.length >= 10) return json({error:'Revoke old connector keys before adding more'},409);
+        const token = crypto.randomUUID().replaceAll('-','') + crypto.randomUUID().replaceAll('-','');
+        await tx.put('connectorGrants',[...grants,{id:await digest(token),keyVersion,permission,createdAt:new Date().toISOString()}]);
+        return json({ key:token, permission });
       }
 
       // Upgrade unexpired legacy sessions; otherwise renew at most once per day.
