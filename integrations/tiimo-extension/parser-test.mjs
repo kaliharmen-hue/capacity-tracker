@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const source=await readFile(new URL('./parse-planner.js',import.meta.url),'utf8');
+const {parsePlanner}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+const snapshot={capturedAt:'2026-11-24T09:28:47.669Z',inputs:['Example task'],visibleText:'November\n2026\n3-days\nTUE\n24\nANYTIME (1)\nExample flexible\n30m\nAFTERNOON (1)\nExample timed\n12:45\n13:15\nWED\n25\nMORNING (0)'};
+const parsed=parsePlanner(snapshot);
+assert.equal(parsed.days[0].date,'2026-11-24');
+assert.equal(parsed.days[0].activities.length,2);
+assert.equal(parsed.days[0].activities[0].durationMinutes,30);
+assert.equal(parsed.days[0].activities[1].start,'12:45');
+assert.equal(parsed.days[0].activities[1].completed,null);
+assert.equal(parsed.coverage,'partial');
+const week=parsePlanner({...snapshot,visibleText:'November\n2026\nWEEK 48\nWeek\nMON\n23\nTUE\n24\nExample appointment\n1h'});
+assert.equal(week.days.flatMap(d=>d.activities).length,0,'Do not assign weekly entries to guessed dates');
+console.log('Parser regression checks passed');
