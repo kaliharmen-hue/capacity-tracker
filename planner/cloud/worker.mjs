@@ -10,6 +10,7 @@ const security = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
   'X-Frame-Options': 'DENY',
+  'Strict-Transport-Security': 'max-age=31536000',
 };
 const json = (body, status = 200, headers = {}) =>
   Response.json(body, { status, headers: { ...security, ...headers } });
@@ -53,6 +54,12 @@ function sessionCookie(value, seconds) {
 
 export async function handle(request, env) {
   const url = new URL(request.url);
+  const localTest = env.PLANNER_LOCAL_TEST === '1' && url.hostname === '127.0.0.1';
+  if (url.protocol !== 'https:' && !localTest) {
+    if (!['GET', 'HEAD'].includes(request.method)) return json({ error: 'HTTPS required' }, 403);
+    url.protocol = 'https:';
+    return new Response(null, { status: 308, headers: { Location: url.href, 'Cache-Control': 'no-store' } });
+  }
   const { pathname } = url;
   if (!pathname.startsWith('/api/')) {
     if (!['GET', 'HEAD'].includes(request.method)) return json({ error: 'Method not allowed' }, 405);

@@ -7,7 +7,7 @@ Standalone owner-only planner. The browser uses a separate Cloudflare Worker ori
 From the repository root, run these against an isolated local instance. The test key below is a public fixture for localhost.
 
 ```sh
-npx --yes wrangler@4.167.0 dev --config planner/cloud/wrangler.toml --ip 127.0.0.1 --port 8794 --var PLANNER_OWNER_KEY:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+npx --yes wrangler@4.167.0 dev --config planner/cloud/wrangler.toml --ip 127.0.0.1 --port 8794 --var PLANNER_LOCAL_TEST:1 --var PLANNER_OWNER_KEY:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 node --test planner/cloud/integration-test.mjs
 node integrations/tiimo-extension/parser-test.mjs
 ```

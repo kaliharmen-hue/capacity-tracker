@@ -65,7 +65,11 @@ async function api(path, method = 'GET', body) {
   });
   const data = await response.json();
   if (response.status === 401) signedIn = false;
-  if (!response.ok && response.status !== 409) throw new Error(data.error ?? 'Cloud request failed.');
+  if (!response.ok && response.status !== 409) {
+    const error = new Error(data.error ?? 'Cloud request failed.');
+    error.status = response.status;
+    throw error;
+  }
   return data;
 }
 
@@ -275,8 +279,9 @@ try {
   // Probe session before uploading local changes.
   run(async () => {
     try { await api('tasks'); } catch (error) {
-      if (signedIn) throw error;
-      message('Sign in to sync. Tasks can be saved on this device.');
+      if (error.status === 401) message('Sign in to sync. Tasks can be saved on this device.');
+      else if (error.status === 503) message(error.message + '. Tasks can be saved on this device.');
+      else message('Cloud sync is unavailable. Tasks can be saved on this device.');
       return;
     }
     signedIn = true;
