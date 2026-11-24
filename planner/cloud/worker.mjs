@@ -2,7 +2,7 @@ import { maxBytes, merge, task, taskList } from '../model.mjs';
 
 const cookie = '__Host-planner';
 const lifetime = 8 * 60 * 60;
-const secretPattern = /^[A-Za-z0-9_-]{43}$/;
+const secretPattern = /^[!-~]{32,128}$/;
 const encoder = new TextEncoder();
 const security = {
   'Cache-Control': 'no-store',
@@ -76,16 +76,17 @@ export async function handle(request, env) {
   const allowed = { '/api/login': ['POST'], '/api/logout': ['POST'], '/api/tasks': ['GET', 'PATCH'] };
   if (!Object.hasOwn(allowed, pathname)) return json({ error: 'Not found' }, 404);
   if (!allowed[pathname].includes(method)) return json({ error: 'Method not allowed' }, 405);
-  if (!secretPattern.test(env.PLANNER_OWNER_KEY ?? '')) return json({ error: 'Planner sign-in is not configured' }, 503);
+  const ownerKey = env.PLANNER_OWNER_KEY?.trim() ?? '';
+  if (!secretPattern.test(ownerKey)) return json({ error: 'Planner sign-in is not configured' }, 503);
   const store = env.PLANNER_STORE.get(env.PLANNER_STORE.idFromName('owner'));
   const headers = new Headers();
-  headers.set('x-planner-key-version', await digest(env.PLANNER_OWNER_KEY));
+  headers.set('x-planner-key-version', await digest(ownerKey));
 
   if (pathname === '/api/login') {
     let key;
-    try { ({ key } = await readJson(request, 256)); }
+    try { ({ key } = await readJson(request, 512)); }
     catch { return json({ error: 'Invalid sign-in request' }, 400); }
-    if (typeof key !== 'string' || !secretPattern.test(key) || !await matches(key, env.PLANNER_OWNER_KEY)) {
+    if (typeof key !== 'string' || !secretPattern.test(key) || !await matches(key, ownerKey)) {
       return json({ error: 'Incorrect owner key' }, 401);
     }
     return store.fetch(new Request(url, { method, headers }));
