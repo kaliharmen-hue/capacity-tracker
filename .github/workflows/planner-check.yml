@@ -1,0 +1,23 @@
+name: Personal Planner checks
+on:
+  push:
+    branches: [personal-planner-prototype]
+    paths:
+      - 'planner/**'
+      - 'integrations/tiimo-extension/**'
+      - '.github/workflows/planner-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test planner/cloud/session-test.mjs planner/cloud/integration-access-test.mjs
+      - run: node --check planner/app.mjs
+      - run: node integrations/tiimo-extension/parser-test.mjs
