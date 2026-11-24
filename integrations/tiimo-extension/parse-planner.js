@@ -1,10 +1,12 @@
 // Parse diagnostic snapshots without inferring completion or deletion.
 export function parsePlanner(snapshot) {
+ if(snapshot.truncated) throw new Error("Truncated report");
  const lines = String(snapshot.visibleText || "").split(/\n/).map(s=>s.trim()).filter(Boolean);
  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
  const monthIndex = lines.findIndex((s,i)=>months.includes(s)&&/^\d{4}$/.test(lines[i+1]||""));
  if(monthIndex<0) throw new Error("Calendar month/year missing");
  const year=Number(lines[monthIndex+1]), month=months.indexOf(lines[monthIndex])+1;
+ const isWeek=lines.slice(monthIndex+2,monthIndex+5).some(line=>/^WEEK \d+$/.test(line));
  const weekdays=["SUN","MON","TUE","WED","THU","FRI","SAT"];
  const days=[]; let day=null, section=null;
  const time=/^(?:[01]\d|2[0-3]):[0-5]\d$/;
@@ -15,13 +17,17 @@ export function parsePlanner(snapshot) {
   if(weekdays.includes(s)&&/^\d{1,2}$/.test(lines[i+1]||"")){
    const n=Number(lines[++i]); const date=new Date(Date.UTC(year,month-1,n));
    const valid=date.getUTCMonth()===month-1&&weekdays[date.getUTCDay()]===s;
-   day={date:valid?date.toISOString().slice(0,10):null,weekday:s,dayOfMonth:n,activities:[]};days.push(day);section=null;
-   if(!valid) warnings.push("Ambiguous date: "+s+" "+n);
+   const previous=days.at(-1)?.date;
+   const following=previous?new Date(Date.parse(previous)+86400000):null;
+   const adjacent=!isWeek&&following?.getUTCDate()===n&&weekdays[following.getUTCDay()]===s;
+   const resolved=adjacent?following:valid?date:null;
+   day={date:resolved?.toISOString().slice(0,10)??null,weekday:s,dayOfMonth:n,activities:[]};days.push(day);section=null;
+   if(!resolved) warnings.push("Ambiguous date: "+s+" "+n);
    continue;
   }
   const heading=s.match(/^(ANYTIME|MORNING|AFTERNOON|EVENING)\s*\((\d+)\)$/i);
   if(heading){section=heading[1].toLowerCase();continue;}
-  if(!day||!section)continue;
+  if(isWeek||!day||!section)continue;
   const next=lines[i+1]||"", after=lines[i+2]||"";
   if(time.test(next)&&time.test(after)){
    const mins=t=>Number(t.slice(0,2))*60+Number(t.slice(3));

@@ -1,24 +1,165 @@
-const states=new Set(['Inbox','Next action','Scheduled','Waiting','Delegated','Done','Archived']);
-const json=(body,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store'}});
-export async function handle(request,env){
- if(!env.PLANNER_TOKEN||env.PLANNER_TOKEN.length<32)return json({error:'Not configured'},503);
- const supplied=request.headers.get('Authorization')||'';
- const digest=async s=>new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)));
- const a=await digest(supplied),b=await digest('Bearer '+env.PLANNER_TOKEN);let diff=0;for(let i=0;i<a.length;i++)diff|=a[i]^b[i];
- if(diff)return json({error:'Unauthorized'},401);
- if(new URL(request.url).pathname!=='/api/tasks')return json({error:'Not found'},404);
- return env.PLANNER_STORE.get(env.PLANNER_STORE.idFromName('owner')).fetch(request);
+import { maxBytes, merge, task, taskList } from '../model.mjs';
+
+const cookie = '__Host-planner';
+const lifetime = 8 * 60 * 60;
+const secretPattern = /^[A-Za-z0-9_-]{43}$/;
+const encoder = new TextEncoder();
+const security = {
+  'Cache-Control': 'no-store',
+  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'no-referrer',
+  'X-Frame-Options': 'DENY',
+};
+const json = (body, status = 200, headers = {}) =>
+  Response.json(body, { status, headers: { ...security, ...headers } });
+
+async function readJson(request, limit) {
+  if (request.headers.get('Content-Type')?.split(';')[0] !== 'application/json' || !request.body) {
+    throw new Error('JSON body required');
+  }
+  const reader = request.body.getReader();
+  const chunks = [];
+  let size = 0;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel();
+      throw new RangeError('Request too large');
+    }
+    chunks.push(value);
+  }
+  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await new Blob(chunks).arrayBuffer()));
 }
-export default {fetch:handle};
-export class PlannerStore{
- constructor(ctx){this.storage=ctx.storage}
- async fetch(request){
- if(request.method==='GET')return json(await this.storage.get('snapshot')||{revision:0,tasks:[]});
- if(request.method!=='PUT')return json({error:'Method not allowed'},405);
- let body;try{const reader=request.body.getReader();let size=0;const chunks=[];while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>262144){await reader.cancel();return json({error:'Too large'},413)}chunks.push(value)}body=JSON.parse(await new Blob(chunks).text())}catch{return json({error:'Invalid JSON'},400)}
- if(!body||!Number.isSafeInteger(body.revision)||body.revision<0||!Array.isArray(body.tasks)||body.tasks.length>1000)return json({error:'Invalid snapshot'},400);
- const ids=new Set();const tasks=[];
- for(const t of body.tasks){if(!t||typeof t.id!=='string'||!/^[a-f0-9-]{36}$/i.test(t.id)||ids.has(t.id)||typeof t.title!=='string'||!t.title.trim()||t.title.length>500||!states.has(t.status)||typeof(t.project??'')!=='string'||(t.project??'').length>200||typeof(t.deadline??'')!=='string'||(t.deadline&&!/^\d{4}-\d{2}-\d{2}$/.test(t.deadline)))return json({error:'Invalid task'},400);ids.add(t.id);tasks.push({id:t.id,title:t.title,status:t.status,project:t.project??'',deadline:t.deadline??''})}
- return this.storage.transaction(async tx=>{const old=await tx.get('snapshot')||{revision:0,tasks:[]};if(old.revision!==body.revision)return json({error:'Conflict',revision:old.revision},409);const next={revision:old.revision+1,tasks};await tx.put('snapshot',next);return json(next)});
- }
+
+async function digest(value) {
+  const bytes = await crypto.subtle.digest('SHA-256', encoder.encode(value));
+  return Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function matches(candidate, secret) {
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify'],
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(secret));
+  return crypto.subtle.verify('HMAC', key, signature, encoder.encode(candidate));
+}
+
+function sessionCookie(value, seconds) {
+  return `${cookie}=${value}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=${seconds}`;
+}
+
+export async function handle(request, env) {
+  const url = new URL(request.url);
+  const { pathname } = url;
+  if (!pathname.startsWith('/api/')) {
+    if (!['GET', 'HEAD'].includes(request.method)) return json({ error: 'Method not allowed' }, 405);
+    const response = await env.ASSETS.fetch(request);
+    const headers = new Headers(response.headers);
+    for (const [name, value] of Object.entries(security)) headers.set(name, value);
+    return new Response(response.body, { status: response.status, headers });
+  }
+
+  const method = request.method;
+  if (method !== 'GET' && request.headers.get('Origin') !== url.origin) {
+    return json({ error: 'Origin rejected' }, 403);
+  }
+  const allowed = { '/api/login': ['POST'], '/api/logout': ['POST'], '/api/tasks': ['GET', 'PATCH'] };
+  if (!Object.hasOwn(allowed, pathname)) return json({ error: 'Not found' }, 404);
+  if (!allowed[pathname].includes(method)) return json({ error: 'Method not allowed' }, 405);
+  if (!secretPattern.test(env.PLANNER_OWNER_KEY ?? '')) return json({ error: 'Planner sign-in is not configured' }, 503);
+  const store = env.PLANNER_STORE.get(env.PLANNER_STORE.idFromName('owner'));
+  const headers = new Headers();
+  headers.set('x-planner-key-version', await digest(env.PLANNER_OWNER_KEY));
+
+  if (pathname === '/api/login') {
+    let key;
+    try { ({ key } = await readJson(request, 256)); }
+    catch { return json({ error: 'Invalid sign-in request' }, 400); }
+    if (typeof key !== 'string' || !secretPattern.test(key) || !await matches(key, env.PLANNER_OWNER_KEY)) {
+      return json({ error: 'Incorrect owner key' }, 401);
+    }
+    return store.fetch(new Request(url, { method, headers }));
+  }
+  const token = request.headers.get('Cookie')?.match(/(?:^|;\s*)__Host-planner=([a-f0-9]{64})(?=;|$)/)?.[1];
+  if (!token) return json({ error: 'Sign in to sync' }, 401);
+  headers.set('x-planner-session', await digest(token));
+
+  if (method === 'PATCH') {
+    try {
+      const body = await readJson(request, 2 * maxBytes + 65536);
+      return store.fetch(new Request(url, { method, headers, body: JSON.stringify(body) }));
+    } catch (error) {
+      return json({ error: 'Invalid sync request' }, error instanceof RangeError ? 413 : 400);
+    }
+  }
+  return store.fetch(new Request(url, { method, headers }));
+}
+
+export default { fetch: handle };
+
+export class PlannerStore {
+  constructor(ctx) {
+    this.storage = ctx.storage;
+  }
+
+  async fetch(request) {
+    const path = new URL(request.url).pathname;
+    const keyVersion = request.headers.get('x-planner-key-version');
+    const now = Math.floor(Date.now() / 1000);
+    if (path === '/api/login') {
+      const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
+      const id = await digest(token);
+      await this.storage.transaction(async tx => {
+        const existing = await tx.get('sessions') ?? [];
+        const active = existing.filter(session => session.expires > now && session.keyVersion === keyVersion);
+        await tx.put('sessions', [...active.slice(-31), { id, keyVersion, expires: now + lifetime }]);
+      });
+      return json({ signedIn: true }, 200, { 'Set-Cookie': sessionCookie(token, lifetime) });
+    }
+
+    const id = request.headers.get('x-planner-session');
+    let edits;
+    if (request.method === 'PATCH') {
+      try {
+        const body = await request.json();
+        if (!Array.isArray(body.changes) || !body.changes.length || body.changes.length > 1000) {
+          throw new Error('Invalid changes');
+        }
+        const ids = new Set();
+        edits = body.changes.map(({ before, after }) => {
+          const next = task(after);
+          const prior = before === null ? null : task(before);
+          if (ids.has(next.id) || (prior && prior.id !== next.id)) throw new Error('Invalid task ID');
+          ids.add(next.id);
+          return { before: prior, after: next };
+        });
+      } catch { return json({ error: 'Invalid task changes' }, 400); }
+    }
+
+    return this.storage.transaction(async tx => {
+      const sessions = await tx.get('sessions') ?? [];
+      if (!sessions.some(session => session.id === id && session.keyVersion === keyVersion && session.expires > now)) {
+        return json({ error: 'Session expired. Sign in again.' }, 401);
+      }
+      if (path === '/api/logout') {
+        await tx.put('sessions', sessions.filter(session => session.id !== id));
+        return json({ signedIn: false }, 200, { 'Set-Cookie': sessionCookie('', 0) });
+      }
+
+      const old = await tx.get('snapshot') ?? { revision: 0, tasks: [] };
+      if (!edits) return json(old);
+      const result = merge(taskList(old.tasks), edits, old.revision + 1);
+      if (result.conflicts.length) return json({ ...old, conflicts: result.conflicts }, 409);
+      if (!result.changed) return json(old);
+      let tasks;
+      try { tasks = taskList(result.tasks); }
+      catch (error) { return json({ error: error.message }, 422); }
+      const next = { revision: old.revision + 1, tasks };
+      await tx.put('snapshot', next);
+      return json(next);
+    });
+  }
 }

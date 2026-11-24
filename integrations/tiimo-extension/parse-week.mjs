@@ -5,20 +5,28 @@ export function parseWeek(report) {
  const match=text.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\n(\d{4})\nWEEK (\d+)/);
  if(!match) throw Error("Weekly calendar heading missing");
  const year=+match[2], week=+match[3];
- const jan4=new Date(Date.UTC(year,0,4));
- const monday=new Date(+jan4-((jan4.getUTCDay()+6)%7)*86400000+(week-1)*604800000);
+ if(week<1||week>53) throw Error("Invalid ISO week");
+ const month=new Date(Date.parse(match[1]+" 1, 2000 UTC")).getUTCMonth();
  const names=["MON","TUE","WED","THU","FRI","SAT","SUN"];
- const days=names.map((name,i)=>{
+ const columns=names.map(name=>{
  const item=items.find(x=>x.text===name&&x.ancestors?.[0]?.tag==="H6");
  const rect=item?.ancestors?.[3]?.rect;
  if(!rect) throw Error("Missing day column "+name);
- const date=new Date(+monday+i*86400000);
  const index=items.indexOf(item);
- if(Number(items[index+1]?.text)!==date.getUTCDate()) throw Error("Ambiguous week date");
- return {date:date.toISOString().slice(0,10),rect,activities:[]};
+ return { day: Number(items[index+1]?.text), rect };
  });
- const ticks=items.filter(x=>/^\d{2}:00$/.test(x.text)&&x.ancestors?.[2]?.rect);
- if(ticks.length!==24) throw Error("Incomplete hour grid");
+ const candidates=[year-1,year,year+1].map(isoYear=>{
+  const jan4=new Date(Date.UTC(isoYear,0,4));
+  const monday=+jan4-((jan4.getUTCDay()+6)%7)*86400000+(week-1)*604800000;
+  if(new Date(monday+3*86400000).getUTCFullYear()!==isoYear) return null;
+  const dates=names.map((_,i)=>new Date(monday+i*86400000));
+  return dates.some(date=>date.getUTCFullYear()===year&&date.getUTCMonth()===month)
+   && dates.every((date,i)=>date.getUTCDate()===columns[i].day)?dates:null;
+ }).filter(Boolean);
+ if(candidates.length!==1) throw Error("Ambiguous week date");
+ const days=candidates[0].map((date,i)=>({date:date.toISOString().slice(0,10),rect:columns[i].rect,activities:[]}));
+ const ticks=items.filter(x=>/^(?:[01]\d|2[0-3]):00$/.test(x.text)&&x.ancestors?.[2]?.rect);
+ if(ticks.length!==24||new Set(ticks.map(tick=>tick.text)).size!==24) throw Error("Incomplete hour grid");
  const zero=ticks.find(x=>x.text==="00:00").ancestors[2].rect[1];
  const scale=(ticks.find(x=>x.text==="23:00").ancestors[2].rect[1]-zero)/23;
  if(scale<=0||ticks.some(x=>Math.abs(x.ancestors[2].rect[1]-zero-Number(x.text.slice(0,2))*scale)>2)) throw Error("Irregular hour grid");

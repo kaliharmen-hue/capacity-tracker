@@ -1,12 +1,19 @@
 <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Personal Planner</title><style>
 *{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:#203047;font:16px system-ui}main{max-width:1050px;margin:auto;padding:24px}h1{margin-bottom:4px}p{color:#526477}section{background:white;border:1px solid #dce3ea;border-radius:12px;padding:18px;margin:16px 0}input,select,button{font:inherit;padding:10px;border:1px solid #b9c6d2;border-radius:7px;max-width:100%}button{cursor:pointer;background:white}button.primary{background:#244e68;color:white}form,nav,.task{display:flex;gap:10px;flex-wrap:wrap;align-items:center}form input{flex:1;min-width:180px}.task{padding:12px 0;border-bottom:1px solid #e4e8ec}.task strong{flex:1;min-width:180px}.task input{width:150px}nav button[aria-pressed=true]{background:#244e68;color:white}small{color:#526477}@media(max-width:600px){main{padding:12px}.task strong{flex-basis:100%}}
-</style><main><h1>Personal Planner</h1><p>Capture first. Organise when ready.</p><small>Local prototype • This browser only • No cloud sync or health access</small><section><h2>Quick capture</h2><form id="capture"><input id="title" required maxlength="500" placeholder="What's on your mind?" aria-label="Task title"><button class="primary">Add task</button></form></section><nav id="views" aria-label="Task views"></nav><section><h2 id="heading">Inbox</h2><div id="tasks"></div></section><button id="export">Export backup</button><p id="notice" role="status"></p></main><script type="module">
-const key='personal-planner-prototype-v1', states=['Inbox','Next action','Scheduled','Waiting','Delegated','Done','Archived'];let tasks=[],view='Inbox';const $=id=>document.getElementById(id);
-try{tasks=JSON.parse(localStorage.getItem(key)||'[]');if(!Array.isArray(tasks))throw Error()}catch{ $('notice').textContent='Saved data could not be read. Changes disabled.';throw Error('Storage unavailable')}
-function save(next){try{localStorage.setItem(key,JSON.stringify(next));tasks=next;render();$('notice').textContent='Saved on this device.';return true}catch{$('notice').textContent='Could not save. Your change was not recorded.';return false}}
-function update(id,patch){save(tasks.map(t=>t.id===id?{...t,...patch,updatedAt:new Date().toISOString()}:t))}
-function el(tag,text){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e}
-function render(){ $('views').replaceChildren();for(const s of ['Today','All',...states]){const b=el('button',s);b.setAttribute('aria-pressed',String(view===s));b.onclick=()=>{view=s;render()};$('views').append(b)}$('heading').textContent=view;const root=$('tasks');root.replaceChildren();const now=new Date(),today=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');const list=tasks.filter(t=>view==='All'||(view==='Today'?t.deadline&&t.deadline<=today&&!['Done','Archived'].includes(t.status):t.status===view));if(!list.length)root.append(el('p','Nothing in this view.'));for(const t of list){const row=el('div');row.className='task';row.append(el('strong',t.title));const edit=el('button','Edit');edit.onclick=()=>{const title=prompt('Task title',t.title);if(title?.trim())update(t.id,{title:title.trim().slice(0,500)})};const status=el('select');status.setAttribute('aria-label','Status');for(const s of states){const o=el('option',s);o.value=s;status.append(o)}status.value=t.status;status.onchange=()=>update(t.id,{status:status.value});const date=el('input');date.type='date';date.value=t.deadline||'';date.setAttribute('aria-label','Optional deadline');date.onchange=()=>update(t.id,{deadline:date.value});const project=el('input');project.placeholder='Project (optional)';project.value=t.project||'';project.setAttribute('aria-label','Project');project.onchange=()=>update(t.id,{project:project.value});const done=el('button',t.status==='Done'?'Reopen':'Complete');done.onclick=()=>update(t.id,{status:t.status==='Done'?'Next action':'Done'});row.append(edit,status,date,project,done);root.append(row)}}
-$('capture').onsubmit=e=>{e.preventDefault();const title=$('title').value.trim();if(!title)return;const stamp=new Date().toISOString();if(save([...tasks,{id:crypto.randomUUID(),title,status:'Inbox',createdAt:stamp,updatedAt:stamp}]))$('title').value=''};
-$('export').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify({version:1,tasks},null,2)],{type:'application/json'}));const a=el('a');a.href=url;a.download='planner-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};render();
-</script></html>
+</style>
+<main>
+<h1>Personal Planner</h1>
+<section aria-label="Cloud sync">
+<form id="login"><label for="owner-key">Owner key</label><input id="owner-key" type="password" required maxlength="43" autocomplete="current-password"><button id="login-submit">Sign in</button></form>
+<div id="cloud" hidden><button id="sync">Sync now</button> <button id="logout">Sign out</button></div>
+<div id="conflict" hidden></div>
+<p id="notice" role="status"></p>
+</section>
+<section><h2>Quick capture</h2><form id="capture"><input id="title" required maxlength="500" placeholder="What's on your mind?" aria-label="Task title"><button class="primary" id="capture-submit">Add task</button></form></section>
+<nav id="views" aria-label="Task views"></nav>
+<section><h2 id="heading">Inbox</h2><div id="tasks"></div></section>
+<button id="export">Export backup</button>
+<label for="restore">Import backup</label> <input type="file" id="restore" accept=".json,application/json">
+</main>
+<script type="module" src="./app.mjs"></script>
+</html>
