@@ -1,0 +1,33 @@
+import {createRequire} from 'node:module';
+import assert from 'node:assert/strict';
+import {challenge,clientId} from './oauth.mjs';
+const require=createRequire(process.env.PLAYWRIGHT_PATH || 'C:/Program Files/WindowsApps/OpenAI.CodexPrimaryRuntime.v26-1105-1297-0_26.1105.1297.0_x64__3k8sg7r9htsxt/dependencies/node/node_modules/playwright/package.json');
+const {chromium}=require('playwright');
+const browser=await chromium.launch({executablePath:process.env.BROWSER_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+const base='http://127.0.0.1:8794',client=clientId,redirect='https://chatgpt.com/connector_platform_oauth_redirect',verifier='local-browser-verifier-'.repeat(3);
+try {
+ const context=await browser.newContext(),page=await context.newPage(),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ await page.route(redirect+'**',route=>route.fulfill({body:'Local callback intercepted: no credentials sent to ChatGPT.'}));
+ const params={client_id:client,redirect_uri:redirect,response_type:'code',resource:base+'/mcp',state:'browser-state',scope:'planner:read planner:write',code_challenge_method:'S256',code_challenge:await challenge(verifier)};
+ const response=await context.request.get(base+'/oauth/authorize?'+new URLSearchParams(params),{maxRedirects:0});
+ assert.equal(response.status(),302,await response.text());
+ await page.goto(response.headers().location);
+ await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('Sign in'));
+ assert(await page.locator('#login').isVisible(),'OAuth landing opens Settings for sign-in');
+ await page.locator('#owner-key').fill('A'.repeat(43));await page.locator('#login-submit').click();
+ await page.locator('#oauth-allow').waitFor();
+ assert.equal(await page.locator('#oauth-permission').inputValue(),'write');
+ await page.locator('#oauth-allow').click();
+ await page.waitForURL(redirect+'**');
+ const callback=new URL(page.url());assert.equal(callback.searchParams.get('state'),'browser-state');
+ const exchanged=await context.request.post(base+'/oauth/token',{form:{grant_type:'authorization_code',client_id:client,redirect_uri:redirect,resource:base+'/mcp',code:callback.searchParams.get('code'),code_verifier:verifier}});
+ assert.equal(exchanged.status(),200);const token=(await exchanged.json()).access_token;
+ const rpc=()=>context.request.post(base+'/mcp',{headers:{Authorization:'Bearer '+token},data:{jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'list_tasks',arguments:{}}}});
+ assert.equal((await rpc()).status(),200);
+ await page.goto(base);await page.waitForFunction(()=>document.querySelector('#account-status').textContent.includes('Signed in'));
+ await page.getByText('Settings',{exact:true}).click();await page.locator('#connector-revoke').click();
+ await page.waitForFunction(()=>document.querySelector('#connector-status').textContent.includes('revoked'));
+ assert.equal((await rpc()).status(),401);assert.deepEqual(errors,[]);
+ console.log('Local Worker/browser OAuth sign-in, approval, registered ChatGPT callback, token exchange and revocation passed.');
+} finally {await browser.close();}

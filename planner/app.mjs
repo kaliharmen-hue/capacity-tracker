@@ -12,6 +12,19 @@ let timer;
 let lastAttempt = 0;
 let probeAllowed = true;
 let syncRequested = false;
+const connectionRequest=new URLSearchParams(location.search).get('connect_request');
+let approvalLoaded=false;
+let approvalReady=false;
+if(connectionRequest) $('login').closest('details').open=true;
+async function loadApproval() {
+  const {pending}=await api('connectors?request='+encodeURIComponent(connectionRequest));
+  if(!pending) {message('Connection request expired. Restart Connect from ChatGPT.');return;}
+  $('oauth-permission').value=pending.permission;
+  $('oauth-permission').querySelector('[value="write"]').disabled=pending.permission!=='write';
+  approvalReady=true;
+  $('oauth-approval').hidden=false;
+  $('oauth-approval').closest('details').open=true;
+}
 
 function read() {
   const raw = localStorage.getItem(key);
@@ -147,6 +160,8 @@ function render() {
   $('login').hidden = signedIn;
   $('cloud').hidden = !signedIn;
   $('connector-settings').hidden = !signedIn;
+  $('oauth-approval').hidden=!signedIn||!approvalReady;
+  if(signedIn&&connectionRequest&&!approvalLoaded) {approvalLoaded=true;void loadApproval().catch(e=>message(e.message));}
   if (!signedIn) { $('connector-key').value=''; $('connector-key-label').hidden=true; $('connector-reveal').hidden=true; }
   $('account-status').textContent = signedIn ? 'Signed in · automatic sync enabled' : 'Sign in to sync across devices';
   $('login-submit').disabled = $('capture-submit').disabled = $('sync').disabled = $('logout').disabled = busy;
@@ -241,13 +256,17 @@ $('login').onsubmit = event => {
   });
 };
 $('sync').onclick = () => run(sync);
+for(const [id,approved] of [['oauth-allow',true],['oauth-deny',false]]) $(id).onclick=()=>run(async()=>{
+  const response=await api('connectors','POST',{request_id:connectionRequest,approved,permission:$('oauth-permission').value});
+  location.assign(response.redirectUrl);
+});
 $('connector-create').onclick = () => run(async () => {
   const response=await api('connectors','POST',{permission:$('connector-permission').value});
   $('connector-key').value=response.key;
   $('connector-key').type='password';
   $('connector-key-label').hidden=false;
   $('connector-reveal').hidden=false;
-  $('connector-status').textContent='Key created. Copy it into the private plugin connection. It is separate from your owner key.';
+  $('connector-status').textContent='Key created for an advanced integration. ChatGPT connects through the Personal Planner plugin instead.';
 });
 $('connector-reveal').onclick = () => { $('connector-key').type=$('connector-key').type==='password'?'text':'password'; };
 $('connector-revoke').onclick = () => run(async () => {

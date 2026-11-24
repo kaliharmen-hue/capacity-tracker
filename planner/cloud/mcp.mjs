@@ -17,7 +17,7 @@ export async function mcp(request, env, {json, readJson, integration}) {
   const result=value=>json({jsonrpc:'2.0',id:body.id??null,result:value});
   if(body.method==='notifications/initialized') return new Response(null,{status:202});
   if(body.method==='initialize') return result({protocolVersion:'2025-06-18',capabilities:{tools:{}},serverInfo:{name:'personal-planner',version:'1.0.0'}});
-  if(body.method==='tools/list') return result({tools});
+  if(body.method==='tools/list') return result({tools:tools.map(t=>({...t,securitySchemes:[{type:'oauth2',scopes:t.name==='list_tasks'?['planner:read']:['planner:read','planner:write']}],_meta:{securitySchemes:[{type:'oauth2',scopes:t.name==='list_tasks'?['planner:read']:['planner:read','planner:write']}]}}))});
   if(body.method==='ping') return result({});
   if(body.method!=='tools/call') return json({jsonrpc:'2.0',id:body.id??null,error:{code:-32601,message:'Method not supported'}},200);
   const name=body.params?.name,args=body.params?.arguments??{};
@@ -25,7 +25,11 @@ export async function mcp(request, env, {json, readJson, integration}) {
   if(!tool || !args || typeof args!=='object' || Array.isArray(args) || Object.keys(args).some(k=>!Object.hasOwn(tool.inputSchema.properties,k))) return result({isError:true,content:[{type:'text',text:'Invalid tool or arguments'}]});
   const call=(method,changes)=>integration(new Request(new URL('/api/integration/tasks',request.url),{method,headers:{Authorization:request.headers.get('Authorization')??'',...(changes?{'Content-Type':'application/json'}:{})},...(changes?{body:JSON.stringify({changes})}:{})}),env);
   const current=await call('GET');
-  if(!current.ok) return json({error:'Integration authorization required'},current.status,{'WWW-Authenticate':'Bearer realm="Personal Planner"'});
+  if(!current.ok) {
+    const required=name==='list_tasks'?'planner:read':'planner:read planner:write';
+    const auth=`Bearer resource_metadata="${new URL(request.url).origin}/.well-known/oauth-protected-resource", scope="${required}", error="insufficient_scope", error_description="Connect Personal Planner to continue"`;
+    return json({jsonrpc:'2.0',id:body.id??null,result:{isError:true,content:[{type:'text',text:'Connect Personal Planner to continue'}],_meta:{'mcp/www_authenticate':[auth]}}},401,{'WWW-Authenticate':auth});
+  }
   const snapshot=await current.json();
   let response;
   if(name==='list_tasks') response=snapshot;

@@ -1,0 +1,23 @@
+{
+  "name": "personal-planner",
+  "version": "0.1.1",
+  "description": "Private access to your independently hosted Personal Planner tasks, with separate revocable read or write permissions.",
+  "author": {
+    "name": "Kali Harmen",
+    "email": "kalihealthcoach@gmail.com"
+  },
+  "interface": {
+    "displayName": "Personal Planner",
+    "shortDescription": "Read and manage your tasks",
+    "longDescription": "Read, create and update your Personal Planner tasks from conversations. Choose Connect, sign in on your Planner if needed, and approve read-only or read/write access. Access can be revoked in Planner without changing your owner login or tasks.",
+    "developerName": "Kali Harmen",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive"
+    ],
+    "defaultPrompt": "Show my tasks and help me choose what to do next."
+  },
+  "keywords": [],
+  "skills": "./skills",
+  "mcpServers": "./.mcp.json"
+}

@@ -1,4 +1,28 @@
 {
-  "$schema":"https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
-  "mcpServers":{"personal-planner":{"type":"streamable-http","url":"https://personal-planner-private.kaliharmen.workers.dev/mcp","extensions":{"com.openai":{"auth":{"type":"api_key","headerScheme":"bearer"}}}}}
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "personal-planner": {
+      "type": "streamable-http",
+      "url": "https://personal-planner-private.kaliharmen.workers.dev/mcp",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": {
+              "mode": "provided",
+              "clientId": "personal-planner-chatgpt",
+              "tokenEndpointAuthMethod": "none"
+            },
+            "baseScopes": [
+              "planner:read"
+            ],
+            "defaultScopes": [
+              "planner:read",
+              "planner:write"
+            ]
+          }
+        }
+      }
+    }
+  }
 }

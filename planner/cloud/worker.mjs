@@ -1,5 +1,6 @@
 import { maxBytes, merge, task, taskList } from '../model.mjs';
 import { mcp } from './mcp.mjs';
+import { oauth, oauthStorage, approveOAuth } from './oauth.mjs';
 
 const cookie = '__Host-planner';
 const lifetime = 30 * 24 * 60 * 60;
@@ -64,6 +65,7 @@ export async function handle(request, env) {
     return new Response(null, { status: 308, headers: { Location: url.href, 'Cache-Control': 'no-store' } });
   }
   const { pathname } = url;
+  if (pathname.startsWith('/oauth/') || pathname.startsWith('/.well-known/')) return oauth(request,env,{json,digest});
   if (pathname === '/mcp') return mcp(request, env, {json, readJson, integration:handle});
   if (!pathname.startsWith('/api/')) {
     if (!['GET', 'HEAD'].includes(request.method)) return json({ error: 'Method not allowed' }, 405);
@@ -164,6 +166,7 @@ export class PlannerStore {
     const path = new URL(request.url).pathname;
     const keyVersion = request.headers.get('x-planner-key-version');
     const now = Math.floor(Date.now() / 1000);
+    if (path.startsWith('/internal/oauth/')) return this.storage.transaction(async tx=>oauthStorage(tx,path.split('/').pop(),await request.json(),keyVersion,digest,json));
     if (path === '/api/login') {
       const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
       const id = await digest(token);
@@ -197,7 +200,7 @@ export class PlannerStore {
     return this.storage.transaction(async tx => {
       const dynamicId = request.headers.get('x-planner-integration-token');
       const grants = await tx.get('connectorGrants') ?? [];
-      const grant = dynamicId && grants.find(g => g.id === dynamicId && g.keyVersion === keyVersion);
+      const grant = dynamicId && grants.find(g => g.id === dynamicId && g.keyVersion === keyVersion && (!g.expires || g.expires>Date.now()));
       if (dynamicId && !grant) return json({ error: 'Unauthorized' }, 401);
       const integration = grant ? grant.permission : request.headers.get('x-planner-integration');
       const allowedIntegration = path === '/api/tasks' && (
@@ -216,11 +219,19 @@ export class PlannerStore {
       if (path === '/api/connectors') {
         if (request.method === 'DELETE') {
           await tx.put('connectorGrants', []);
+          await tx.put('oauthCodes', []);
+          await tx.put('oauthPending', []);
           return json({ revoked: true });
         }
-        if (request.method === 'GET') return json({ grants:grants.filter(g=>g.keyVersion===keyVersion).map(({id,permission,createdAt})=>({id,permission,createdAt})) });
+        if (request.method === 'GET') {
+          const requestId=new URL(request.url).searchParams.get('request');
+          const pending=(await tx.get('oauthPending')??[]).find(p=>p.request_id===requestId&&p.keyVersion===keyVersion&&p.expires>Date.now());
+          return json({grants:grants.filter(g=>g.keyVersion===keyVersion).map(({id,permission,createdAt})=>({id,permission,createdAt})),pending:pending?{request_id:pending.request_id,permission:pending.permission}:null});
+        }
+        const body=await request.json();
+        if(body.request_id) return approveOAuth(tx,body,keyVersion,digest,json,new URL(request.url).origin);
         let permission;
-        try { ({permission}=await request.json()); } catch { return json({error:'Invalid connector request'},400); }
+        try { ({permission}=body); } catch { return json({error:'Invalid connector request'},400); }
         if (!['read','write'].includes(permission)) return json({error:'Choose read or write permission'},400);
         if (grants.length >= 10) return json({error:'Revoke old connector keys before adding more'},409);
         const token = crypto.randomUUID().replaceAll('-','') + crypto.randomUUID().replaceAll('-','');

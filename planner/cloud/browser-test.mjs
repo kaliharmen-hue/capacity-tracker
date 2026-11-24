@@ -31,6 +31,7 @@ try {
  await page.waitForFunction(()=>document.querySelector('#notice').textContent.startsWith('Synced at'));
  // Use only local synthetic owner credentials to exercise Settings/API/MCP.
  await page.getByText('Settings',{exact:true}).click();
+ await page.getByText('Advanced integration keys',{exact:true}).click();
  await page.locator('#connector-permission').selectOption('write');await page.locator('#connector-create').click();
  await page.waitForFunction(()=>document.querySelector('#connector-key').value.length===64);
  const token=await page.locator('#connector-key').inputValue();
