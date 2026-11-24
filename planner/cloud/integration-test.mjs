@@ -21,7 +21,7 @@ async function login() {
   const response = await call('/api/login', { method: 'POST', body: { key: testKey } });
   assert.equal(response.status, 200);
   const header = response.headers.get('Set-Cookie');
-  assert.match(header, /^__Host-planner=[a-f0-9]{64}; Path=\/; Secure; HttpOnly; SameSite=Strict; Max-Age=28800$/);
+  assert.match(header, /^__Host-planner=[a-f0-9]{64}; Path=\/; Secure; HttpOnly; SameSite=Strict; Max-Age=2592000$/);
   return header.split(';')[0];
 }
 
@@ -49,7 +49,9 @@ test('owner sign-in, mutation origin, revoked session and prototype credential r
   assert.equal((await call('/api/login', { method: 'POST', site: 'https://example.invalid', body: { key: testKey } })).status, 403);
   assert.equal((await call('/api/tasks', { extra: { Authorization: 'Bearer ' + testKey } })).status, 401);
   const cookie = await login();
-  assert.equal((await call('/api/tasks', { cookie })).status, 200);
+  const immediate = await call('/api/tasks', { cookie });
+  assert.equal(immediate.status, 200);
+  assert.equal(immediate.headers.get('Set-Cookie'), null, 'no renewal on every request');
   assert.equal((await call('/api/tasks', { method: 'PATCH', cookie, site: 'null', body: {} })).status, 403);
   assert.equal((await call('/api/tasks', { method: 'PUT', cookie })).status, 405);
   assert.equal((await call('/api/tasks', { method: 'PATCH', cookie, body: { changes: [] } })).status, 400);
