@@ -1,11 +1,14 @@
 <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Personal Planner</title><style>
-*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:#203047;font:16px system-ui}main{max-width:1050px;margin:auto;padding:24px}h1{margin-bottom:4px}p{color:#526477}section{background:white;border:1px solid #dce3ea;border-radius:12px;padding:18px;margin:16px 0}input,select,button{font:inherit;padding:10px;border:1px solid #b9c6d2;border-radius:7px;max-width:100%}button{cursor:pointer;background:white}button.primary{background:#244e68;color:white}form,nav,.task{display:flex;gap:10px;flex-wrap:wrap;align-items:center}form input{flex:1;min-width:180px}.task{padding:12px 0;border-bottom:1px solid #e4e8ec}.task strong{flex:1;min-width:180px}.task input{width:150px}nav button[aria-pressed=true]{background:#244e68;color:white}small{color:#526477}@media(max-width:600px){main{padding:12px}.task strong{flex-basis:100%}}
+[hidden]{display:none!important}*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:#203047;font:16px system-ui}main{max-width:1050px;margin:auto;padding:24px}h1{margin-bottom:4px}p{color:#526477}section{background:white;border:1px solid #dce3ea;border-radius:12px;padding:18px;margin:16px 0}input,select,button{font:inherit;padding:10px;border:1px solid #b9c6d2;border-radius:7px;max-width:100%}button{cursor:pointer;background:white}button.primary{background:#244e68;color:white}form,nav,.task{display:flex;gap:10px;flex-wrap:wrap;align-items:center}form input{flex:1;min-width:180px}.task{padding:12px 0;border-bottom:1px solid #e4e8ec}.task strong{flex:1;min-width:180px}.task input{width:150px}nav button[aria-pressed=true]{background:#244e68;color:white}small{color:#526477}@media(max-width:600px){main{padding:12px}.task strong{flex-basis:100%}}
 </style>
 <main>
 <h1>Personal Planner</h1>
 <section aria-label="Cloud sync">
+<p id="account-status" aria-live="polite">Checking connection…</p>
+<details><summary>Settings</summary>
 <form id="login"><label for="owner-key">Owner key</label><input id="owner-key" type="password" required maxlength="128" autocomplete="current-password"><button id="login-submit">Sign in</button></form>
 <div id="cloud" hidden><button id="sync">Sync now</button> <button id="logout">Sign out</button></div>
+</details>
 <div id="conflict" hidden></div>
 <p id="notice" role="status"></p>
 </section>
