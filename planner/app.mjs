@@ -1,10 +1,11 @@
-import { changes, merge, same, states, taskList } from './model.mjs';
+import { changes, merge, same, states, responsibilities, commitmentTypes, taskList } from './model.mjs';
 
 const $ = id => document.getElementById(id);
 const key = 'personal-planner-sync-v1';
 const legacyKey = 'personal-planner-prototype-v1';
 let state;
 let view = 'Inbox';
+const expanded = new Set();
 let signedIn = false;
 let busy = false;
 let conflict = null;
@@ -174,9 +175,9 @@ function render() {
     const list = el('ul');
     for (const id of conflict.ids) {
       const item = el('li');
-      const summary = t => t ? [t.title, t.status, t.project, t.deadline].filter(Boolean).join(' · ') : 'Missing';
-      item.append(el('strong', 'This device'), el('p', summary(local.get(id))),
-        el('strong', 'Cloud'), el('p', summary(remote.get(id))));
+      const summary = t => t ? JSON.stringify(t, null, 2) : 'Missing';
+      item.append(el('strong', 'This device'), el('pre', summary(local.get(id))),
+        el('strong', 'Cloud'), el('pre', summary(remote.get(id))));
       list.append(item);
     }
     $('conflict').append(list, button('Keep this device’s versions', () => resolve(true)),
@@ -195,7 +196,7 @@ function render() {
   const now = new Date();
   const today = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
   const tasks = state.draft.filter(t => view === 'All' || (view === 'Today'
-    ? t.deadline && t.deadline <= today && !['Done', 'Archived'].includes(t.status) : t.status === view));
+    ? !['Done', 'Archived'].includes(t.status) && (t.plannedDate === today || (t.deadline && t.deadline <= today)) : t.status === view));
   if (!tasks.length) root.append(el('p', 'Nothing in this view.'));
   for (const t of tasks) {
     const row = el('div');
@@ -224,9 +225,57 @@ function render() {
     project.onchange = () => edit(t.id, { project: project.value });
 
     status.disabled = date.disabled = project.disabled = busy;
+    const details = el('details');
+    details.className = 'task-details';
+    details.open = expanded.has(t.id);
+    details.ontoggle = () => { if (details.open) expanded.add(t.id); else expanded.delete(t.id); };
+    details.append(el('summary', 'Planning and notes'));
+    const field = (label, control) => {
+      const wrapper = el('label', label);
+      wrapper.append(control);
+      details.append(wrapper);
+      control.disabled = busy;
+      return control;
+    };
+    const input = (label, name, type = 'text', limit = 2048) => {
+      const control = field(label, el('input'));
+      control.type = type;
+      if (type === 'text' || type === 'url') control.maxLength = limit;
+      control.value = t[name] ?? '';
+      if (type === 'number') { control.min = '1'; control.max = '10080'; control.step = '1'; }
+      control.onchange = () => {
+        if (!control.reportValidity()) return;
+        edit(t.id, { [name]: type === 'number' ? (control.value === '' ? null : Number(control.value)) : control.value.trim() });
+      };
+      return control;
+    };
+    const select = (label, name, values) => {
+      const control = field(label, el('select'));
+      for (const value of values) { const option = el('option', value || 'Unspecified'); option.value = value; control.append(option); }
+      control.value = t[name];
+      control.onchange = () => edit(t.id, { [name]: control.value });
+    };
+    const note = (label, name) => {
+      const control = field(label, el('textarea'));
+      control.maxLength = 4000;
+      control.rows = 3;
+      control.value = t[name];
+      control.onchange = () => edit(t.id, { [name]: control.value });
+    };
+    input('Planned working date', 'plannedDate', 'date');
+    input('Estimated minutes (optional)', 'durationMinutes', 'number');
+    select('Responsibility', 'responsibility', responsibilities);
+    select('Commitment type', 'commitmentType', commitmentTypes);
+    note('Task notes', 'notes');
+    note('Progress notes', 'progressNotes');
+    for (const [label, name] of [['Conversation link', 'conversationUrl'], ['Resource link', 'resourceUrl']]) {
+      input(label, name, 'url');
+      if (t[name]) { const link = el('a', 'Open ' + label.toLowerCase()); link.href = t[name]; link.target = '_blank'; link.rel = 'noopener noreferrer'; details.append(link); }
+    }
     row.append(el('strong', t.title), rename, status, date, project,
       button(t.status === 'Done' ? 'Reopen' : 'Complete',
         () => edit(t.id, { status: t.status === 'Done' ? 'Next action' : 'Done' })));
+    row.append(details);
     root.append(row);
   }
 }
