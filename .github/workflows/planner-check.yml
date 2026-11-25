@@ -26,3 +26,19 @@ jobs:
       - run: node --test planner/cloud/session-test.mjs planner/cloud/integration-access-test.mjs planner/cloud/connector-test.mjs planner/cloud/oauth-test.mjs planner/cloud/stage1-test.mjs
       - run: node --check planner/app.mjs
       - run: node integrations/tiimo-extension/parser-test.mjs
+  browser-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --package-lock=false @playwright/test@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory planner >/tmp/planner-http.log 2>&1 &
+          server=$!
+          trap 'kill "$server" || true' EXIT
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
+          npx playwright test planner/browser-stage1.spec.mjs --workers=1 --reporter=list
