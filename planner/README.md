@@ -72,6 +72,16 @@ store or paid service. The bridge's Connect step and the owner's approval are
 still required before real task access; registering a connection is not proof
 that it is authenticated. No production task was created just to test linking.
 
+For a stalled connection, sign in to Planner, open Settings and choose
+**Check ChatGPT connection**. The owner-only check reports whether an OAuth
+connection was issued and shows up to twenty recent connection stages under
+Connection details. It contains timestamps and fixed reason codes only:
+no passwords, tokens, authorization codes, state values, task content or PKCE
+verifiers. Older unfinished requests and unexchanged approvals are reported
+by timestamp. A spinning Connect button in ChatGPT can mean a separate Planner
+approval tab is still waiting for **Allow connection**; it does not prove the
+Worker is down. Expired requests must be restarted through the same bridge.
+
 The owner key and browser cookies cannot authorize MCP calls. Creating tasks
 requires a stable UUID request_id for retry safety; updates require the last
 read task version and reject stale edits. There is no delete, bulk replacement,

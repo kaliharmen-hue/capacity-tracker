@@ -269,6 +269,15 @@ $('connector-create').onclick = () => run(async () => {
   $('connector-status').textContent='Key created for an advanced integration. ChatGPT connects through the Personal Planner plugin instead.';
 });
 $('connector-reveal').onclick = () => { $('connector-key').type=$('connector-key').type==='password'?'text':'password'; };
+$('connector-check').onclick=async()=>{
+ const control=$('connector-check');control.disabled=true;
+ try {
+   const {connection}=await api('connectors');
+   $('connector-health').textContent=connection.active?'Planner has issued a ChatGPT connection.':'ChatGPT has not completed a connection with Planner.';
+   $('connector-diagnostics').textContent=[connection.lastRequestAt?'Last unfinished request: '+connection.lastRequestAt:'',connection.lastApprovalAt?'Last unexchanged approval: '+connection.lastApprovalAt:'',...connection.events.map(e=>e.at+' — '+e.stage+(e.reason?' ('+e.reason+')':''))].filter(Boolean).join('\n')||'No recent connection steps recorded. Restart Connect from Personal Planner Bridge.';
+ }catch(e){$('connector-health').textContent=e.message;}
+ finally{control.disabled=false;}
+};
 $('connector-revoke').onclick = () => run(async () => {
   await api('connectors','DELETE');
   $('connector-key').value=''; $('connector-key-label').hidden=true; $('connector-reveal').hidden=true;

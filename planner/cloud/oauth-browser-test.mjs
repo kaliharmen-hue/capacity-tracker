@@ -26,7 +26,11 @@ try {
  const rpc=()=>context.request.post(base+'/mcp',{headers:{Authorization:'Bearer '+token},data:{jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'list_tasks',arguments:{}}}});
  assert.equal((await rpc()).status(),200);
  await page.goto(base);await page.waitForFunction(()=>document.querySelector('#account-status').textContent.includes('Signed in'));
- await page.getByText('Settings',{exact:true}).click();await page.locator('#connector-revoke').click();
+ await page.getByText('Settings',{exact:true}).click();
+ await page.locator('#connector-check').click();
+ await page.waitForFunction(()=>document.querySelector('#connector-health').textContent.includes('has issued'));
+ assert((await page.locator('#connector-diagnostics').textContent()).includes('connection_issued'));
+ await page.locator('#connector-revoke').click();
  await page.waitForFunction(()=>document.querySelector('#connector-status').textContent.includes('revoked'));
  assert.equal((await rpc()).status(),401);assert.deepEqual(errors,[]);
  console.log('Local Worker/browser OAuth sign-in, approval, registered ChatGPT callback, token exchange and revocation passed.');

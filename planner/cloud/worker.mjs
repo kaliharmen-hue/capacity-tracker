@@ -1,6 +1,6 @@
 import { maxBytes, merge, task, taskList } from '../model.mjs';
 import { mcp } from './mcp.mjs';
-import { oauth, oauthStorage, approveOAuth } from './oauth.mjs';
+import { oauth, oauthStorage, approveOAuth, connectionEvent } from './oauth.mjs';
 
 const cookie = '__Host-planner';
 const lifetime = 30 * 24 * 60 * 60;
@@ -206,6 +206,7 @@ export class PlannerStore {
       const allowedIntegration = path === '/api/tasks' && (
         integration === 'write' || (integration === 'read' && request.method === 'GET'));
       if (integration && !allowedIntegration) return json({ error: 'Forbidden' }, 403);
+      if(allowedIntegration&&grant?.kind==='oauth'&&request.method==='GET')await connectionEvent(tx,keyVersion,'task_accessed');
       const sessions = allowedIntegration ? [] : await tx.get('sessions') ?? [];
       const session = sessions.find(session => session.id === id && session.keyVersion === keyVersion && session.expires > now && (session.issued ?? now) + absoluteLifetime > now);
       if (!session && !allowedIntegration) {
@@ -221,12 +222,18 @@ export class PlannerStore {
           await tx.put('connectorGrants', []);
           await tx.put('oauthCodes', []);
           await tx.put('oauthPending', []);
+          await connectionEvent(tx,keyVersion,'revoked');
           return json({ revoked: true });
         }
         if (request.method === 'GET') {
           const requestId=new URL(request.url).searchParams.get('request');
           const pending=(await tx.get('oauthPending')??[]).find(p=>p.request_id===requestId&&p.keyVersion===keyVersion&&p.expires>Date.now());
-          return json({grants:grants.filter(g=>g.keyVersion===keyVersion).map(({id,permission,createdAt})=>({id,permission,createdAt})),pending:pending?{request_id:pending.request_id,permission:pending.permission}:null});
+          const events=(await tx.get('oauthEvents')??[]).filter(e=>e.keyVersion===keyVersion).map(({stage,at,reason})=>({stage,at,...(reason?{reason}:{})}));
+          const active=grants.filter(g=>g.keyVersion===keyVersion&&g.kind==='oauth'&&g.refreshExpires>Date.now()).length;
+          const lastTime=(items,ttl)=>{const times=items.filter(p=>p.keyVersion===keyVersion).map(p=>p.expires-ttl);return times.length?new Date(Math.max(...times)).toISOString():null;};
+          const lastApprovalAt=lastTime(await tx.get('oauthCodes')??[],300000);
+          const lastRequestAt=lastTime(await tx.get('oauthPending')??[],600000);
+          return json({grants:grants.filter(g=>g.keyVersion===keyVersion).map(({id,permission,createdAt})=>({id,permission,createdAt})),pending:pending?{request_id:pending.request_id,permission:pending.permission}:null,connection:{active,events,lastApprovalAt,lastRequestAt}});
         }
         const body=await request.json();
         if(body.request_id) return approveOAuth(tx,body,keyVersion,digest,json,new URL(request.url).origin);

@@ -41,6 +41,10 @@ test('ChatGPT OAuth: discovery, owner consent, PKCE, task scopes, rotation, expi
   assert.equal((await call('/api/connectors','POST',{request_id,approved:true,permission:'write'},owner)).status,400,'consent cannot be replayed');
   let response=await exchange({code});assert.equal(response.status,200);const tokens=await response.json();
   assert.equal(tokens.scope,'planner:read planner:write');assert.equal(tokens.expires_in,3600);
+  const diagnostics=(await (await call('/api/connectors','GET',null,owner)).json()).connection;
+  assert.equal(diagnostics.active,1);assert.equal(diagnostics.events.at(-1).stage,'connection_issued');
+  assert(diagnostics.events.every(e=>Object.keys(e).every(k=>['stage','at','reason'].includes(k))));
+  for(const secret of [tokens.access_token,tokens.refresh_token,code,verifier,'original-state'])assert(!JSON.stringify(diagnostics).includes(secret));
   assert(!JSON.stringify([...data.values()]).includes(tokens.access_token));assert(!JSON.stringify([...data.values()]).includes(tokens.refresh_token));assert(!JSON.stringify([...data.values()]).includes(code));
   assert.equal((await exchange({code})).status,400,'single-use code');
   assert.equal((await rpc(tokens.access_token)).status,200);
