@@ -6,6 +6,11 @@ on:
       - 'planner/**'
       - 'integrations/tiimo-extension/**'
       - '.github/workflows/planner-check.yml'
+  pull_request:
+    branches: [personal-planner-prototype]
+    paths:
+      - 'planner/**'
+      - '.github/workflows/planner-check.yml'
   workflow_dispatch:
 permissions:
   contents: read
