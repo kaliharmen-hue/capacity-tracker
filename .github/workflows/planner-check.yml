@@ -1,7 +1,7 @@
 name: Personal Planner checks
 on:
   push:
-    branches: [personal-planner-prototype]
+    branches: [personal-planner-prototype, personal-planner-stage1]
     paths:
       - 'planner/**'
       - 'integrations/tiimo-extension/**'
@@ -18,6 +18,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test planner/cloud/session-test.mjs planner/cloud/integration-access-test.mjs planner/cloud/connector-test.mjs planner/cloud/oauth-test.mjs
+      - run: node --test planner/cloud/session-test.mjs planner/cloud/integration-access-test.mjs planner/cloud/connector-test.mjs planner/cloud/oauth-test.mjs planner/cloud/stage1-test.mjs
       - run: node --check planner/app.mjs
       - run: node integrations/tiimo-extension/parser-test.mjs
