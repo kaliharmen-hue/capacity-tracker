@@ -56,8 +56,13 @@ export function merge(current, edits, version) {
   const byId = new Map(current.map(t => [t.id, t]));
   const conflicts = [];
   let changed = false;
-  for (const { before, after } of edits) {
+  for (const edit of edits) {
+    let { before, after } = edit;
     const remote = byId.get(after.id) ?? null;
+    if (remote && edit.preserveFields?.length) {
+      before = { ...before, ...Object.fromEntries(edit.preserveFields.map(field => [field, remote[field]])) };
+      after = { ...after, ...Object.fromEntries(edit.preserveFields.map(field => [field, remote[field]])) };
+    }
     if (remote && same({ ...remote, version: undefined }, { ...after, version: undefined })) continue;
     if (!same(remote, before)) {
       conflicts.push(after.id);

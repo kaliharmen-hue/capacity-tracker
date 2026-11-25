@@ -17,7 +17,7 @@ test('legacy record, editable fields, persisted reload and mobile layout',async(
  await task.getByText('Planning and notes',{exact:true}).click();
  const today=await page.evaluate(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')});
  const draft=()=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)).draft[0],key);
- const edit=async(label,value,field)=>{const input=task.getByLabel(label,{exact:true});await input.fill(value);await input.evaluate(el=>el.dispatchEvent(new Event('change',{bubbles:true})));await expect.poll(async()=>(await draft())[field]).toBe(field==='durationMinutes'?Number(value):value)};
+ const edit=async(label,value,field)=>{const input=task.getByLabel(label,{exact:true});await input.fill(value);await input.press('Tab');await expect.poll(async()=>(await draft())[field]).toBe(field==='durationMinutes'?Number(value):value)};
  await edit('Planned working date',today,'plannedDate');
  await edit('Estimated minutes (optional)','35','durationMinutes');
  await task.getByLabel('Responsibility',{exact:true}).selectOption('Collaborative');

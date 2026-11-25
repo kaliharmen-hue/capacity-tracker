@@ -232,6 +232,7 @@ function render() {
     details.append(el('summary', 'Planning and notes'));
     const field = (label, control) => {
       const wrapper = el('label', label);
+      control.setAttribute('aria-label', label);
       wrapper.append(control);
       details.append(wrapper);
       control.disabled = busy;

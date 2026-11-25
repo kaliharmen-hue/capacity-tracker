@@ -35,3 +35,18 @@ test('existing snapshot and MCP preserve new fields during older client updates'
  assert.equal((await call('update_task',{id,expected_version:oldClient.task.version,title:'Denied'},env.PLANNER_READ_KEY)).isError,true);
  assert.equal((await call('list_tasks',{})).tasks[0].title,'Renamed');
 });
+
+test('legacy cached browser edits preserve fields absent from its task model',async()=>{
+ const modern={...legacy,plannedDate:'2026-11-26',durationMinutes:35,responsibility:'Me',commitmentType:'fixed',notes:'Keep this',progressNotes:'Started',conversationUrl:'https://example.org/chat',resourceUrl:'https://example.org/file'};
+ const data=new Map([['snapshot',{revision:4,tasks:[modern]}]]);
+ const storage={get:async k=>structuredClone(data.get(k)),put:async(k,v)=>data.set(k,structuredClone(v)),transaction:async f=>f(storage)};
+ const store=new PlannerStore({storage});
+ const env={PLANNER_OWNER_KEY:'A'.repeat(43),PLANNER_READ_KEY:'B'.repeat(43),PLANNER_WRITE_KEY:'C'.repeat(43),PLANNER_STORE:{idFromName:x=>x,get:()=>store}};
+ const oldBefore={...legacy,version:1};
+ const oldAfter={...oldBefore,project:'Renamed project'};
+ const response=await store.fetch(new Request('https://planner.example/api/tasks',{method:'PATCH',headers:{'x-planner-integration':'write','Content-Type':'application/json'},body:JSON.stringify({changes:[{before:oldBefore,after:oldAfter}]})}));
+ assert.equal(response.status,200);
+ const updated=(await response.json()).tasks[0];
+ assert.equal(updated.project,'Renamed project');
+ for(const field of ['plannedDate','durationMinutes','responsibility','commitmentType','notes','progressNotes','conversationUrl','resourceUrl'])assert.equal(updated[field],modern[field]);
+});

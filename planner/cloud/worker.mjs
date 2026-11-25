@@ -192,7 +192,9 @@ export class PlannerStore {
           const prior = before === null ? null : task(before);
           if (ids.has(next.id) || (prior && prior.id !== next.id)) throw new Error('Invalid task ID');
           ids.add(next.id);
-          return { before: prior, after: next };
+          const newerFields = ['plannedDate', 'durationMinutes', 'responsibility', 'commitmentType', 'notes', 'progressNotes', 'conversationUrl', 'resourceUrl'];
+          const preserveFields = newerFields.filter(field => !Object.hasOwn(after, field));
+          return { before: prior, after: next, preserveFields };
         });
       } catch { return json({ error: 'Invalid task changes' }, 400); }
     }

@@ -16,7 +16,7 @@ permissions:
   contents: read
 jobs:
   isolated-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
       - run: node --check planner/app.mjs
       - run: node integrations/tiimo-extension/parser-test.mjs
   browser-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
