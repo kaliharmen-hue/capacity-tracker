@@ -4,14 +4,14 @@ import {task,taskList,changes,merge} from '../model.mjs';
 import {handle,PlannerStore} from './worker.mjs';
 const id='11111111-1111-4111-8111-111111111111';
 const legacy={id,title:'Synthetic task',status:'Next action',project:'Example',deadline:'',version:1};
-const patch={status:'In progress',plannedDate:'2026-11-26',durationMinutes:35,responsibility:'Collaborative',commitmentType:'flexible',notes:'Example instructions',progressNotes:'Started',conversationUrl:'https://example.org/chat',resourceUrl:'https://example.org/file'};
+const patch={status:'In progress',plannedDate:'2026-11-26',durationMinutes:35,responsibility:'Collaborative',commitmentType:'flexible',area:'Personal',notes:'Example instructions',progressNotes:'Started',conversationUrl:'https://example.org/chat',resourceUrl:'https://example.org/file'};
 test('legacy normalization and independent dates',()=>{
  const old=task(legacy);
  assert.equal(old.plannedDate,'');assert.equal(old.durationMinutes,null);assert.equal(old.commitmentType,'flexible');
  const next=task({...old,...patch});
  assert.equal(next.deadline,'');assert.equal(next.plannedDate,patch.plannedDate);
  assert.deepEqual(taskList(JSON.parse(JSON.stringify([next]))),[next]);
- for(const bad of [{plannedDate:'2026-02-30'},{durationMinutes:0},{durationMinutes:1.2},{responsibility:'unknown'},{commitmentType:'unknown'},{resourceUrl:'javascript:alert(1)'},{conversationUrl:'https://u:p@example.org'},{notes:'a'.repeat(4001)}])assert.throws(()=>task({...next,...bad}));
+ for(const bad of [{plannedDate:'2026-02-30'},{durationMinutes:0},{durationMinutes:1.2},{responsibility:'unknown'},{commitmentType:'unknown'},{area:'Other'},{resourceUrl:'javascript:alert(1)'},{conversationUrl:'https://u:p@example.org'},{notes:'a'.repeat(4001)}])assert.throws(()=>task({...next,...bad}));
  const edited=changes([old],[next]);
  assert.equal(merge([old],edited,2).tasks[0].progressNotes,'Started');
  assert.deepEqual(merge([task({...old,title:'Other edit',version:2})],edited,3).conflicts,[id]);
@@ -37,7 +37,7 @@ test('existing snapshot and MCP preserve new fields during older client updates'
 });
 
 test('legacy cached browser edits preserve fields absent from its task model',async()=>{
- const modern={...legacy,plannedDate:'2026-11-26',durationMinutes:35,responsibility:'Me',commitmentType:'fixed',notes:'Keep this',progressNotes:'Started',conversationUrl:'https://example.org/chat',resourceUrl:'https://example.org/file'};
+ const modern={...legacy,plannedDate:'2026-11-26',durationMinutes:35,responsibility:'Me',commitmentType:'fixed',area:'Personal',notes:'Keep this',progressNotes:'Started',conversationUrl:'https://example.org/chat',resourceUrl:'https://example.org/file'};
  const data=new Map([['snapshot',{revision:4,tasks:[modern]}]]);
  const storage={get:async k=>structuredClone(data.get(k)),put:async(k,v)=>data.set(k,structuredClone(v)),transaction:async f=>f(storage)};
  const store=new PlannerStore({storage});
@@ -48,5 +48,5 @@ test('legacy cached browser edits preserve fields absent from its task model',as
  assert.equal(response.status,200);
  const updated=(await response.json()).tasks[0];
  assert.equal(updated.project,'Renamed project');
- for(const field of ['plannedDate','durationMinutes','responsibility','commitmentType','notes','progressNotes','conversationUrl','resourceUrl'])assert.equal(updated[field],modern[field]);
+ for(const field of ['plannedDate','durationMinutes','responsibility','commitmentType','area','notes','progressNotes','conversationUrl','resourceUrl'])assert.equal(updated[field],modern[field]);
 });

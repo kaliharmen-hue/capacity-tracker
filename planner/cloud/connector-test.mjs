@@ -19,15 +19,24 @@ test('private connector grants, MCP writes, conflicts and revocation preserve ow
   const rpc=async(token,name,args={})=>call('/mcp','POST',{jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:args}},{Authorization:'Bearer '+token});
   assert.equal((await rpc(env.PLANNER_OWNER_KEY,'list_tasks')).status,401);
   assert.equal((await rpc('x'.repeat(64),'list_tasks')).status,401);
+  const listed=await call('/mcp','POST',{jsonrpc:'2.0',id:1,method:'tools/list',params:{}});
+  const schemas=(await listed.json()).result.tools;
+  for(const name of ['create_task','update_task']) {
+    const schema=schemas.find(tool=>tool.name===name).inputSchema;
+    for(const field of ['plannedDate','durationMinutes','responsibility','commitmentType','area','notes','progressNotes','conversationUrl','resourceUrl']) assert(field in schema.properties,`${name} exposes ${field}`);
+    assert(schema.properties.status.enum.includes('In progress'),`${name} exposes In progress`);
+  }
   const request_id=crypto.randomUUID();
   assert((await (await rpc(read.key,'create_task',{request_id,title:'Synthetic connector'})).json()).result.isError);
-  const create=()=>rpc(write.key,'create_task',{request_id,title:'Synthetic connector'});
+  const plannedDate=new Date().toISOString().slice(0,10);
+  const create=()=>rpc(write.key,'create_task',{request_id,title:'Synthetic connector',status:'In progress',plannedDate,durationMinutes:35,responsibility:'ChatGPT',commitmentType:'flexible',area:'Hangar47',notes:'Task notes',progressNotes:'Starting work',conversationUrl:'https://example.org/chat',resourceUrl:'https://example.org/resource'});
   assert(!(await (await create()).json()).result.isError);
   assert(!(await (await create()).json()).result.isError);
   let snapshot=JSON.parse((await (await rpc(read.key,'list_tasks')).json()).result.content[0].text);
   assert.equal(snapshot.tasks.length,1);
   const task=snapshot.tasks[0];
-  assert(!(await (await rpc(write.key,'update_task',{id:task.id,expected_version:task.version,title:'Changed'})).json()).result.isError);
+  assert.deepEqual({status:task.status,plannedDate:task.plannedDate,durationMinutes:task.durationMinutes,responsibility:task.responsibility,commitmentType:task.commitmentType,area:task.area,notes:task.notes,progressNotes:task.progressNotes,conversationUrl:task.conversationUrl,resourceUrl:task.resourceUrl},{status:'In progress',plannedDate,durationMinutes:35,responsibility:'ChatGPT',commitmentType:'flexible',area:'Hangar47',notes:'Task notes',progressNotes:'Starting work',conversationUrl:'https://example.org/chat',resourceUrl:'https://example.org/resource'});
+  assert(!(await (await rpc(write.key,'update_task',{id:task.id,expected_version:task.version,title:'Changed',plannedDate:'',progressNotes:'Updated progress',status:'In progress'})).json()).result.isError);
   assert((await (await rpc(write.key,'update_task',{id:task.id,expected_version:task.version,title:'Stale'})).json()).result.isError);
   assert((await (await rpc(write.key,'update_task',{id:task.id,expected_version:task.version,url:'https://evil.example'})).json()).result.isError);
   assert.equal((await call('/api/logout','POST',undefined,{Authorization:'Bearer '+write.key})).status,401);
