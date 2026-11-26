@@ -38,6 +38,22 @@ function message(text) {
   $('notice').textContent = text;
 }
 
+for (const control of document.querySelectorAll('.copy-routine')) {
+  control.addEventListener('click', async () => {
+    const prompt = $(control.dataset.prompt);
+    const status = $('routine-status');
+    try {
+      await navigator.clipboard.writeText(prompt.value);
+      status.textContent = 'Prompt copied. Open your Personal Planner project in ChatGPT and paste it into a conversation.';
+    } catch {
+      prompt.closest('details').open = true;
+      prompt.focus();
+      prompt.select();
+      status.textContent = 'Clipboard access is unavailable. The prompt is selected below so you can copy it manually.';
+    }
+  });
+}
+
 function persist(base, draft) {
   const next = { base: taskList(base), draft: taskList(draft) };
   localStorage.setItem(key, JSON.stringify(next));
