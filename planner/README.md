@@ -19,19 +19,16 @@ Run the Worker and the tests in separate terminals. Local sign-in uses the test 
 
 ## Deploy
 
-Deploy only the `personal-planner-private` Worker from this branch and configuration. Use an authorized Cloudflare profile for the intended account and verify the account with `whoami` before deploying. The planner requires only Workers Static Assets and a SQLite-backed Durable Object, both available on Workers Free.
+Production deploys are handled by `.github/workflows/deploy-planner.yml`. Merge a reviewed pull request into `personal-planner-prototype`; GitHub Actions runs the Planner regression and Chromium suites, then deploys only the existing `personal-planner-private` Worker from `planner/cloud/wrangler.toml`. The workflow requires the repository secret `CLOUDFLARE_API_TOKEN`, scoped to that Worker with the Editor role. It does not read or write task records.
+
+The production backup is a separate owner action. The Worker uses the existing SQLite-backed Durable Object; Stage 2 adds an optional JSON task field with an empty default and no storage-class migration. To roll back application code, revert the deployment commit on `personal-planner-prototype`; the same checks run before the prior UI and Worker code are redeployed. Cloudflare version rollback restores Worker code, not stored task data, so retain the exported backup.
+
+For an authorized manual recovery deploy, use the Wrangler version pinned by the workflow and verify the intended Cloudflare account before deploying:
 
 ```sh
-npx --yes wrangler@4.167.0 auth activate personal-planner
 npx --yes wrangler@4.167.0 whoami
 npx --yes wrangler@4.167.0 deploy --config planner/cloud/wrangler.toml
 ```
-
-In the Cloudflare dashboard, open **Workers & Pages → personal-planner-private → Settings → Variables and Secrets**. Add a **Secret** named `PLANNER_OWNER_KEY`. Use a password manager to generate and save a random 43-character value using letters and numbers. Use that key to sign in to the planner on each device. Rotating the key revokes all existing sessions. The API returns 503 until the secret is configured.
-
-If the profile sees multiple accounts, set `CLOUDFLARE_ACCOUNT_ID` in the current terminal to select the intended one before deploying.
-
-Deployment currently uses the manually run command above with the bound personal-planner profile. GitHub runs Planner tests, not deployments. A separate GitHub-connected Build could be configured later; the existing Personal OS Builds configuration is independent.
 
 ## Move or restore data
 
@@ -92,3 +89,9 @@ PLANNER_READ_KEY/PLANNER_WRITE_KEY secrets must be rotated/deleted separately.
 Active browser sessions renew their 30-day expiry at most once daily, with an
 absolute 180-day reauthentication limit. Sync runs after edits, focus/visibility
 changes, reconnection and once per minute while visible and signed in.
+
+## Stage 2 dashboard
+
+The dashboard opens on Today, with a Today’s Focus panel, a separate Waiting for Others section, and a Tomorrow preview. Upcoming keeps intended working dates distinct from actual deadlines. Projects are expandable and show task status counts. In Progress has its own view. The Personal, Hangar47 and Personal Training filters use the task's explicit **Area** when set; older records without an area are grouped only when their project name clearly matches a familiar label, and otherwise remain visible under **All**. Flexible is the default commitment type; the dashboard never schedules outstanding work automatically. Workload totals include only known task durations.
+
+Area is optional and defaults to empty for older records. The MCP schema exposes it alongside planned dates, progress notes, responsibility, commitment type and the other task fields. Older cached clients preserve it during edits.

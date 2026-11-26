@@ -10,6 +10,7 @@ function iso(value) {
 
 export const responsibilities = ['', 'Me', 'ChatGPT', 'Collaborative', 'Someone else'];
 export const commitmentTypes = ['flexible', 'fixed'];
+export const areas = ['', 'Personal', 'Hangar47', 'Personal Training'];
 const dateValid = value => value === '' || (typeof value === 'string' && iso(value + 'T00:00:00.000Z'));
 const shortText = (value, limit) => typeof value === 'string' && value.length <= limit;
 const linkValid = value => {
@@ -20,20 +21,20 @@ const linkValid = value => {
 };
 
 export function task(value) {
-  const { id, title, status, project = '', deadline = '', createdAt, updatedAt, version, plannedDate = '', durationMinutes = null, responsibility = '', commitmentType = 'flexible', notes = '', progressNotes = '', conversationUrl = '', resourceUrl = '' } = value ?? {};
+  const { id, title, status, project = '', deadline = '', createdAt, updatedAt, version, plannedDate = '', durationMinutes = null, responsibility = '', commitmentType = 'flexible', area = '', notes = '', progressNotes = '', conversationUrl = '', resourceUrl = '' } = value ?? {};
   if (!uuid.test(id) || typeof id !== 'string' || typeof title !== 'string' || !title.trim()
     || title.length > 500 || !states.includes(status) || typeof project !== 'string' || project.length > 200
     || (deadline !== '' && (typeof deadline !== 'string' || !iso(deadline + 'T00:00:00.000Z')))
     || !dateValid(plannedDate)
     || (durationMinutes !== null && (!Number.isSafeInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 10080))
-    || !responsibilities.includes(responsibility) || !commitmentTypes.includes(commitmentType)
+    || !responsibilities.includes(responsibility) || !commitmentTypes.includes(commitmentType) || !areas.includes(area)
     || !shortText(notes, 4000) || !shortText(progressNotes, 4000)
     || !linkValid(conversationUrl) || !linkValid(resourceUrl)
     || (createdAt !== undefined && !iso(createdAt)) || (updatedAt !== undefined && !iso(updatedAt))
     || (version !== undefined && (!Number.isSafeInteger(version) || version < 1))) {
     throw new Error('Invalid task');
   }
-  return { id, title, status, project, deadline, createdAt, updatedAt, version, plannedDate, durationMinutes, responsibility, commitmentType, notes, progressNotes, conversationUrl, resourceUrl };
+  return { id, title, status, project, deadline, createdAt, updatedAt, version, plannedDate, durationMinutes, responsibility, commitmentType, area, notes, progressNotes, conversationUrl, resourceUrl };
 }
 
 export function taskList(values) {

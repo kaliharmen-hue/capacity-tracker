@@ -1,13 +1,17 @@
-import { changes, merge, same, states, responsibilities, commitmentTypes, taskList } from './model.mjs';
+import { changes, merge, same, states, responsibilities, commitmentTypes, areas, taskList } from './model.mjs';
 
 const $ = id => document.getElementById(id);
 const key = 'personal-planner-sync-v1';
 const legacyKey = 'personal-planner-prototype-v1';
 let state;
-let view = 'Inbox';
+let view = 'Today';
+let scope = 'All';
 const expanded = new Set();
+const expandedProjects = new Set();
+const expandedSections = new Set();
 let signedIn = false;
 let busy = false;
+let editQueue = Promise.resolve();
 let conflict = null;
 let timer;
 let lastAttempt = 0;
@@ -71,7 +75,6 @@ function locked(action, refresh = true) {
 async function run(action) {
   if (busy) return;
   busy = true;
-  render();
   try { await locked(action); }
   catch (error) { message(error.message || 'Planner could not complete the request.'); }
   finally { busy = false; render(); if (syncRequested) { syncRequested = false; scheduleSync(); } }
@@ -87,12 +90,16 @@ function scheduleSync(force = false) {
 }
 
 function edit(id, patch) {
-  return run(() => {
-    const draft = state.draft.map(t => t.id === id ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t);
-    persist(state.base, draft);
-    message('Saved on this device.');
-    scheduleSync();
-  });
+  editQueue = editQueue.then(async () => {
+    while (busy) await new Promise(resolve => setTimeout(resolve, 10));
+    await run(() => {
+      const draft = state.draft.map(t => t.id === id ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t);
+      persist(state.base, draft);
+      message('Saved on this device.');
+      scheduleSync();
+    });
+  }).catch(error => message(error.message || 'Planner could not save this change.'));
+  return editQueue;
 }
 
 async function api(path, method = 'GET', body) {
@@ -173,7 +180,141 @@ function button(label, action) {
   return control;
 }
 
+function todayKey(offset = 0) {
+  const date = new Date();
+  date.setDate(date.getDate() + offset);
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+}
+
+function taskScope(task) {
+  if (task.area) return task.area;
+  const project = task.project.toLowerCase();
+  if (/hangar\s*47|h47/.test(project)) return 'Hangar47';
+  if (/personal\s*training|training|pt client/.test(project)) return 'Personal Training';
+  if (/personal/.test(project)) return 'Personal';
+  return 'Uncategorised';
+}
+
+function renderTask(task) {
+  const row = el('article');
+  row.className = 'task';
+  row.dataset.taskId = task.id;
+  const status = el('select');
+  status.setAttribute('aria-label', 'Status');
+  for (const name of states) status.append(el('option', name));
+  status.value = task.status;
+  status.onchange = () => edit(task.id, { status: status.value });
+
+  const deadline = el('input');
+  deadline.type = 'date'; deadline.value = task.deadline;
+  deadline.setAttribute('aria-label', 'Optional deadline');
+  deadline.onchange = () => edit(task.id, { deadline: deadline.value });
+
+  const project = el('input');
+  project.placeholder = 'Project (optional)'; project.maxLength = 200; project.value = task.project;
+  project.setAttribute('aria-label', 'Project');
+  project.onchange = () => edit(task.id, { project: project.value });
+  status.disabled = deadline.disabled = project.disabled = busy;
+
+  const details = el('details');
+  details.className = 'task-details'; details.open = expanded.has(task.id);
+  details.ontoggle = () => { if (details.open) expanded.add(task.id); else expanded.delete(task.id); };
+  details.append(el('summary', 'Planning and notes'));
+  const field = (label, control) => {
+    const wrapper = el('label', label);
+    control.setAttribute('aria-label', label); wrapper.append(control); details.append(wrapper);
+    control.disabled = busy; return control;
+  };
+  const input = (label, name, type = 'text', limit = 2048) => {
+    const control = field(label, el('input')); control.type = type;
+    if (type === 'text' || type === 'url') control.maxLength = limit;
+    control.value = task[name] ?? '';
+    if (type === 'number') { control.min = '1'; control.max = '10080'; control.step = '1'; }
+    control.onchange = () => {
+      if (!control.reportValidity()) return;
+      edit(task.id, { [name]: type === 'number' ? (control.value === '' ? null : Number(control.value)) : control.value.trim() });
+    };
+    return control;
+  };
+  const select = (label, name, values) => {
+    const control = field(label, el('select'));
+    for (const value of values) { const option = el('option', value || 'Unspecified'); option.value = value; control.append(option); }
+    control.value = task[name]; control.onchange = () => edit(task.id, { [name]: control.value });
+  };
+  const note = (label, name) => {
+    const control = field(label, el('textarea')); control.maxLength = 4000; control.rows = 3;
+    control.value = task[name]; control.onchange = () => edit(task.id, { [name]: control.value });
+  };
+  input('Planned working date', 'plannedDate', 'date');
+  input('Estimated minutes (optional)', 'durationMinutes', 'number');
+  select('Responsibility', 'responsibility', responsibilities);
+  select('Commitment type', 'commitmentType', commitmentTypes);
+  select('Area', 'area', areas);
+  note('Task notes', 'notes'); note('Progress notes', 'progressNotes');
+  for (const [label, name] of [['Conversation link', 'conversationUrl'], ['Resource link', 'resourceUrl']]) {
+    input(label, name, 'url');
+    if (task[name]) { const link = el('a', 'Open ' + label.toLowerCase()); link.href = task[name]; link.target = '_blank'; link.rel = 'noopener noreferrer'; details.append(link); }
+  }
+  const main = el('div'); main.className = 'task-main';
+  main.append(el('strong', task.title));
+  const badges = el('div'); badges.className = 'task-meta';
+  badges.append(el('span', task.status));
+  if (task.responsibility) { const badge = el('span', task.responsibility); badge.className = 'badge ' + (task.responsibility === 'ChatGPT' ? 'chatgpt' : ''); badges.append(badge); }
+  { const badge = el('span', task.commitmentType === 'fixed' ? 'Fixed commitment' : 'Flexible'); badge.className = 'badge' + (task.commitmentType === 'fixed' ? ' fixed' : ''); badges.append(badge); }
+  if (task.plannedDate) badges.append(el('span', 'Planned ' + task.plannedDate));
+  if (task.deadline) badges.append(el('span', 'Deadline ' + task.deadline));
+  if (task.durationMinutes) badges.append(el('span', task.durationMinutes + ' min'));
+  main.append(badges);
+  main.append(button('Edit title', () => {
+    const title = prompt('Task title', task.title);
+    if (title?.trim()) edit(task.id, { title: title.trim().slice(0, 500) });
+  }));
+  main.append(status, deadline, project, button(task.status === 'Done' ? 'Reopen' : 'Complete',
+    () => edit(task.id, { status: task.status === 'Done' ? 'Next action' : 'Done' })));
+  row.append(main, details);
+  return row;
+}
+
+function taskListInto(container, tasks, emptyMessage = 'Nothing here.') {
+  if (!tasks.length) { container.append(el('p', emptyMessage)); return; }
+  for (const task of tasks) container.append(renderTask(task));
+}
+
+function section(title, tasks, options = {}) {
+  const wrapper = el(options.collapsible ? 'details' : 'section');
+  wrapper.className = 'dashboard-section' + (options.className ? ' ' + options.className : '');
+  if (options.collapsible) {
+    wrapper.dataset.section = title; wrapper.open = expandedSections.has(title);
+    wrapper.ontoggle = () => { if (wrapper.open) expandedSections.add(title); else expandedSections.delete(title); };
+    const summary = el('summary', title + ' · ' + tasks.length);
+    wrapper.append(summary);
+  } else {
+    const heading = el('h2', title); wrapper.append(heading);
+    if (options.description) wrapper.append(el('p', options.description));
+  }
+  const list = el('div'); list.className = 'task-list';
+  taskListInto(list, tasks, options.emptyMessage);
+  wrapper.append(list);
+  return wrapper;
+}
+
 function render() {
+  const activeElement = document.activeElement;
+  const focusRef = activeElement && activeElement !== document.body ? {
+    id: activeElement.id, taskId: activeElement.closest?.('.task')?.dataset.taskId,
+    label: activeElement.getAttribute?.('aria-label'), tag: activeElement.tagName, value: 'value' in activeElement ? activeElement.value : undefined
+  } : null;
+  const scrollY = window.scrollY;
+  for (const details of document.querySelectorAll('.task-details')) {
+    const id = details.closest('.task')?.dataset.taskId;
+    if (id) { if (details.open) expanded.add(id); else expanded.delete(id); }
+  }
+  for (const card of document.querySelectorAll('.project-card')) {
+    if (card.dataset.project) { if (card.open) expandedProjects.add(card.dataset.project); else expandedProjects.delete(card.dataset.project); }
+  }
+  for (const details of document.querySelectorAll('.dashboard-section[data-section]')) {
+    if (details.open) expandedSections.add(details.dataset.section); else expandedSections.delete(details.dataset.section);
+  }
   $('login').hidden = signedIn;
   $('cloud').hidden = !signedIn;
   $('connector-settings').hidden = !signedIn;
@@ -192,108 +333,83 @@ function render() {
     for (const id of conflict.ids) {
       const item = el('li');
       const summary = t => t ? JSON.stringify(t, null, 2) : 'Missing';
-      item.append(el('strong', 'This device'), el('pre', summary(local.get(id))),
-        el('strong', 'Cloud'), el('pre', summary(remote.get(id))));
+      item.append(el('strong', 'This device'), el('pre', summary(local.get(id))), el('strong', 'Cloud'), el('pre', summary(remote.get(id))));
       list.append(item);
     }
-    $('conflict').append(list, button('Keep this device’s versions', () => resolve(true)),
-      button('Keep cloud versions', () => resolve(false)));
+    $('conflict').append(list, button('Keep this device’s versions', () => resolve(true)), button('Keep cloud versions', () => resolve(false)));
   }
 
   $('views').replaceChildren();
-  for (const name of ['Today', 'All', ...states]) {
+  for (const name of ['Today', 'Upcoming', 'Projects', 'Inbox', 'In progress']) {
     const control = button(name, () => { view = name; render(); });
     control.setAttribute('aria-pressed', String(view === name));
     $('views').append(control);
   }
-  $('heading').textContent = view;
-  const root = $('tasks');
-  root.replaceChildren();
-  const now = new Date();
-  const today = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
-  const tasks = state.draft.filter(t => view === 'All' || (view === 'Today'
-    ? !['Done', 'Archived'].includes(t.status) && (t.plannedDate === today || (t.deadline && t.deadline <= today)) : t.status === view));
-  if (!tasks.length) root.append(el('p', 'Nothing in this view.'));
-  for (const t of tasks) {
-    const row = el('div');
-    row.className = 'task';
-    const rename = button('Edit', () => {
-      const title = prompt('Task title', t.title);
-      if (title?.trim()) edit(t.id, { title: title.trim().slice(0, 500) });
-    });
-    const status = el('select');
-    status.setAttribute('aria-label', 'Status');
-    for (const name of states) status.append(el('option', name));
-    status.value = t.status;
-    status.onchange = () => edit(t.id, { status: status.value });
-
-    const date = el('input');
-    date.type = 'date';
-    date.value = t.deadline;
-    date.setAttribute('aria-label', 'Optional deadline');
-    date.onchange = () => edit(t.id, { deadline: date.value });
-
-    const project = el('input');
-    project.placeholder = 'Project (optional)';
-    project.maxLength = 200;
-    project.value = t.project;
-    project.setAttribute('aria-label', 'Project');
-    project.onchange = () => edit(t.id, { project: project.value });
-
-    status.disabled = date.disabled = project.disabled = busy;
-    const details = el('details');
-    details.className = 'task-details';
-    details.open = expanded.has(t.id);
-    details.ontoggle = () => { if (details.open) expanded.add(t.id); else expanded.delete(t.id); };
-    details.append(el('summary', 'Planning and notes'));
-    const field = (label, control) => {
-      const wrapper = el('label', label);
-      control.setAttribute('aria-label', label);
-      wrapper.append(control);
-      details.append(wrapper);
-      control.disabled = busy;
-      return control;
-    };
-    const input = (label, name, type = 'text', limit = 2048) => {
-      const control = field(label, el('input'));
-      control.type = type;
-      if (type === 'text' || type === 'url') control.maxLength = limit;
-      control.value = t[name] ?? '';
-      if (type === 'number') { control.min = '1'; control.max = '10080'; control.step = '1'; }
-      control.onchange = () => {
-        if (!control.reportValidity()) return;
-        edit(t.id, { [name]: type === 'number' ? (control.value === '' ? null : Number(control.value)) : control.value.trim() });
-      };
-      return control;
-    };
-    const select = (label, name, values) => {
-      const control = field(label, el('select'));
-      for (const value of values) { const option = el('option', value || 'Unspecified'); option.value = value; control.append(option); }
-      control.value = t[name];
-      control.onchange = () => edit(t.id, { [name]: control.value });
-    };
-    const note = (label, name) => {
-      const control = field(label, el('textarea'));
-      control.maxLength = 4000;
-      control.rows = 3;
-      control.value = t[name];
-      control.onchange = () => edit(t.id, { [name]: control.value });
-    };
-    input('Planned working date', 'plannedDate', 'date');
-    input('Estimated minutes (optional)', 'durationMinutes', 'number');
-    select('Responsibility', 'responsibility', responsibilities);
-    select('Commitment type', 'commitmentType', commitmentTypes);
-    note('Task notes', 'notes');
-    note('Progress notes', 'progressNotes');
-    for (const [label, name] of [['Conversation link', 'conversationUrl'], ['Resource link', 'resourceUrl']]) {
-      input(label, name, 'url');
-      if (t[name]) { const link = el('a', 'Open ' + label.toLowerCase()); link.href = t[name]; link.target = '_blank'; link.rel = 'noopener noreferrer'; details.append(link); }
+  const filter = $('scope-filters'); filter.replaceChildren();
+  for (const name of ['All', 'Personal', 'Hangar47', 'Personal Training']) {
+    const control = button(name, () => { scope = name; render(); });
+    control.setAttribute('aria-pressed', String(scope === name));
+    filter.append(control);
+  }
+  const root = $('tasks'); root.replaceChildren();
+  const today = todayKey();
+  const tomorrow = todayKey(1);
+  const visible = state.draft.filter(t => t.status !== 'Archived');
+  const scoped = visible.filter(t => scope === 'All' || taskScope(t) === scope);
+  const active = scoped.filter(t => t.status !== 'Done');
+  const focus = active.filter(t => t.plannedDate === today || (t.deadline && t.deadline <= today));
+  const waiting = active.filter(t => t.status === 'Waiting');
+  const tomorrowTasks = active.filter(t => t.plannedDate === tomorrow || t.deadline === tomorrow);
+  const knownMinutes = focus.reduce((total, task) => total + (task.durationMinutes || 0), 0);
+  const inFocus = el('section'); inFocus.className = 'focus-panel';
+  inFocus.append(el('p', 'TODAY’S FOCUS'), el('h2', `${focus.length} ${focus.length === 1 ? 'priority' : 'priorities'}`));
+  const durationLabel = knownMinutes < 60 ? `${knownMinutes}m` : `${Math.floor(knownMinutes / 60)}h${knownMinutes % 60 ? ` ${knownMinutes % 60}m` : ''}`;
+  inFocus.append(el('p', knownMinutes ? `Known task time: ${durationLabel}` : 'Task durations are not set for today.'));
+  taskListInto(inFocus, focus, 'No tasks are planned for today or past their deadline.');
+  const preview = el('section'); preview.className = 'focus-panel tomorrow-panel';
+  preview.append(el('h2', 'Tomorrow'), el('p', `${tomorrowTasks.length} planned or due · deadlines stay separate from planned work`));
+  taskListInto(preview, tomorrowTasks, 'Nothing planned for or due tomorrow.');
+  if (view === 'Today') {
+    const top = el('div'); top.className = 'focus-layout'; top.append(inFocus, preview); root.append(top);
+    root.append(section('Waiting for Others', waiting, { emptyMessage: 'Nothing is waiting for someone else.' }));
+    const scheduled = new Set([...focus, ...waiting, ...tomorrowTasks].map(t => t.id));
+    root.append(section('Unscheduled', active.filter(t => !t.plannedDate && !t.deadline && !scheduled.has(t.id) && !['Inbox', 'Next action'].includes(t.status)), { collapsible: true }));
+    root.append(section('Backlog', active.filter(t => t.status === 'Inbox' || t.status === 'Next action').filter(t => !scheduled.has(t.id)), { collapsible: true }));
+  } else if (view === 'Upcoming') {
+    const upcoming = active.filter(t => (t.plannedDate > today || t.deadline > today) && t.plannedDate !== today && t.deadline !== today);
+    root.append(section('Upcoming', upcoming, { description: 'Planned dates show intended work; deadlines remain actual due dates.' }));
+    root.append(section('Waiting for Others', waiting));
+  } else if (view === 'Inbox') {
+    root.append(section('Inbox', active.filter(t => t.status === 'Inbox')));
+  } else if (view === 'In progress') {
+    root.append(section('In Progress', active.filter(t => t.status === 'In progress')));
+  } else if (view === 'Projects') {
+    const groups = new Map();
+    for (const task of scoped) { const name = task.project.trim() || 'No project'; if (!groups.has(name)) groups.set(name, []); groups.get(name).push(task); }
+    if (!groups.size) root.append(el('p', 'No active projects yet. Add a project name to a task to group it here.'));
+    for (const [name, tasks] of groups) {
+      const card = el('details'); card.className = 'project-card'; card.dataset.project = name; card.open = expandedProjects.has(name);
+      card.ontoggle = () => { if (card.open) expandedProjects.add(name); else expandedProjects.delete(name); };
+      const activeCount = tasks.filter(t => t.status !== 'Done').length;
+      const summary = el('summary', `${name} · ${activeCount} active`);
+      card.append(summary);
+      const progress = el('p', `${tasks.filter(t => t.status === 'Done').length} complete · ${tasks.filter(t => t.status === 'In progress').length} in progress`);
+      card.append(progress);
+      for (const task of tasks) card.append(renderTask(task));
+      root.append(card);
     }
-    row.append(el('strong', t.title), rename, status, date, project,
-      button(t.status === 'Done' ? 'Reopen' : 'Complete',
-        () => edit(t.id, { status: t.status === 'Done' ? 'Next action' : 'Done' })));
-    row.append(details);
-    root.append(row);
+  }
+  if (focusRef) {
+    let candidate = focusRef.id ? document.getElementById(focusRef.id) : null;
+    if (!candidate && focusRef.taskId && focusRef.label) {
+      candidate = [...document.querySelectorAll('.task[data-task-id]')].find(row => row.dataset.taskId === focusRef.taskId)?.querySelectorAll('[aria-label]');
+      candidate = candidate ? [...candidate].find(control => control.getAttribute('aria-label') === focusRef.label && control.tagName === focusRef.tag) : null;
+    }
+    if (candidate && !candidate.disabled) {
+      if (focusRef.value !== undefined && candidate.value !== focusRef.value) candidate.value = focusRef.value;
+      candidate.focus({ preventScroll: true });
+    }
+    window.scrollTo(0, scrollY);
   }
 }
 
