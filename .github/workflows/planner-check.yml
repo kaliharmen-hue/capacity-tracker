@@ -1,23 +1,54 @@
 name: Personal Planner checks
 on:
   push:
-    branches: [personal-planner-prototype]
+    branches: [personal-planner-prototype, personal-planner-stage1]
     paths:
       - 'planner/**'
       - 'integrations/tiimo-extension/**'
+      - '.github/workflows/planner-check.yml'
+  pull_request:
+    branches: [personal-planner-prototype]
+    paths:
+      - 'planner/**'
       - '.github/workflows/planner-check.yml'
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   isolated-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test planner/cloud/session-test.mjs planner/cloud/integration-access-test.mjs planner/cloud/connector-test.mjs planner/cloud/oauth-test.mjs
+      - run: node --test planner/cloud/session-test.mjs planner/cloud/integration-access-test.mjs planner/cloud/connector-test.mjs planner/cloud/oauth-test.mjs planner/cloud/stage1-test.mjs
       - run: node --check planner/app.mjs
       - run: node integrations/tiimo-extension/parser-test.mjs
+  browser-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --package-lock=false @playwright/test@1.56.1 wrangler@4.167.0
+      - run: npx playwright install --with-deps chromium
+      - run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory planner >/tmp/planner-http.log 2>&1 &
+          static_server=$!
+          npx wrangler dev --config planner/cloud/wrangler.toml --ip 127.0.0.1 --port 8794 --var PLANNER_LOCAL_TEST:1 --var PLANNER_OWNER_KEY:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA >/tmp/planner-worker.log 2>&1 &
+          worker_server=$!
+          trap 'kill "$static_server" "$worker_server" || true' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8765/ >/dev/null 2>&1 && static_ready=1 || true
+            curl -fsS http://127.0.0.1:8794/ >/dev/null 2>&1 && worker_ready=1 || true
+            if [ "${static_ready:-}" = 1 ] && [ "${worker_ready:-}" = 1 ]; then break; fi
+            sleep 1
+          done
+          test "${static_ready:-}" = 1
+          test "${worker_ready:-}" = 1
+          node --test planner/cloud/integration-test.mjs
+          npx playwright test planner/browser-stage1.spec.mjs planner/cloud/worker-stage1.spec.mjs --workers=1 --reporter=list

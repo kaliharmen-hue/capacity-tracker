@@ -1,6 +1,6 @@
-import { states } from '../model.mjs';
+import { states, responsibilities, commitmentTypes } from '../model.mjs';
 
-const fields = {title:{type:'string',minLength:1,maxLength:500},status:{type:'string',enum:states},project:{type:'string',maxLength:200},deadline:{type:'string',description:'YYYY-MM-DD, or empty to clear'}};
+const fields = {title:{type:'string',minLength:1,maxLength:500},status:{type:'string',enum:states},project:{type:'string',maxLength:200},deadline:{type:'string',description:'Actual deadline YYYY-MM-DD, or empty to clear'},plannedDate:{type:'string',description:'Intended working date YYYY-MM-DD, or empty to clear'},durationMinutes:{type:['integer','null'],minimum:1,maximum:10080,description:'Estimated minutes, null if unknown'},responsibility:{type:'string',enum:responsibilities},commitmentType:{type:'string',enum:commitmentTypes},notes:{type:'string',maxLength:4000},progressNotes:{type:'string',maxLength:4000},conversationUrl:{type:'string',maxLength:2048},resourceUrl:{type:'string',maxLength:2048}};
 export const tools = [
   {name:'list_tasks',description:'Read Personal Planner tasks. Use current task versions before updates.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true}},
   {name:'create_task',description:'Create a task explicitly requested by the user. Reuse request_id on retries to avoid duplicates.',inputSchema:{type:'object',properties:{request_id:{type:'string',format:'uuid'},...fields},required:['request_id','title'],additionalProperties:false},annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true}},
