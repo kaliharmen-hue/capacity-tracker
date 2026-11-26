@@ -1,11 +1,4 @@
 {
-  "name": "personal-planner",
-  "version": "0.1.2",
-  "description": "Private access to your independently hosted Personal Planner tasks, with separate revocable read or write permissions.",
-  "author": {
-    "name": "Kali Harmen",
-    "email": "kalihealthcoach@gmail.com"
-  },
   "interface": {
     "displayName": "Personal Planner",
     "shortDescription": "Read and manage your tasks",
@@ -17,8 +10,15 @@
     ],
     "defaultPrompt": "Show my tasks and help me choose what to do next."
   },
+  "apps": "./.app.json",
+  "name": "personal-planner",
+  "version": "0.1.3",
+  "description": "Private access to your independently hosted Personal Planner tasks, with separate revocable read or write permissions.",
+  "author": {
+    "name": "Kali Harmen",
+    "email": "kalihealthcoach@gmail.com"
+  },
   "keywords": [],
   "skills": "./skills",
-  "mcpServers": "./.mcp.json",
-  "apps": "./.app.json"
+  "mcpServers": "./.mcp.json"
 }

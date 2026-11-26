@@ -39,7 +39,7 @@ Tiimo diagnostics and parsers are local-only and represent partial observations.
 ## Private ChatGPT connector
 
 The independently hosted `/mcp` endpoint exposes `list_tasks`, `create_task` and
-`update_task`. Open [Personal Planner Bridge](https://chatgpt.com/plugins/plugin_asdk_app_6b05ce7bde8881919a86cb899d6cdc16) and choose Connect.
+`update_task`. Open [Personal Planner Bridge](https://chatgpt.com/plugins/plugin_asdk_app_6b08731876ec8191a4ec9366ba277c7c) and choose Connect.
 Sign in on Planner if needed, then approve read-only or read/create/update access.
 ChatGPT uses OAuth authorization code + S256 PKCE with a pre-registered public
 client (`personal-planner-chatgpt`, token authentication `none`) and the exact
@@ -63,7 +63,7 @@ The private bridge was registered through Plugins → Add → Add custom MCP ser
 using the existing Worker endpoint and the public client ID above, token auth
 method `none`, the discovered endpoints and resource, and base scopes
 `planner:read planner:write`. Its app ID is
-`asdk_app_6b05ce7bde8881919a86cb899d6cdc16`; the original package now references
+`asdk_app_6b08731876ec8191a4ec9366ba277c7c`; the original package now references
 that verified app in `.app.json`. This creates no second hosted backend, data
 store or paid service. The bridge's Connect step and the owner's approval are
 still required before real task access; registering a connection is not proof
