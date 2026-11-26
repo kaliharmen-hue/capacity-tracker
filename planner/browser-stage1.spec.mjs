@@ -9,6 +9,25 @@ test.beforeEach(async({page})=>{
  await expect(page.locator('#notice')).toContainText('Sign in');
  await page.getByRole('button',{name:'All',exact:true}).click();
 });
+test('daily routine shortcuts stay separate and remain usable on mobile',async({page,context})=>{
+ const routines=page.getByRole('region',{name:'Daily routines'});
+ await expect(routines.locator('.routine-card')).toHaveCount(3);
+ await expect(routines).toContainText('Personal morning opening');
+ await expect(routines).toContainText('Hangar47 workday opening');
+ await expect(routines).toContainText('Hangar47 workday shutdown');
+ await expect(page.locator('#tasks')).not.toContainText('Daily routines');
+ await expect(routines.locator('a')).toHaveCount(3);
+ await expect(routines.locator('textarea[readonly]')).toHaveCount(3);
+ expect(await routines.locator('a').evaluateAll(links=>links.map(link=>link.href))).toEqual(Array(3).fill('https://chatgpt.com/'));
+ await context.grantPermissions(['clipboard-read','clipboard-write']);
+ await routines.getByRole('button',{name:'Copy Personal morning opening prompt'}).click();
+ await expect(page.locator('#routine-status')).toContainText('Prompt copied');
+ await expect.poll(()=>page.evaluate(()=>navigator.clipboard.readText())).toContain('Personal morning opening');
+ await expect.poll(()=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)).draft.length,key)).toBe(1);
+ await page.setViewportSize({width:375,height:812});
+ await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ await expect.poll(()=>routines.locator('.routine-card').first().evaluate(element=>getComputedStyle(element.parentElement).gridTemplateColumns)).toMatch(/^[^ ]+$/);
+});
 test('legacy record, editable fields, persisted reload and mobile layout',async({page})=>{
  const task=page.locator('.task');
  await expect(task).toContainText(old.title);
