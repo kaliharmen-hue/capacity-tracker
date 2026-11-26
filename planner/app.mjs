@@ -11,6 +11,7 @@ const expandedProjects = new Set();
 const expandedSections = new Set();
 let signedIn = false;
 let busy = false;
+let editQueue = Promise.resolve();
 let conflict = null;
 let timer;
 let lastAttempt = 0;
@@ -89,12 +90,16 @@ function scheduleSync(force = false) {
 }
 
 function edit(id, patch) {
-  return run(() => {
-    const draft = state.draft.map(t => t.id === id ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t);
-    persist(state.base, draft);
-    message('Saved on this device.');
-    scheduleSync();
-  });
+  editQueue = editQueue.then(async () => {
+    while (busy) await new Promise(resolve => setTimeout(resolve, 10));
+    await run(() => {
+      const draft = state.draft.map(t => t.id === id ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t);
+      persist(state.base, draft);
+      message('Saved on this device.');
+      scheduleSync();
+    });
+  }).catch(error => message(error.message || 'Planner could not save this change.'));
+  return editQueue;
 }
 
 async function api(path, method = 'GET', body) {
@@ -297,7 +302,7 @@ function render() {
   const activeElement = document.activeElement;
   const focusRef = activeElement && activeElement !== document.body ? {
     id: activeElement.id, taskId: activeElement.closest?.('.task')?.dataset.taskId,
-    label: activeElement.getAttribute?.('aria-label'), tag: activeElement.tagName
+    label: activeElement.getAttribute?.('aria-label'), tag: activeElement.tagName, value: 'value' in activeElement ? activeElement.value : undefined
   } : null;
   const scrollY = window.scrollY;
   for (const details of document.querySelectorAll('.task-details')) {
@@ -400,7 +405,10 @@ function render() {
       candidate = [...document.querySelectorAll('.task[data-task-id]')].find(row => row.dataset.taskId === focusRef.taskId)?.querySelectorAll('[aria-label]');
       candidate = candidate ? [...candidate].find(control => control.getAttribute('aria-label') === focusRef.label && control.tagName === focusRef.tag) : null;
     }
-    if (candidate && !candidate.disabled) candidate.focus({ preventScroll: true });
+    if (candidate && !candidate.disabled) {
+      if (focusRef.value !== undefined && candidate.value !== focusRef.value) candidate.value = focusRef.value;
+      candidate.focus({ preventScroll: true });
+    }
     window.scrollTo(0, scrollY);
   }
 }

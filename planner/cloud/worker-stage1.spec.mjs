@@ -14,6 +14,7 @@ test('Worker saves Stage 1 edits and MCP reads, creates and updates expanded tas
  await page.locator('#title').fill(title);
  await page.locator('#capture-submit').click();
  await expect(page.locator('#notice')).toContainText('Synced at');
+ await page.getByRole('button',{name:'Inbox',exact:true}).click();
  const row=page.locator('.task').filter({hasText:title});
  await row.getByText('Planning and notes',{exact:true}).click();
  const today=await page.evaluate(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')});
@@ -35,9 +36,10 @@ test('Worker saves Stage 1 edits and MCP reads, creates and updates expanded tas
  await expect.poll(async()=>(await current()).commitmentType).toBe('fixed');
  await edit('Task notes','Synthetic task instructions','notes');
  await edit('Progress notes','Synthetic first progress update','progressNotes');
+ await row.getByLabel('Area',{exact:true}).selectOption('Hangar47');
+ await expect.poll(async()=>(await current()).area).toBe('Hangar47');
  await edit('Conversation link','https://example.org/conversation','conversationUrl');
  await edit('Resource link','https://example.org/resource','resourceUrl');
- await page.getByRole('button',{name:'All',exact:true}).click();
  await row.getByLabel('Status',{exact:true}).selectOption('In progress');
  await expect.poll(async()=>(await current()).status).toBe('In progress');
  await expect(page.locator('#notice')).toContainText('Synced at');
@@ -54,7 +56,7 @@ test('Worker saves Stage 1 edits and MCP reads, creates and updates expanded tas
  expect(listed.ok()).toBeTruthy();
  const tools=(await listed.json()).result.tools;
  const taskFields=tools.find(t=>t.name==='update_task').inputSchema.properties;
- for(const field of ['plannedDate','durationMinutes','responsibility','commitmentType','notes','progressNotes','conversationUrl','resourceUrl'])expect(taskFields).toHaveProperty(field);
+ for(const field of ['area','plannedDate','durationMinutes','responsibility','commitmentType','notes','progressNotes','conversationUrl','resourceUrl'])expect(taskFields).toHaveProperty(field);
 
  await page.getByText('Settings',{exact:true}).click();
  await page.getByText('Advanced integration keys',{exact:true}).click();
@@ -70,10 +72,10 @@ test('Worker saves Stage 1 edits and MCP reads, creates and updates expanded tas
   return JSON.parse(result.content[0].text);
  };
  const snapshot=await call('list_tasks');
- expect(snapshot.tasks.find(t=>t.id===taskId)).toMatchObject({plannedDate:today,durationMinutes:42,responsibility:'ChatGPT',commitmentType:'fixed'});
+ expect(snapshot.tasks.find(t=>t.id===taskId)).toMatchObject({plannedDate:today,durationMinutes:42,responsibility:'ChatGPT',commitmentType:'fixed',area:'Hangar47'});
  const requestId=crypto.randomUUID();
- const created=await call('create_task',{request_id:requestId,title:'MCP synthetic '+requestId,status:'In progress',plannedDate:today,durationMinutes:15,responsibility:'Collaborative',commitmentType:'flexible',notes:'MCP test note',progressNotes:'MCP test progress',conversationUrl:'https://example.org/chat',resourceUrl:'https://example.org/file'});
- expect(created.task).toMatchObject({id:requestId,status:'In progress',plannedDate:today,durationMinutes:15,notes:'MCP test note'});
+ const created=await call('create_task',{request_id:requestId,title:'MCP synthetic '+requestId,status:'In progress',plannedDate:today,durationMinutes:15,responsibility:'Collaborative',area:'Personal Training',commitmentType:'flexible',notes:'MCP test note',progressNotes:'MCP test progress',conversationUrl:'https://example.org/chat',resourceUrl:'https://example.org/file'});
+ expect(created.task).toMatchObject({id:requestId,status:'In progress',plannedDate:today,durationMinutes:15,area:'Personal Training',notes:'MCP test note'});
  const updated=await call('update_task',{id:requestId,expected_version:created.task.version,progressNotes:'MCP updated progress'});
- expect(updated.task).toMatchObject({plannedDate:today,durationMinutes:15,notes:'MCP test note',progressNotes:'MCP updated progress',resourceUrl:'https://example.org/file'});
+ expect(updated.task).toMatchObject({plannedDate:today,durationMinutes:15,area:'Personal Training',notes:'MCP test note',progressNotes:'MCP updated progress',resourceUrl:'https://example.org/file'});
 });
