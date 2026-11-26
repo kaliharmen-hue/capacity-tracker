@@ -2,8 +2,36 @@
 [hidden]{display:none!important}*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:#203047;font:16px system-ui}main{max-width:1050px;margin:auto;padding:24px}h1{margin-bottom:4px}p{color:#526477}section{background:white;border:1px solid #dce3ea;border-radius:12px;padding:18px;margin:16px 0}input,select,button{font:inherit;padding:10px;border:1px solid #b9c6d2;border-radius:7px;max-width:100%}button{cursor:pointer;background:white}button.primary{background:#244e68;color:white}form,nav,.task{display:flex;gap:10px;flex-wrap:wrap;align-items:center}form input{flex:1;min-width:180px}.task{padding:12px 0;border-bottom:1px solid #e4e8ec}.task strong{flex:1;min-width:180px}.task input{width:150px}nav button[aria-pressed=true]{background:#244e68;color:white}small{color:#526477}@media(max-width:600px){main{padding:12px}.task strong{flex-basis:100%}}
 .task-details{flex:0 0 100%;border:1px solid #dce3ea;border-radius:8px;padding:12px;background:#f8fafc}.task-details summary{cursor:pointer;font-weight:600}.task-details[open]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.task-details summary{grid-column:1/-1}.task-details label{display:flex;flex-direction:column;gap:5px;font-size:14px;color:#34485d;min-width:0}.task-details input,.task-details select,.task-details textarea{width:100%;min-width:0;font:inherit;padding:9px;border:1px solid #b9c6d2;border-radius:7px;background:white;color:#203047}.task-details textarea{resize:vertical}.task-details a{overflow-wrap:anywhere;color:#244e68}#conflict pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid #244e68;outline-offset:2px}@media(max-width:600px){.task-details[open]{grid-template-columns:1fr}}
 </style>
+<style>
+.routine-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.routine-card{min-width:0;border:1px solid #dce3ea;border-radius:10px;padding:14px;background:#f8fafc;display:flex;flex-direction:column;gap:10px}.routine-card h3{margin:0;font-size:18px}.routine-card p{margin:0}.routine-actions{display:flex;gap:8px;flex-wrap:wrap}.routine-actions a{display:inline-block;padding:10px;border:1px solid #244e68;border-radius:7px;text-decoration:none}.routine-actions a.primary{background:#244e68;color:white}.routine-card details summary{cursor:pointer;font-size:14px;font-weight:600}.routine-card textarea{display:block;width:100%;min-height:170px;margin-top:8px;padding:9px;border:1px solid #b9c6d2;border-radius:7px;font:14px/1.45 system-ui;color:#203047;resize:vertical}.routine-status{min-height:1.25em;margin:0;font-size:14px;color:#244e68}@media(max-width:760px){.routine-grid{grid-template-columns:1fr}.routine-actions>*{flex:1 1 130px}}
+</style>
 <main>
 <h1>Personal Planner</h1>
+<section id="daily-routines" aria-labelledby="daily-routines-heading">
+<h2 id="daily-routines-heading">Daily routines</h2>
+<p>These reusable workflows stay here and never enter the task list. Open ChatGPT and choose the Personal Planner project; copy the matching prompt if you need to paste it into a new conversation.</p>
+<div class="routine-grid">
+<article class="routine-card">
+<h3>Personal morning opening</h3>
+<p>Choose a realistic personal focus for today, with existing commitments and capacity in mind.</p>
+<div class="routine-actions"><a class="primary" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" aria-label="Open ChatGPT for Personal morning opening">Open ChatGPT</a><button type="button" class="copy-routine" data-prompt="personal-morning-prompt" aria-label="Copy Personal morning opening prompt">Copy prompt</button></div>
+<details><summary>View or copy prompt manually</summary><textarea id="personal-morning-prompt" readonly aria-label="Personal morning opening prompt">Run my Personal morning opening in the Personal Planner project. Read my current Personal Planner tasks first. Check today's calendar and relevant Personal OS capacity information if those connections are available. Keep fixed commitments and real deadlines distinct from flexible tasks, avoid inventing dates or durations, and recommend a small realistic set of priorities. Identify anything you can take on now. Do not create a recurring routine task or mark this routine complete.</textarea></details>
+</article>
+<article class="routine-card">
+<h3>Hangar47 workday opening</h3>
+<p>Set a focused H47 workday plan and identify work ChatGPT can move forward.</p>
+<div class="routine-actions"><a class="primary" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" aria-label="Open ChatGPT for Hangar47 workday opening">Open ChatGPT</a><button type="button" class="copy-routine" data-prompt="h47-opening-prompt" aria-label="Copy Hangar47 workday opening prompt">Copy prompt</button></div>
+<details><summary>View or copy prompt manually</summary><textarea id="h47-opening-prompt" readonly aria-label="Hangar47 workday opening prompt">Run my Hangar47 workday opening in the Personal Planner project. Read current planner tasks for H47 and client work. Check today's calendar and relevant connected work context if available. Identify fixed commitments, genuine deadlines, dependencies and a small realistic set of priorities for the workday. Suggest work ChatGPT can complete or prepare now. Do not invent time estimates or schedule every open task. Do not create a recurring routine task or mark this routine complete.</textarea></details>
+</article>
+<article class="routine-card">
+<h3>Hangar47 workday shutdown</h3>
+<p>Review what happened, capture genuine follow-ups and leave a clear next step.</p>
+<div class="routine-actions"><a class="primary" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" aria-label="Open ChatGPT for Hangar47 workday shutdown">Open ChatGPT</a><button type="button" class="copy-routine" data-prompt="h47-shutdown-prompt" aria-label="Copy Hangar47 workday shutdown prompt">Copy prompt</button></div>
+<details><summary>View or copy prompt manually</summary><textarea id="h47-shutdown-prompt" readonly aria-label="Hangar47 workday shutdown prompt">Run my Hangar47 workday shutdown in the Personal Planner project. Review today's H47 work and planner tasks. Ask me to confirm anything unclear before marking it complete or changing its status. Capture only genuine follow-ups, decisions and waiting items, preserve confirmed deadlines, and recommend a clear next action for unfinished work without automatically carrying every item forward. Identify any work ChatGPT can continue. Do not create a recurring routine task or mark this routine complete.</textarea></details>
+</article>
+</div>
+<p id="routine-status" class="routine-status" role="status" aria-live="polite"></p>
+</section>
 <section aria-label="Cloud sync">
 <p id="account-status" aria-live="polite">Checking connection…</p>
 <details><summary>Settings</summary>
